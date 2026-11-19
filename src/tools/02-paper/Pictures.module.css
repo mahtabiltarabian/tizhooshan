@@ -1,0 +1,27 @@
+.svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  direction: ltr;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.steps figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.steps figcaption {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  direction: rtl;
+}

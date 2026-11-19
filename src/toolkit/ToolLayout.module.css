@@ -1,0 +1,634 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header header"
+    "stage side"
+    "controls side";
+  gap: 16px;
+  height: 100vh;
+  padding: 16px;
+}
+
+/* Classroom mode: larger text needs a wider side panel. */
+:global(html[data-classroom="on"]) .layout {
+  grid-template-columns: minmax(0, 1fr) 400px;
+}
+
+.header {
+  grid-area: header;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--toy-4);
+  color: #fff;
+}
+
+.back {
+  color: var(--ink-soft);
+}
+
+.tabs {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.tabs button {
+  min-height: var(--tap);
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.tabs button[aria-selected="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.teacher {
+  display: flex;
+  gap: 6px;
+}
+
+.teacher > button,
+.teacher > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.teacher > button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.stageWrap {
+  grid-area: stage;
+  min-height: 0;
+  display: flex;
+}
+
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.slider {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.slider input {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 32px;
+}
+
+.percent {
+  min-width: 3.5em;
+  color: var(--ink-soft);
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.buttons button {
+  min-height: var(--tap);
+  padding: 0 22px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.buttons button + button {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Side panel: drawing grid in explore mode, net gallery in gallery mode. */
+
+.side {
+  grid-area: side;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.side h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.status {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  border-inline-start: 4px solid;
+}
+
+.info {
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.warn {
+  background: #fff1e6;
+  border-color: var(--toy-6);
+}
+
+.good {
+  background: #e7f7ee;
+  border-color: var(--toy-3);
+  font-weight: 700;
+}
+
+.clear {
+  width: 100%;
+  min-height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.progress {
+  margin-top: 20px !important;
+}
+
+.netList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.netList li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px 2px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.found {
+  background: #e7f7ee;
+}
+
+.hidden {
+  background: var(--bg);
+  color: var(--ink-soft);
+}
+
+.mystery {
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row > button {
+  flex: 1;
+}
+
+.primary {
+  min-height: var(--tap);
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Show-me mode */
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player > button {
+  width: var(--tap);
+  height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 1.1rem;
+}
+
+.player > .playButton {
+  width: calc(var(--tap) * 1.25);
+  border: none;
+  background: var(--accent);
+  color: #fff;
+}
+
+.player > .speed {
+  width: auto;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.stepText {
+  min-width: 7.5em;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.titleRow h2 {
+  margin: 0 !important;
+}
+
+.toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.diagram {
+  display: grid;
+  place-items: center;
+  padding: 8px 0;
+}
+
+.pairs {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+
+.pairs li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(31, 36, 48, 0.9);
+}
+
+.rules {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 12px;
+  font-size: 0.88rem;
+}
+
+.rules p {
+  margin: 0 0 6px;
+}
+
+.rules p:last-child {
+  margin: 0;
+}
+
+.pick {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px 2px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 0.8rem;
+}
+
+.pick.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.side svg {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 50vh auto auto;
+    grid-template-areas:
+      "header"
+      "stage"
+      "controls"
+      "side";
+    height: auto;
+  }
+
+  .tabs {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+
+  .tabs button {
+    flex: 1;
+  }
+
+  .player {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .buttons {
+    width: 100%;
+  }
+
+  .buttons button {
+    flex: 1;
+  }
+}
+
+/* Shared by tools with a 3D board (tool 6 and later). */
+
+.note {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.viewButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viewButtons button {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.playSmall {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.views {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.views figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.views figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.chipsRow {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.chipsRow button {
+  flex: 1;
+  min-height: var(--tap);
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.chipsRow button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.paintList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.paintList button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: start;
+}
+
+.paintList button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.paintList small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+/* Tool 2: fold choices, each a small picture of the fold with its name. */
+.foldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.foldGrid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--tap);
+  padding: 6px 4px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.foldGrid button:hover,
+.foldGrid button:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Tool 1: a value between two step buttons. */
+.stepperLabel {
+  flex: 1;
+  align-self: center;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* A small grid of choices (radio buttons), three to a row. */
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.choiceGrid button {
+  min-height: 40px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.choiceGrid button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+/* Tool 5: the counting table, filled in as the shapes are shown. */
+.countTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.countTable th,
+.countTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+}
+
+.countTable tr[aria-current="step"] td {
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+
+.countTable tfoot td {
+  font-weight: 700;
+  border-bottom: none;
+}

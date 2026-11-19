@@ -1,0 +1,119 @@
+/* Stacked fractions in running Persian text, and the fraction answer entry. */
+
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 0.2em;
+  line-height: 1.15;
+  font-size: 0.95em;
+  font-weight: 700;
+}
+
+.frac > span {
+  padding: 0 0.2em;
+}
+
+.frac > span:first-child {
+  border-bottom: 2px solid currentColor;
+}
+
+.big {
+  font-size: 1.5em;
+}
+
+/* Equations stay left to right inside Persian text. */
+.eq {
+  unicode-bidi: isolate;
+  direction: ltr;
+  white-space: nowrap;
+}
+
+.rich {
+  line-height: 2.3;
+}
+
+.fracEntry {
+  display: flex;
+  justify-content: center;
+}
+
+.fracEntry > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.slot {
+  min-width: 84px;
+  min-height: 48px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.slot[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.bar {
+  width: 96px;
+  height: 3px;
+  background: var(--ink, #1f2430);
+  border-radius: 2px;
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.choice button {
+  min-height: 72px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.choice button[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.steps {
+  list-style-type: persian;
+  margin: 0;
+  padding-inline-start: 1.4em;
+  font-size: 0.88rem;
+  line-height: 2.2;
+}
+
+.steps li {
+  color: var(--ink-soft);
+}
+
+.steps li[data-on="true"] {
+  color: inherit;
+  font-weight: 700;
+}
+
+.steps li[data-on="false"] {
+  opacity: 0.45;
+}
+
+.paperFracs {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  font-size: 1.3rem;
+}

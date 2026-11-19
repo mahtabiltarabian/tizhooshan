@@ -1,0 +1,146 @@
+/* Tool 17: the list of found arrangements, steps, and the fraction entry. */
+
+.found {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.found li {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.found li[data-new="true"] {
+  border-color: #1d8a55;
+  background: #e7f7ee;
+}
+
+/* A repeat: pale, dashed, struck through and marked in words. */
+.found li[data-repeat="true"] {
+  border-style: dashed;
+  background: #f4f1ec;
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+.num {
+  min-width: 1.4em;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.repeatTag {
+  font-size: 0.72rem;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.tok {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink, #1f2430);
+  color: #1f2430;
+  font-size: 0.85rem;
+}
+
+.found li[data-repeat="true"] .tok {
+  background: #fff !important;
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+
+.route {
+  unicode-bidi: isolate;
+  direction: ltr;
+  letter-spacing: 0.08em;
+}
+
+.counter {
+  font-size: 1.05rem;
+}
+
+.steps {
+  list-style-type: persian;
+  margin: 0;
+  padding-inline-start: 1.4em;
+  font-size: 0.88rem;
+  line-height: 2.1;
+}
+
+.steps li {
+  color: var(--ink-soft);
+}
+
+.steps li[data-on="true"] {
+  color: inherit;
+  font-weight: 700;
+}
+
+.steps li[data-on="true"]::marker {
+  content: "▸ ";
+}
+
+.steps li[data-on="false"] {
+  opacity: 0.45;
+}
+
+.fracEntry {
+  display: flex;
+  justify-content: center;
+}
+
+.fracEntry > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.slot {
+  min-width: 84px;
+  min-height: 48px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.slot[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.bar {
+  width: 96px;
+  height: 3px;
+  background: var(--ink, #1f2430);
+  border-radius: 2px;
+}
+
+.paperFig {
+  display: flex;
+  justify-content: center;
+}
+
+.paperFig svg {
+  max-width: 100%;
+  height: auto;
+}

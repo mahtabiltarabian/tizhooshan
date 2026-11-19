@@ -1,0 +1,206 @@
+/* Tool 18 only: the letter keyboard, the shape pad, answer slots and the
+   letter boxes of the worksheet. */
+
+/* 32 keys in alphabet order, right to left, 8 to a row. */
+.keyboard {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.keyboard button,
+.shapePad button {
+  min-height: 40px;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.keyboard button:not(:disabled):hover,
+.keyboard button:focus-visible,
+.shapePad button:not(:disabled):hover,
+.shapePad button:focus-visible {
+  border-color: var(--accent);
+}
+
+.keyboard .wide {
+  grid-column: span 3;
+  font-size: 0.85rem;
+}
+
+.shapePad {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.shapePad button {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+}
+
+/* Answer slots: a box per letter, right to left; the one with the cursor is
+   thick and dashed with a ▲ under it. */
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  padding: 4px 0 16px;
+}
+
+.slotWord {
+  display: flex;
+  gap: 3px;
+}
+
+.slot {
+  position: relative;
+  min-width: 2.1rem;
+  height: 2.4rem;
+  padding: 0 3px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 1.3rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+/* After the check the slots are read-only but must stay readable. */
+.slot:disabled {
+  opacity: 1;
+  color: inherit;
+}
+
+.slot[aria-current="true"] {
+  border: 3px dashed var(--accent);
+}
+
+.slot[aria-current="true"]::after {
+  content: "▲";
+  position: absolute;
+  bottom: -15px;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+
+.slot .mark {
+  position: absolute;
+  bottom: -17px;
+  font-size: 0.8rem;
+}
+
+.gap {
+  width: 0.8rem;
+}
+
+.knob {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.knob > span {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.knob > div {
+  flex: 1;
+}
+
+.pairList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  margin: 6px 0;
+}
+
+.pairList label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.pairList select {
+  flex: 1;
+  min-height: 40px;
+  font-size: 1.1rem;
+}
+
+.word {
+  margin: 4px 0;
+  min-height: 2.4rem;
+  padding: 2px 10px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Worksheet */
+.boxes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  margin: 6px 0;
+}
+
+.box {
+  min-width: 1.9em;
+  height: 1.9em;
+  padding: 0 2px;
+  border: 1.5px solid #333;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.blank {
+  border-style: dashed;
+}
+
+.arrow {
+  margin: 0 4px;
+  font-weight: 700;
+}
+
+.keyTable {
+  margin: 6px auto;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.keyTable td {
+  border: 1px solid #555;
+  min-width: 1.45em;
+  padding: 1px 2px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.keyTable tr.codes td {
+  border-top-style: dashed;
+}
+
+.rule {
+  margin: 4px 0;
+  font-size: 0.85rem;
+  text-align: center;
+}

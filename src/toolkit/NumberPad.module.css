@@ -1,0 +1,40 @@
+.pad {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.display {
+  display: block;
+  min-height: 52px;
+  padding: 4px 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* Keys run 1 2 3 left to right, like a phone, in both directions. */
+.keys {
+  direction: ltr;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.keys button {
+  min-height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.keys button:not(:disabled):hover,
+.keys button:focus-visible {
+  border-color: var(--accent);
+}

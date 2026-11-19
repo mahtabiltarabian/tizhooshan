@@ -1,0 +1,35 @@
+.svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto;
+  direction: ltr; /* geometry: x grows to the right, as on the board */
+}
+
+.grid button {
+  aspect-ratio: 1;
+  min-height: 0;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.grid button.filled {
+  background: #cfe0ff;
+  border-color: #1f2430;
+}
+
+.grid button:disabled {
+  cursor: default;
+}

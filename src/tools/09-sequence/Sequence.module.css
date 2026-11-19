@@ -1,0 +1,102 @@
+/* Tool 9 only: rule cards in "explore" and the term boxes on the worksheet. */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.card {
+  min-height: 64px;
+  padding: 4px 2px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.card[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.cardSymbol {
+  font-size: 1.15rem;
+  min-height: 1.6rem;
+  line-height: 1.2;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.cardName {
+  font-size: 0.72rem;
+}
+
+.strand {
+  margin: 8px 0;
+  padding: 8px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+}
+
+.strandB {
+  border-style: dashed;
+}
+
+.strand h3 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+
+.paramName {
+  flex: 0 0 6.2em;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.seqLine {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 6px 0;
+  line-height: 1.8;
+}
+
+/* Worksheet */
+.seqRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 10px 0 4px;
+}
+
+.box {
+  min-width: 2.1em;
+  padding: 3px 4px;
+  border: 1.5px solid #333;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.gap {
+  border-style: dashed;
+  border-width: 2px;
+  color: #777;
+}
+
+/* A lone "+" or "×" reads better big. */
+.cardBig {
+  font-size: 1.7rem;
+}

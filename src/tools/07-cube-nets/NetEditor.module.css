@@ -1,0 +1,42 @@
+.grid {
+  width: 100%;
+  max-width: 280px;
+  display: block;
+  margin: 0 auto;
+  touch-action: manipulation;
+}
+
+.cell {
+  cursor: pointer;
+  outline: none;
+}
+
+.cell:focus-visible rect:first-child {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.empty {
+  fill: var(--bg);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.cell:hover .empty {
+  fill: var(--accent-soft);
+}
+
+.filled {
+  stroke: rgba(31, 36, 48, 0.35);
+  stroke-width: 1.5;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 20px;
+  fill: #fff;
+  stroke: rgba(31, 36, 48, 0.85);
+  stroke-width: 3px;
+  paint-order: stroke;
+  pointer-events: none;
+}

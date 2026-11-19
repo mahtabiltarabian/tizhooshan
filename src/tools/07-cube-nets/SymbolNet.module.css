@@ -1,0 +1,73 @@
+.net {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  font-family: "Vazirmatn", sans-serif;
+}
+
+.cell rect {
+  fill: #fffaf0;
+  stroke: #1f2430;
+  stroke-width: 2;
+}
+
+.cell text {
+  fill: #1f2430;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.pickable {
+  cursor: pointer;
+  outline: none;
+}
+
+.pickable:hover rect,
+.pickable:focus-visible rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+
+/* Marks use thick or dashed borders and a badge symbol, never colour alone. */
+.target rect {
+  fill: #fff3c4;
+  stroke-width: 5;
+  stroke-dasharray: 8 5;
+}
+
+.selected rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 5;
+}
+
+.correct rect {
+  fill: #e7f7ee;
+  stroke: #1d8a55;
+  stroke-width: 5;
+}
+
+.turned rect {
+  fill: #fff6db;
+  stroke: #c98a00;
+  stroke-width: 5;
+  stroke-dasharray: 6 4;
+}
+
+.wrong rect {
+  fill: #f4f1ec;
+  stroke: #6b6f7a;
+  stroke-width: 5;
+}
+
+.missed rect {
+  fill: #e7f7ee;
+  stroke: #1d8a55;
+  stroke-width: 4;
+  stroke-dasharray: 3 4;
+}
+
+.badge {
+  text-anchor: middle;
+}

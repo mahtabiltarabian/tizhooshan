@@ -1,0 +1,148 @@
+/* Tool 20: condition cards and the candidates table. Every state has its own
+   icon and border style, not colour alone. */
+
+.cards {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.cards li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.cards .num {
+  font-weight: 700;
+  color: var(--ink-soft);
+  min-width: 1.2em;
+}
+
+.cards .mark {
+  font-weight: 800;
+  min-width: 1.1em;
+  text-align: center;
+}
+
+.cards .ok {
+  border-color: #1d8a55;
+  background: #e7f7ee;
+}
+
+.cards .no {
+  border-color: #b3261e;
+  border-style: dashed;
+  background: #fdecea;
+}
+
+.cards .now {
+  border-color: var(--accent);
+  border-width: 3px;
+}
+
+.cards .later {
+  opacity: 0.55;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin: 6px 0 10px;
+}
+
+.grid th,
+.grid td {
+  border: 1px solid var(--line);
+  text-align: center;
+  padding: 2px 1px;
+}
+
+.grid th[scope="row"] {
+  text-align: start;
+  padding-inline-start: 4px;
+  white-space: nowrap;
+}
+
+.grid .yes {
+  font-weight: 800;
+}
+
+.grid .sure {
+  background: #e7f7ee;
+  font-weight: 800;
+  outline: 2px solid #1d8a55;
+  outline-offset: -2px;
+}
+
+.grid .gone {
+  color: #b9b2a5;
+}
+
+.count {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 4px 0 8px;
+}
+
+.names {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.names button {
+  min-height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.names button:disabled {
+  opacity: 1;
+  color: var(--ink);
+}
+
+.names button[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  border-width: 3px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.stepper > span:first-child {
+  min-width: 6.5em;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.stepper button {
+  width: 40px;
+  min-height: 40px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-weight: 800;
+}
+
+.stepper output {
+  min-width: 2.2em;
+  text-align: center;
+  font-weight: 800;
+}

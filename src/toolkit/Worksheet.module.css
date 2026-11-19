@@ -1,0 +1,268 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.controls {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.controls h1 {
+  margin: 4px 0 12px;
+  font-size: 1.4rem;
+}
+
+.back {
+  color: var(--ink-soft);
+}
+
+.controls fieldset {
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 4px 12px;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline select,
+.inline button {
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font: inherit;
+  font-weight: 700;
+}
+
+.inline .print {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* The sheet itself: plain black on white, as it will print. */
+.sheet {
+  padding: 24px;
+  background: #fff;
+  color: #000;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+
+.sheetHeader h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.sheetHeader p {
+  margin: 6px 0 16px;
+}
+
+.questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.card {
+  padding: 10px 12px;
+  border: 1.5px solid #222;
+  border-radius: 10px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.prompt {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  font-weight: 700;
+}
+
+.qNum {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  margin-inline-end: 4px;
+  border: 1.5px solid #222;
+  border-radius: 50%;
+  font-size: 0.85rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.choices {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+/* Four nets read better two by two. */
+.netChoices {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 8px;
+}
+
+.choices li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.choices svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.choiceNum {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.symbols {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+}
+
+.code {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.answers {
+  margin-top: 24px;
+}
+
+.answers h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.answerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+}
+
+.answerList li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .questions,
+  .answerList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  :global(html),
+  :global(body) {
+    background: #fff;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .controls {
+    display: none;
+  }
+
+  /* A little inner padding so card borders are not clipped at the page edge. */
+  .sheet {
+    padding: 0 3px;
+    box-shadow: none;
+  }
+
+  .card {
+    min-width: 0;
+  }
+
+  .answers {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 0;
+  }
+}
+
+.caption {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.bigNum {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+/* Empty height grid to write numbers in. */
+.answerGrid {
+  max-width: 150px;
+  margin: 8px auto 0;
+}
+
+/* Small solution grid in the answer key. */
+.keyGrid {
+  display: inline-block;
+  width: 96px;
+  vertical-align: middle;
+}
+
+.keyGrid button {
+  font-size: 0.8rem;
+  border-radius: 6px;
+}

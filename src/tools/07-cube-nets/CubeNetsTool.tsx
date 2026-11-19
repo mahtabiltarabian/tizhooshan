@@ -1,0 +1,465 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { analyzeShape, CUBE_NETS, oppositePairs, pairReason, shapeKey, type Cell } from "@/generators/cube-nets";
+import { makeQuestion, type Level, type QuestionType } from "@/generators/cube-questions";
+import { newSeed } from "@/generators/random";
+import { TYPE_LABEL, TryPanel, type Display } from "./TryPanel";
+import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
+import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
+import { CUBE_NETS_GUIDE } from "./guide";
+import { Stage } from "@/engine-3d/Stage";
+import { fa } from "@/tools/registry";
+import { FOLD_STEPS, FoldingNet } from "./FoldingNet";
+import { GRID, NetEditor } from "./NetEditor";
+import { NetThumb } from "./NetThumb";
+import styles from "@/toolkit/ToolLayout.module.css";
+
+const DIGITS = ["۱", "۲", "۳", "۴", "۵", "۶"];
+const PAIR_DIGITS = ["۱", "۲", "۳"];
+const PAIR_COLORS = ["#4d96ff", "#ff9f45", "#4cc38a"];
+/** Seconds per fold step. */
+const STEP_SECONDS = { normal: 0.9, slow: 2.2 };
+
+type Mode = "explore" | "show" | "try";
+const PALE = Array(6).fill("#fffaf0");
+
+/** "x,y;x,y;..." from a link into up to 6 distinct cells on the grid, or null. */
+function parseShape(text: string | null): Cell[] | null {
+  if (!text) return null;
+  const cells: Cell[] = [];
+  for (const part of text.split(";")) {
+    const [x, y] = part.split(",").map(Number);
+    const ok = Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < GRID && y < GRID;
+    if (ok && !cells.some((c) => c[0] === x && c[1] === y)) cells.push([x, y]);
+  }
+  return cells.length ? cells.slice(0, 6) : null;
+}
+
+/** Status line for the explore panel, plus whether folding is allowed. */
+function describe(status: ReturnType<typeof analyzeShape>, isNew: boolean): { text: string; tone: "info" | "warn" | "good"; canFold: boolean } {
+  switch (status.kind) {
+    case "incomplete":
+      return {
+        text: status.count === 0 ? "شش مربع روی صفحه بگذار؛ مربع‌ها باید ضلع به ضلع کنار هم باشند." : `${fa(status.count)} از ۶ مربع`,
+        tone: "info",
+        canFold: false,
+      };
+    case "disconnected":
+      return { text: "همه مربع‌ها باید ضلع به ضلع به هم وصل باشند.", tone: "warn", canFold: false };
+    case "overlap": {
+      const pairs = status.pairs.map(([a, b]) => `وجه ${DIGITS[a]} روی ${DIGITS[b]}`).join(" و ");
+      return { text: `این شکل مکعب نمی‌شود: ${pairs} می‌افتد. «تا کن» را بزن و ببین.`, tone: "warn", canFold: true };
+    }
+    case "valid":
+      return {
+        text: isNew
+          ? `آفرین! گسترده شماره ${fa(status.netIndex + 1)} را کشف کردی.`
+          : `این گسترده شماره ${fa(status.netIndex + 1)} است؛ قبلاً پیدایش کرده بودی.`,
+        tone: "good",
+        canFold: true,
+      };
+  }
+}
+
+/** Short status for the step counter under the 3D stage. */
+function stepText(t: number): string {
+  if (t <= 0) return "آماده";
+  if (t >= 1) return "مکعب بسته شد";
+  return `گام ${fa(Math.ceil(t * FOLD_STEPS - 1e-6))} از ${fa(FOLD_STEPS)}`;
+}
+
+export function CubeNetsTool() {
+  const [mode, setMode] = useState<Mode>("explore");
+  const [t, setT] = useState(0);
+  const [classroom, setClassroom] = useClassroom();
+
+  // Explore mode. Discoveries live only in memory: nothing about the child is stored.
+  const [drawn, setDrawn] = useState<Cell[]>([]);
+  const [found, setFound] = useState<Set<number>>(() => new Set());
+  const [lastNew, setLastNew] = useState(false);
+
+  // Show-me mode.
+  const [showCells, setShowCells] = useState<readonly Cell[]>(CUBE_NETS[0]);
+  const [pairsOn, setPairsOn] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  // Try-it mode. Answers are never stored or scored.
+  const [tryType, setTryType] = useState<QuestionType>("makes");
+  const [tryLevel, setTryLevel] = useState<Level>(1);
+  const [seed, setSeed] = useState(1405);
+  const [initialPick, setInitialPick] = useState<number | undefined>(undefined);
+  const question = useMemo(() => makeQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+  // What the try-it panel wants the 3D net to show (a blank face, the child's own placement…).
+  const [tryDisplay, setTryDisplay] = useState<Display | null>(null);
+
+  const status = useMemo(() => analyzeShape(drawn), [drawn]);
+  const info = describe(status, lastNew);
+  const marked = status.kind === "overlap" ? [...new Set(status.pairs.flat())] : [];
+
+  const pairs = useMemo(() => oppositePairs(showCells), [showCells]);
+  const pairOf = useMemo(() => {
+    const p: number[] = [];
+    pairs.forEach(([a, b], k) => (p[a] = p[b] = k));
+    return p;
+  }, [pairs]);
+  const showKey = shapeKey(showCells);
+
+  const cells = mode === "show" ? showCells : mode === "try" ? (tryDisplay?.cells ?? question.net.cells) : drawn;
+  const pairView = mode === "show" && pairsOn;
+  const labels = useMemo(() => {
+    if (mode === "try") return tryDisplay?.symbols ?? question.net.symbols;
+    return pairView ? cells.map((_, i) => PAIR_DIGITS[pairOf[i]]) : DIGITS.slice(0, cells.length);
+  }, [mode, question, tryDisplay, pairView, cells, pairOf]);
+  const colors = useMemo(() => {
+    if (mode === "try") return PALE;
+    return pairView ? cells.map((_, i) => PAIR_COLORS[pairOf[i]]) : undefined;
+  }, [mode, pairView, cells, pairOf]);
+
+  // Playback for show-me: advance t until the cube is closed.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0;
+    let last = performance.now();
+    const perStep = slow ? STEP_SECONDS.slow : STEP_SECONDS.normal;
+    const tick = (now: number) => {
+      const next = Math.min(1, tRef.current + (now - last) / 1000 / (perStep * FOLD_STEPS));
+      last = now;
+      setT(next);
+      if (next >= 1) setPlaying(false);
+      else frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, slow]);
+
+  // Shareable links (handy for teachers' slides):
+  //   #shape=1,0;0,1;1,1&fold   explore with that shape drawn, optionally folded
+  //   #show=10&pairs=0&t=0.4     show-me on net 10, pairs off, 40% folded
+  //   #folded                    show-me, cube closed
+  //   #try=makes&level=2&seed=7  try-it: that exact example (pick=n shows answer n)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    // #classroom: board shortcut. Full screen still needs a tap (browser rule).
+    if (params.has("classroom")) applyClassroom(true);
+    const shape = parseShape(params.get("shape"));
+    const show = Number(params.get("show"));
+    const tryParam = params.get("try");
+    if (!shape && !params.has("show") && !params.has("folded") && !tryParam) return;
+    const timer = setTimeout(() => {
+      if (tryParam) {
+        setMode("try");
+        if (tryParam in TYPE_LABEL) setTryType(tryParam as QuestionType);
+        const lv = Number(params.get("level"));
+        if (lv === 1 || lv === 2 || lv === 3) setTryLevel(lv);
+        const sd = Number(params.get("seed"));
+        if (Number.isInteger(sd) && sd >= 0) setSeed(sd);
+        const pk = Number(params.get("pick"));
+        if (params.has("pick") && Number.isInteger(pk) && pk >= 1 && pk <= 6) {
+          setInitialPick(pk - 1);
+          setT(1);
+        }
+        return;
+      }
+      if (shape) {
+        setDrawn(shape);
+        const s = analyzeShape(shape);
+        if (s.kind === "valid") setFound(new Set([s.netIndex]));
+        setLastNew(true);
+        setT(params.has("fold") ? 1 : 0);
+        return;
+      }
+      setMode("show");
+      if (show >= 1 && show <= CUBE_NETS.length) setShowCells(CUBE_NETS[show - 1]);
+      if (params.get("pairs") === "0") setPairsOn(false);
+      const tt = Number(params.get("t"));
+      setT(params.has("folded") ? 1 : Number.isFinite(tt) ? Math.min(1, Math.max(0, tt)) : 0);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const toggle = ([x, y]: Cell) => {
+    const exists = drawn.some((c) => c[0] === x && c[1] === y);
+    if (!exists && drawn.length >= 6) return;
+    const next = exists ? drawn.filter((c) => c[0] !== x || c[1] !== y) : [...drawn, [x, y] as Cell];
+    setDrawn(next);
+    setT(0);
+    const s = analyzeShape(next);
+    if (s.kind === "valid") {
+      setLastNew(!found.has(s.netIndex));
+      setFound((f) => new Set(f).add(s.netIndex));
+    }
+  };
+
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setPlaying(false);
+    setT(0);
+  };
+
+  const openInShow = (net: readonly Cell[]) => {
+    setShowCells(net);
+    setMode("show");
+    setPlaying(false);
+    setT(0);
+  };
+
+  const stepTo = (dir: 1 | -1) => {
+    setPlaying(false);
+    const g = t * FOLD_STEPS;
+    const target = dir > 0 ? Math.floor(g + 1e-6) + 1 : Math.ceil(g - 1e-6) - 1;
+    setT(Math.min(FOLD_STEPS, Math.max(0, target)) / FOLD_STEPS);
+  };
+
+  const play = () => {
+    if (playing) return setPlaying(false);
+    if (t >= 1) setT(0);
+    setPlaying(true);
+  };
+
+  const freshQuestion = (type = tryType, level = tryLevel) => {
+    setTryType(type);
+    setTryLevel(level);
+    setSeed(newSeed());
+    setInitialPick(undefined);
+    setTryDisplay(null);
+    setPlaying(false);
+    setT(0);
+  };
+
+  // Answering folds the net, so the child sees why.
+  const onAnswered = useCallback(() => {
+    setT(0);
+    setPlaying(true);
+  }, []);
+  const onEdit = useCallback(() => {
+    setPlaying(false);
+    setT(0);
+  }, []);
+
+  const canFold = mode !== "explore" || info.canFold;
+
+  return (
+    <main className={styles.layout}>
+      <header className={styles.header}>
+        <Link href="/" className={styles.back}>
+          → همه ابزارها
+        </Link>
+        <h1>
+          <span className={styles.badge}>{fa(7)}</span> گسترده و تاس
+        </h1>
+        <div className={styles.tabs} role="tablist" aria-label="حالت ابزار">
+          <button role="tab" aria-selected={mode === "explore"} onClick={() => switchMode("explore")}>
+            کشف: خودت بساز
+          </button>
+          <button role="tab" aria-selected={mode === "show"} onClick={() => switchMode("show")}>
+            نشانم بده
+          </button>
+          <button role="tab" aria-selected={mode === "try"} onClick={() => switchMode("try")}>
+            امتحان کن
+          </button>
+        </div>
+        <div className={styles.teacher}>
+          <button aria-pressed={classroom} onClick={() => setClassroom(!classroom)}>
+            {classroom ? "خروج از حالت کلاس" : "حالت کلاس"}
+          </button>
+          <TeacherGuideButton guide={CUBE_NETS_GUIDE} />
+          <Link href={`/tools/cube-nets/worksheet?types=${tryType}&level=${tryLevel}`}>کاربرگ</Link>
+        </div>
+      </header>
+
+      <section className={styles.stageWrap} aria-label="صحنه سه‌بعدی">
+        <Stage imageName="cube-net">
+          <FoldingNet
+            cells={cells}
+            t={t}
+            labels={labels}
+            colors={colors}
+            marked={mode === "explore" ? marked : []}
+            sequential={mode !== "explore"}
+            turns={mode === "try" ? (tryDisplay?.turns ?? question.net.turns) : undefined}
+            ink={mode === "try" ? "dark" : "light"}
+          />
+        </Stage>
+      </section>
+
+      <section className={styles.controls}>
+        {mode !== "explore" && (
+          // Media controls keep the usual left-to-right order, as in Persian video players.
+          <div className={styles.player} dir="ltr" role="group" aria-label="پخش گام‌به‌گام">
+            <button onClick={() => stepTo(-1)} disabled={t <= 0} aria-label="گام قبل">
+              ⏮
+            </button>
+            <button className={styles.playButton} onClick={play} aria-label={playing ? "توقف" : "پخش"}>
+              {playing ? "⏸" : "▶"}
+            </button>
+            <button onClick={() => stepTo(1)} disabled={t >= 1} aria-label="گام بعد">
+              ⏭
+            </button>
+            <span className={styles.stepText} aria-live="polite">
+              {stepText(t)}
+            </span>
+            <button className={styles.speed} onClick={() => setSlow((s) => !s)} aria-pressed={slow}>
+              {slow ? "آهسته" : "عادی"}
+            </button>
+          </div>
+        )}
+        <label className={styles.slider}>
+          <span>تا کردن</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={t}
+            disabled={!canFold}
+            onChange={(e) => {
+              setPlaying(false);
+              setT(Number(e.target.value));
+            }}
+            aria-label="میزان تا شدن"
+          />
+          <span className={styles.percent}>{fa(Math.round(t * 100))}٪</span>
+        </label>
+        {mode === "explore" && (
+          <div className={styles.buttons}>
+            <button onClick={() => setT(1)} disabled={!canFold}>
+              تا کن
+            </button>
+            <button onClick={() => setT(0)}>باز کن</button>
+          </div>
+        )}
+      </section>
+
+      <aside className={styles.side}>
+        {mode === "try" ? (
+          <TryPanel
+            key={`${tryType}-${tryLevel}-${seed}`}
+            question={question}
+            type={tryType}
+            level={tryLevel}
+            initialPick={initialPick}
+            onType={(t) => freshQuestion(t, tryLevel)}
+            onLevel={(l) => freshQuestion(tryType, l)}
+            onNew={() => freshQuestion()}
+            onAnswered={onAnswered}
+            onEdit={onEdit}
+            onDisplay={setTryDisplay}
+          />
+        ) : mode === "explore" ? (
+          <>
+            <h2>شش مربع بچین</h2>
+            <NetEditor cells={drawn} labels={labels} marked={marked} onToggle={toggle} />
+            <p className={`${styles.status} ${styles[info.tone]}`} role="status" aria-live="polite">
+              {info.tone === "good" && "✓ "}
+              {info.tone === "warn" && "! "}
+              {info.text}
+            </p>
+            <div className={styles.row}>
+              {status.kind === "valid" && (
+                <button className={styles.primary} onClick={() => openInShow(drawn)}>
+                  نشانم بده
+                </button>
+              )}
+              <button
+                className={styles.clear}
+                onClick={() => {
+                  setDrawn([]);
+                  setT(0);
+                }}
+                disabled={!drawn.length}
+              >
+                پاک کن
+              </button>
+            </div>
+
+            <h2 className={styles.progress}>
+              کشف‌شده: {fa(found.size)} از {fa(11)}
+            </h2>
+            <ul className={styles.netList}>
+              {CUBE_NETS.map((net, i) => (
+                <li
+                  key={i}
+                  className={found.has(i) ? styles.found : styles.hidden}
+                  aria-label={found.has(i) ? `گسترده ${fa(i + 1)} کشف شد` : `گسترده ${fa(i + 1)} هنوز پیدا نشده`}
+                >
+                  {found.has(i) ? <NetThumb cells={net} size={44} /> : <span className={styles.mystery}>؟</span>}
+                  <span>{fa(i + 1)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <div className={styles.titleRow}>
+              <h2>وجه‌های روبرو</h2>
+              <button className={styles.toggle} onClick={() => setPairsOn((p) => !p)} aria-pressed={pairsOn}>
+                {pairsOn ? "جفت‌ها: روشن" : "جفت‌ها: خاموش"}
+              </button>
+            </div>
+
+            <div className={styles.diagram}>
+              <NetThumb cells={showCells} size={180} labels={labels} colors={colors} />
+            </div>
+
+            {pairsOn && pairs.every(([a, b]) => pairReason(showCells, a, b) === "fold") && (
+              <p className={`${styles.status} ${styles.info}`}>
+                در این گسترده هیچ سه مربعی در یک ردیف نیست، پس قانون ۲ کمکی نمی‌کند. «▶» را بزن و ببین هر جفت کجا روبروی هم قرار می‌گیرد.
+              </p>
+            )}
+
+            {pairsOn && pairs.some(([a, b]) => pairReason(showCells, a, b) === "row") && (
+              <ul className={styles.pairs}>
+                {pairs.map(([a, b], k) => (
+                  <li key={k}>
+                    <span className={styles.chip} style={{ background: PAIR_COLORS[k] }}>
+                      {PAIR_DIGITS[k]}
+                    </span>
+                    {pairReason(showCells, a, b) === "row"
+                      ? "در یک ردیف، با یک خانه فاصله (قانون ۲)"
+                      : "با تا کردن معلوم می‌شود؛ «▶» را بزن"}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className={styles.rules}>
+              <p>
+                <strong>قانون ۱:</strong> دو وجه که ضلع مشترک دارند هیچ‌وقت روبروی هم نیستند.
+              </p>
+              <p>
+                <strong>قانون ۲:</strong> دو وجه در یک ردیف که یک خانه بینشان فاصله است، روبروی هم هستند.
+              </p>
+            </div>
+
+            <h2 className={styles.progress}>یک گسترده انتخاب کن</h2>
+            <ul className={styles.netList}>
+              {CUBE_NETS.map((net, i) => {
+                const active = shapeKey(net) === showKey;
+                return (
+                  <li key={i}>
+                    <button
+                      className={`${styles.pick} ${active ? styles.active : ""}`}
+                      onClick={() => openInShow(net)}
+                      aria-label={`گسترده ${fa(i + 1)}`}
+                      aria-pressed={active}
+                    >
+                      <NetThumb cells={net} size={44} />
+                      <span>{fa(i + 1)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </aside>
+    </main>
+  );
+}

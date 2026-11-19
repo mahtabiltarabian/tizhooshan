@@ -1,0 +1,78 @@
+.bar {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 12px;
+  inset-inline-start: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.bar > button {
+  width: var(--tap);
+  min-height: var(--tap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.bar > button span {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.bar > button small {
+  font-size: 0.62rem;
+  color: var(--ink-soft);
+}
+
+.bar > button:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.bar > button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.bar > button:disabled {
+  opacity: 0.35;
+}
+
+.bar hr {
+  width: 70%;
+  margin: 2px auto;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.colors {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.colors button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.colors button[aria-checked="true"] {
+  box-shadow: 0 0 0 3px var(--ink);
+}

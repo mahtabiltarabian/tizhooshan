@@ -1,0 +1,45 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.layer svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.active {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.textMode {
+  cursor: text;
+}
+
+/* Text is anchored at its right edge (RTL), vertically centred on the tap. */
+.text,
+.input {
+  position: absolute;
+  transform: translate(-100%, -50%);
+  font-size: 1.35rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}
+
+.input {
+  min-width: 10em;
+  padding: 4px 8px;
+  border: 2px dashed currentColor;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  text-shadow: none;
+  outline: none;
+}

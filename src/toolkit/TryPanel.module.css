@@ -1,0 +1,244 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chips {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.chips button {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chips button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.types button {
+  min-height: 40px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.types button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.prompt {
+  margin: 4px 0 0;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.cube {
+  display: grid;
+  place-items: center;
+}
+
+.twoCubes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.twoCubes figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.twoCubes svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.twoCubes figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.palette button {
+  min-height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #fffaf0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.palette button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.palette .used {
+  opacity: 0.4;
+}
+
+.secondary {
+  min-height: var(--tap);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bigNumber {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.viewRow {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.viewRow figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.viewRow figcaption {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.option {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px 4px;
+  border: 3px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.option:not(:disabled):hover,
+.option:focus-visible {
+  border-color: var(--accent);
+}
+
+.option:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.option svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.optionNum {
+  font-weight: 700;
+}
+
+/* Three outcomes: each has its own icon and border, not colour alone. */
+.good {
+  border-color: #1d8a55 !important;
+  background: #e7f7ee;
+}
+
+.turned {
+  border-color: #c98a00 !important;
+  border-style: dashed !important;
+  background: #fff6db;
+}
+
+.bad {
+  border-color: #6b6f7a !important;
+  background: #f4f1ec;
+}
+
+.feedback {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid;
+  line-height: 1.8;
+  font-size: 0.92rem;
+}
+
+.icon {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.next {
+  min-height: var(--tap);
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
