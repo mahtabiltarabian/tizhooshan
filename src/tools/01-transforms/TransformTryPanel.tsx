@@ -4,17 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import {
   bounds,
   moveAll,
-  shapeKey,
+  paintMistake,
+  shiftLegs,
   stagedOps,
   type Figure,
   type Level,
   type MoveName,
   type Op,
+  type PaintQuestion,
+  type Pt,
   type TransformQuestion,
   type TransformQuestionType,
 } from "@/generators/transforms";
 import { fa } from "@/tools/registry";
-import { boxFor, FigureSvg } from "./Pictures";
+import { boxFor, countFrom, FigureSvg } from "./Pictures";
 import type { Rect } from "./Scene";
 import styles from "@/toolkit/TryPanel.module.css";
 
@@ -22,6 +25,7 @@ export const TRANSFORM_TYPE_LABEL: Record<TransformQuestionType, string> = {
   mirror: "تصویر در آینه",
   water: "تصویر در آب",
   rotate: "دوران",
+  shift: "انتقال",
   draw: "رسم روی شبکه",
   sequence: "دنباله چرخشی",
   combo: "چند تبدیل پشت‌سرهم",
@@ -53,6 +57,17 @@ const MOVE_WHY: Record<MoveName, string> = {
   ccw90: "در چرخش ۹۰ درجه پادساعتگرد، بالای شکل به سمت چپ می‌رود و شکل برعکس نمی‌شود.",
 };
 
+/** A slide in words, with arrows: «۳ خانه به راست → و ۲ خانه به بالا ↑». */
+export function vecText([dx, dy]: Pt, arrows = true): string {
+  const parts: string[] = [];
+  if (dx) parts.push(`${fa(Math.abs(dx))} خانه به ${dx > 0 ? "راست" : "چپ"}${arrows ? (dx > 0 ? " →" : " ←") : ""}`);
+  if (dy) parts.push(`${fa(Math.abs(dy))} خانه به ${dy > 0 ? "بالا" : "پایین"}${arrows ? (dy > 0 ? " ↑" : " ↓") : ""}`);
+  return parts.join(" و ");
+}
+
+/** Questions answered by colouring cells. */
+export const isPaint = (q: TransformQuestion): q is PaintQuestion => q.type === "draw" || (q.type === "shift" && q.form === "draw");
+
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
@@ -71,6 +86,8 @@ export interface SceneSetup {
   rightCells?: string[];
   /** Taps on the board colour cells. */
   paint?: boolean;
+  images?: Figure[];
+  count?: { from: Pt; legs: Pt[] };
 }
 
 const rectOf = (f: Figure): Rect => {
@@ -120,6 +137,24 @@ export function sceneFor(q: TransformQuestion, answered: boolean): SceneSetup {
         blanks: answered ? [] : [rectOf(frames[missing])],
       };
     }
+    case "shift": {
+      const grid = { x0: 0, y0: 0, x1: q.w, y1: q.h };
+      const legs = shiftLegs(q.vec);
+      const count = answered ? { from: countFrom(q.figure), legs: legs.map((o) => (o.kind === "shift" ? o.by : ([0, 0] as Pt))) } : undefined;
+      if (q.form === "vector") return { figure: q.figure, ops: legs, copy: answered, links: true, grid, images: [q.image], count };
+      return {
+        figure: q.figure,
+        ops: q.ops,
+        copy: answered,
+        given: q.ops.filter((o) => o.kind === "reflect"),
+        links: true,
+        plainLines: true,
+        grid,
+        rightCells: answered ? q.answer : undefined,
+        paint: !answered,
+        count,
+      };
+    }
     case "draw":
       return {
         figure: q.figure,
@@ -159,11 +194,40 @@ export function transformPrompt(q: TransformQuestion, paper = false): string {
       return paper ? "شکل ۱ با کدام تبدیل، شکل ۲ شده است؟" : "شکل زرد با کدام تبدیل، شکل کناری شده است؟";
     case "draw":
       return drawPrompt(q);
+    case "shift":
+      if (q.form === "vector")
+        return paper
+          ? "شکل بی‌هاشور با یک انتقال به جای شکل راه‌راه رفته است. هر خانه چند خانه و به کدام طرف رفته؟"
+          : "شکل زرد با یک انتقال به جای شکل راه‌راه رفته است. هر خانه چند خانه و به کدام طرف رفته؟ خانه‌ها را بشمار.";
+      if (q.ops.some((o) => o.kind === "reflect"))
+        return `اول شکل را ${vecText(q.vec)} ببر؛ بعد قرینه‌اش را نسبت به خط‌چین پیدا کن. فقط تصویر آخر را روی شبکه رنگ کن.`;
+      return `شکل را ${vecText(q.vec)} ببر و جای تازه‌اش را روی شبکه رنگ کن.`;
+  }
+}
+
+const SHIFT_WHY = "در انتقال هر خانه شکل به یک اندازه و یک جهت می‌رود؛ شکل نه می‌چرخد و نه برعکس می‌شود.";
+
+/** Feedback on a picked slide (which slide took the figure there?). */
+function vectorFeedback(q: Extract<TransformQuestion, { type: "shift"; form: "vector" }>, picked: number): { tone: Tone; text: string } {
+  const right = `جواب: ${vecText(q.vec)}.`;
+  if (picked === q.answer) return { tone: "good", text: `درست است! هر خانه ${vecText(q.vec)} رفته است. شمارش روی صفحه را ببین.` };
+  switch (q.mistakes[picked]) {
+    case "wrongWay":
+      return { tone: "turned", text: `نزدیک بود! جهت برعکس است: از شکل زرد به طرف شکل راه‌راه بشمار، نه برعکس. ${right}` };
+    case "offByOne":
+      return { tone: "turned", text: `نزدیک بود! یک خانه کم یا زیاد شمردی. از یک خانه شکل زرد شروع کن و پرش‌ها را بشمار تا همان خانه در شکل راه‌راه؛ خود خانه شروع را نشمار. ${right}` };
+    case "gap":
+      return { tone: "turned", text: `فقط خانه‌های خالی بین دو شکل را شمردی. ولی باید ببینی هر خانه چقدر رفته: از یک خانه شکل زرد تا همان خانه در شکل راه‌راه. ${right}` };
+    case "swapped":
+      return { tone: "turned", text: `نزدیک بود! عددها جابه‌جا شده‌اند: چپ و راست را جدا بشمار، بالا و پایین را جدا. ${right}` };
+    default:
+      return { tone: "bad", text: `نه. ${right} ${SHIFT_WHY}` };
   }
 }
 
 function choiceFeedback(q: TransformQuestion, picked: number): { tone: Tone; text: string } {
   if (q.type === "draw") return { tone: "bad", text: "" };
+  if (q.type === "shift") return q.form === "vector" ? vectorFeedback(q, picked) : { tone: "bad", text: "" };
   if (q.type === "which") {
     const right = q.options[q.answer];
     if (picked === q.answer) return { tone: "good", text: `درست است! ${MOVE_WHY[right]}` };
@@ -198,17 +262,57 @@ function choiceFeedback(q: TransformQuestion, picked: number): { tone: Tone; tex
   }
 }
 
-function drawFeedback(q: Extract<TransformQuestion, { type: "draw" }>, painted: string[]): { tone: Tone; text: string } {
-  const sorted = [...painted].sort();
-  if (sorted.join(";") === q.answer.join(";")) return { tone: "good", text: "آفرین! هر خانه به همان فاصله، آن طرف رفته است. خط‌چین‌های آبی هر خانه را به تصویرش وصل می‌کنند." };
-  const asFigure = (keys: string[]): Figure => ({ cells: keys.map((k) => k.split(",").map((v) => Number(v) + 0.5) as [number, number]) });
-  if (painted.length === q.answer.length) {
-    if (shapeKey(asFigure(sorted)) === shapeKey(asFigure(q.answer)))
-      return { tone: "turned", text: "نزدیک بود! شکل درست است ولی جایش نه. فاصله هر خانه تا خط (یا نقطه) باید همان فاصله شکل اصلی باشد." };
-    if (shapeKey(asFigure(sorted)) === shapeKey(q.figure))
-      return { tone: "bad", text: q.op.kind === "reflect" ? "شکل را فقط جابه‌جا کردی؛ قرینه باید برعکس باشد." : "شکل را فقط جابه‌جا کردی؛ باید بچرخد." };
+/** Feedback on coloured cells: names the slip or the move the picture really shows. */
+function paintFeedback(q: PaintQuestion, painted: string[]): { tone: Tone; text: string } {
+  const green = " مربع‌های سبز جای درست‌اند.";
+  const slide = q.type === "shift";
+  const both = slide && q.ops.some((o) => o.kind === "reflect");
+  const reflect = q.type === "draw" ? q.op.kind === "reflect" : both;
+  const vec: Pt = q.type === "shift" ? q.vec : [0, 0];
+  const letter = q.figure.mark ? ` حرف «${q.figure.mark.symbol}» روی تصویر را ببین.` : "";
+  switch (paintMistake(q, painted)) {
+    case "right":
+      if (both) return { tone: "good", text: "آفرین! اول انتقال، بعد قرینه؛ هر دو را به ترتیب انجام دادی." };
+      if (slide) return { tone: "good", text: `آفرین! هر خانه ${vecText(vec)} رفته است؛ شکل نه چرخیده نه برعکس شده.` };
+      return { tone: "good", text: "آفرین! هر خانه به همان فاصله، آن طرف رفته است. خط‌چین‌های آبی هر خانه را به تصویرش وصل می‌کنند." };
+    case "count":
+      return { tone: "bad", text: `تصویر ${fa(q.answer.length)} خانه دارد؛ تو ${fa(painted.length)} خانه رنگ کردی.${green}` };
+    case "wrongWay":
+      return { tone: "turned", text: `نزدیک بود! جهت را برعکس رفتی؛ شکل باید ${vecText(vec)} برود.${green}` };
+    case "offByOne":
+      return { tone: "turned", text: `نزدیک بود! یک خانه کم یا زیاد شمردی. از یک خانه شکل شروع کن و پرش‌ها را بشمار؛ خود خانه شروع را نشمار.${green}` };
+    case "gap":
+      return { tone: "turned", text: `بین دو شکل ${vecText(vec, false)} جای خالی گذاشتی؛ ولی در انتقال، هر خانه شکل این‌قدر جلو می‌رود. از یک خانه شکل تا همان خانه در تصویر را بشمار.${green}` };
+    case "swapped":
+      return { tone: "turned", text: `نزدیک بود! عددها را جابه‌جا کردی: شکل باید ${vecText(vec)} برود.${green}` };
+    case "oneDirection":
+      return { tone: "turned", text: `نزدیک بود! فقط یکی از دو حرکت را انجام دادی؛ شکل باید ${vecText(vec)} برود.${green}` };
+    case "onlyMoved":
+      return { tone: "turned", text: `شکل را درست بردی ولی قرینه نکردی؛ بعد از انتقال، تصویرش را نسبت به خط‌چین پیدا کن.${green}` };
+    case "onlyReflected":
+      return { tone: "turned", text: `فقط قرینه کردی؛ اول باید شکل ${vecText(vec)} برود، بعد قرینه شود.${green}` };
+    case "wrongOrder":
+      return { tone: "turned", text: `نزدیک بود! اول قرینه کردی، بعد بردی. ترتیب مهم است: اینجا اول انتقال است، بعد قرینه؛ جای تصویر فرق می‌کند.${green}` };
+    case "place":
+      return {
+        tone: "turned",
+        text: slide && !both ? `نزدیک بود! شکل درست است ولی جایش نه؛ هر خانه باید ${vecText(vec)} برود.${green}` : `نزدیک بود! شکل درست است ولی جایش نه. فاصله هر خانه تا خط (یا نقطه) باید همان فاصله شکل اصلی باشد.${green}`,
+      };
+    case "notSlid":
+      return { tone: "bad", text: `شکل تو چرخیده یا برعکس شده. ${SHIFT_WHY}${green}` };
+    case "unchanged":
+      return { tone: "bad", text: reflect ? `شکل را فقط جابه‌جا کردی؛ قرینه باید برعکس باشد.${green}` : `شکل را فقط جابه‌جا کردی؛ باید بچرخد.${green}` };
+    case "turnForFlip":
+      return { tone: "bad", text: `شکل تو چرخیده؛ ولی در قرینه، شکل برعکس می‌شود.${letter}${green}` };
+    case "flipForTurn":
+      return { tone: "bad", text: `شکل تو برعکس (قرینه) شده؛ ولی در چرخش، شکل برعکس نمی‌شود.${letter}${green}` };
+    case "otherTurn":
+      return { tone: "turned", text: `نزدیک بود! شکل چرخیده، ولی نه به این اندازه یا این جهت. فلش قرمز کنار نقطه را ببین.${letter}${green}` };
+    case "otherReflection":
+      return { tone: "turned", text: `نزدیک بود! شکل برعکس شده، ولی نه نسبت به این خط. هر خانه باید عمود بر خط‌چین، به همان فاصله آن طرف برود.${green}` };
+    default:
+      return { tone: "bad", text: `شکلی که رنگ کردی با شکل اصلی فرق دارد؛ خانه‌ها را یکی‌یکی ببر.${green}` };
   }
-  return { tone: "bad", text: `${painted.length !== q.answer.length ? `تصویر ${fa(q.answer.length)} خانه دارد؛ تو ${fa(painted.length)} خانه رنگ کردی. ` : ""}مربع‌های سبز جای درست‌اند.` };
 }
 
 interface Props {
@@ -227,7 +331,7 @@ interface Props {
 
 export function TransformTryPanel(p: Props) {
   const { question: q } = p;
-  const [picked, setPicked] = useState<number | null>(q.type === "draw" ? null : (p.initialPick ?? null));
+  const [picked, setPicked] = useState<number | null>(isPaint(q) ? null : (p.initialPick ?? null));
   const [checked, setChecked] = useState(false);
   const answered = picked !== null || checked;
 
@@ -242,15 +346,15 @@ export function TransformTryPanel(p: Props) {
   };
 
   let fb = picked !== null ? choiceFeedback(q, picked) : null;
-  if (q.type === "draw" && checked) fb = drawFeedback(q, p.painted);
+  if (isPaint(q) && checked) fb = paintFeedback(q, p.painted);
 
   const mark = (i: number): Tone | null => {
-    if (picked === null || q.type === "draw") return null;
+    if (picked === null || isPaint(q)) return null;
     if (i === q.answer) return "good";
     return i === picked ? choiceFeedback(q, i).tone : null;
   };
 
-  const figs = q.type === "draw" ? [] : q.type === "which" ? [q.figure, q.image] : [q.figure, ...q.options];
+  const figs = q.type === "draw" || q.type === "shift" ? [] : q.type === "which" ? [q.figure, q.image] : [q.figure, ...q.options];
   const box = boxFor(figs);
 
   return (
@@ -307,7 +411,24 @@ export function TransformTryPanel(p: Props) {
         </ul>
       )}
 
-      {q.type === "draw" && (
+      {q.type === "shift" && q.form === "vector" && (
+        <ul className={styles.options}>
+          {q.options.map((v, i) => {
+            const m = mark(i);
+            return (
+              <li key={i}>
+                <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null}>
+                  <span className={styles.optionNum}>
+                    {vecText(v)} {m && ICON[m]}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {isPaint(q) && (
         <>
           <p className={styles.hint}>
             {checked ? "خانه راه‌راه: رنگ تو · مربع سبز: جای درست · ✗: اشتباه" : `روی خانه‌های صفحه بزن تا رنگ شوند (${fa(p.painted.length)} خانه). دوباره بزنی، پاک می‌شود.`}

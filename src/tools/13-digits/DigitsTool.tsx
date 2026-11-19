@@ -27,36 +27,51 @@ import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroo
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import own from "./Digits.module.css";
 import { COND_FA, COND_RULE, DIGITS_TYPE_LABEL, DigitsTryPanel, equationFa, ltr, numFa } from "./DigitsTryPanel";
 import { DIGITS_GUIDE } from "./guide";
 import { CryptBoard, cryptCheckFa, MoreBoard, stepOf } from "./MoreBoards";
 import { LetterPad, StepList } from "./MoreInputs";
 import { CRYPT_RULE, moreSteps } from "./MoreText";
+import { DotsExploreBoard, RectBoard, SIEVE_PRIMES, SieveBoard } from "./NumberBoards";
+import { DotsExplore, RectExplore, SieveExplore } from "./NumberExplore";
 import { CardsG, ChartKeyG, CHART_CELL, HundredChartG, MatchG, matchView, moveFrame, RowG, SLOT_H, type Spot } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
-/** Explore: cards, matchsticks or a cryptarithm. Show me: counting, matchsticks or one of the later topics. */
-type Area = "cards" | "count" | "match" | MoreType;
+/**
+ * Explore: cards, matchsticks, a cryptarithm, rectangles of squares, the sieve or dot pairs (parity).
+ * Show me: counting, matchsticks or one of the later topics.
+ */
+type Area = "cards" | "count" | "match" | MoreType | "rect" | "sieve";
 
 const EXPLORE_AREAS: [Area, string][] = [
   ["cards", "کارت رقم"],
   ["match", "چوب‌کبریت"],
   ["crypt", "جمع رمزی"],
+  ["rect", "مستطیل‌ها"],
+  ["sieve", "غربال"],
+  ["parity", "زوج و فرد"],
 ];
 const SHOW_AREAS: [Area, string][] = [
   ["count", "شمارش رقم"],
   ["pages", "رقم‌های صفحه"],
+  ["prime", "عدد اول و شمارنده‌ها"],
+  ["parity", "زوج و فرد"],
   ["lcm", "ک.م.م و ب.م.م"],
   ["units", "رقم یکان"],
   ["match", "چوب‌کبریت"],
   ["crypt", "جمع رمزی"],
   ["signs", "گذاشتن علامت"],
 ];
+/** The show-me area that goes with an explore area. */
+const showAreaFor = (a: Area): Area => (SHOW_AREAS.some(([x]) => x === a) ? a : a === "rect" || a === "sieve" ? "prime" : "count");
 const SHOW_INTRO: Record<MoreType, string> = {
   lcm: "«دوباره با هم» یعنی کوچک‌ترین مضرب مشترک (ک.م.م): پرش‌های هر عدد روی محور خودش، اولین بار در ک.م.م به هم می‌رسند. «تکه‌های برابرِ بلندترین» یعنی بزرگ‌ترین شمارنده مشترک (ب.م.م).",
   crypt: "ستون به ستون، از یکان، با ده‌بر. هر ستونی که فقط یک حرفِ ناشناخته دارد، آن حرف را معلوم می‌کند.",
   signs: "علامت‌ها گذاشته می‌شوند و حاصل به ترتیب درست حساب می‌شود؛ خط زیر هر سطر نشان می‌دهد کدام بخش اول حساب می‌شود.",
   pages: "صفحه‌ها را دسته کن: یک‌رقمی (۱ تا ۹)، دورقمی (۱۰ تا ۹۹)، سه‌رقمی (از ۱۰۰). هر دسته: تعداد صفحه × تعداد رقم.",
+  prime: "عدد اول دقیقاً دو شمارنده دارد: ۱ و خودش. شمارنده‌ها جفت‌جفت پیدا می‌شوند (d و عدد ÷ d)؛ تا جایی امتحان کن که d × d از عدد بیشتر شود. برای عددهای بزرگ‌تر، درخت عامل‌ها را بکش.",
+  parity: "هر عدد را جفت‌جفت بچین: عدد فرد یک نقطه تنها دارد. در جمع، نقطه‌های تنها با هم جفت می‌شوند؛ پس فقط تعداد عددهای فرد مهم است. در پرسش‌های «ممکن است؟» چیزی را پیدا کن که زوج یا فرد بودنش هیچ‌وقت عوض نمی‌شود.",
   units: "فقط رقم یکان مهم است. توان‌های پشت‌سرهم رقم یکانِ چرخه‌دار دارند؛ باقی‌مانده تقسیم توان بر طول چرخه، خانه چرخه را می‌گوید (باقی‌مانده ۰ = خانه آخر).",
 };
 
@@ -136,6 +151,14 @@ export function DigitsTool() {
   const [exAssign, setExAssign] = useState<(number | null)[]>([]);
   const [exActive, setExActive] = useState(0);
 
+  // Explore: rectangles, sieve, dot pairs
+  const [rectN, setRectN] = useState(12);
+  const [rectRows, setRectRows] = useState(1);
+  const [rectTried, setRectTried] = useState<number[]>([1]);
+  const [sieveK, setSieveK] = useState(0);
+  const [sievePick, setSievePick] = useState(91);
+  const [dotNums, setDotNums] = useState<number[]>([3, 5, 4]);
+
   // Show me: counting
   const [countD, setCountD] = useState(1);
   const [countN, setCountN] = useState(100);
@@ -166,7 +189,8 @@ export function DigitsTool() {
   const tryMs = (q: DigitsQuestion) => (q.type === "match" ? 2600 * q.moves : isMore(q) ? stepsMs(q) : 6000);
 
   // Shareable links: #try=match&level=2&seed=7(&a=…), #show=count-3-235(-1) or #show=match-1-13,
-  // #explore=cards-3071 or #explore=match-1-13, #f=0.5, #classroom
+  // #explore=cards-3071, #explore=match-1-13, #explore=rect-12-3, #explore=sieve-2-91,
+  // #explore=parity-3-5-4, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -194,13 +218,30 @@ export function DigitsTool() {
           if (kind === "match") setTrySticks(a.split(".").map(Number));
           if (kind === "letters" && a.length === blankEntry(q).length) setEntry(a.split("").map(Number));
           if (kind === "ops" && /^[1-4]+$/.test(a) && a.length === blankEntry(q).length) setEntry(a.split("").map((d) => Number(d) - 1));
+          if (kind === "factors" && /^\d+(\.\d+)*$/.test(a)) setEntry(a.split(".").map(Number));
           setChecked(a);
           setF(1);
         } else setF(0);
       } else if (show || explore) {
         const [kind, ...rest] = (show ?? explore)!.split("-");
         const nums = rest.map(Number);
-        if (kind === "count" && show) {
+        const whole = (x: number, lo: number, hi: number) => Number.isInteger(x) && x >= lo && x <= hi;
+        if (explore && kind === "rect") {
+          setArea("rect");
+          const nn = whole(nums[0], 1, 60) ? nums[0] : 12;
+          const rr = whole(nums[1], 1, nn) ? nums[1] : 1;
+          setRectN(nn);
+          setRectRows(rr);
+          setRectTried([rr]);
+        } else if (explore && kind === "sieve") {
+          setArea("sieve");
+          if (whole(nums[0], 0, SIEVE_PRIMES.length)) setSieveK(nums[0]);
+          if (whole(nums[1], 1, 100)) setSievePick(nums[1]);
+        } else if (explore && kind === "parity") {
+          setArea("parity");
+          const ds = nums.filter((x) => whole(x, 1, 15)).slice(0, 6);
+          if (ds.length === nums.length) setDotNums(ds);
+        } else if (kind === "count" && show) {
           setArea("count");
           if (nums[0] >= 0 && nums[0] <= 9) setCountD(nums[0]);
           if (nums[1] >= 1 && nums[1] <= 1000) setCountN(nums[1]);
@@ -227,7 +268,7 @@ export function DigitsTool() {
     setRun(null);
     setF(m === "try" ? 0 : 1);
     setLifted(null);
-    if (m === "show" && area === "cards") setArea("count");
+    if (m === "show") setArea(showAreaFor(area));
     if (m === "explore" && !EXPLORE_AREAS.some(([a]) => a === area)) setArea("cards");
   };
 
@@ -325,6 +366,9 @@ export function DigitsTool() {
           </text>
         </Board>
       );
+    else if (mode === "explore" && area === "rect") board = <RectBoard n={rectN} rows={rectRows} />;
+    else if (mode === "explore" && area === "sieve") board = <SieveBoard k={sieveK} pick={sievePick} />;
+    else if (mode === "explore" && area === "parity") board = <DotsExploreBoard nums={dotNums} />;
     else if (moreQ) {
       board =
         mode === "explore" && moreQ.type === "crypt" ? (
@@ -398,7 +442,7 @@ export function DigitsTool() {
             aria-selected={mode === "show"}
             onClick={() => {
               switchMode("show");
-              animate(msFor(area === "cards" ? "count" : area));
+              animate(msFor(showAreaFor(area)));
             }}
           >
             نشانم بده
@@ -449,7 +493,7 @@ export function DigitsTool() {
 
       <aside className={styles.side}>
         {mode !== "try" && (
-          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش" style={{ flexWrap: "wrap" }}>
+          <div className={own.areas} role="radiogroup" aria-label="بخش">
             {(mode === "explore" ? EXPLORE_AREAS : SHOW_AREAS).map(([a, label]) => (
               <button
                 key={a}
@@ -474,6 +518,26 @@ export function DigitsTool() {
         {mode === "explore" && area === "crypt" && moreQ?.type === "crypt" && (
           <CryptExplore q={moreQ} vals={exVals} active={exActive} onActive={setExActive} onVals={setExAssign} level={exLevel} onLevel={(l) => freshPuzzle(l)} onNew={() => freshPuzzle()} />
         )}
+
+        {mode === "explore" && area === "rect" && (
+          <RectExplore
+            n={rectN}
+            rows={rectRows}
+            tried={rectTried}
+            onN={(x) => {
+              setRectN(x);
+              setRectRows(1);
+              setRectTried([1]);
+            }}
+            onRows={(r) => {
+              setRectRows(r);
+              setRectTried((t) => (t.includes(r) ? t : [...t, r]));
+            }}
+            onAll={() => setRectTried(Array.from({ length: rectN }, (_, i) => i + 1))}
+          />
+        )}
+        {mode === "explore" && area === "sieve" && <SieveExplore k={sieveK} onK={setSieveK} pick={sievePick} onPick={setSievePick} />}
+        {mode === "explore" && area === "parity" && <DotsExplore nums={dotNums} onNums={setDotNums} />}
 
         {mode === "show" && moreQ && (
           <>

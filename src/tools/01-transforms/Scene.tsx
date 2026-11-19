@@ -8,7 +8,7 @@ import { useId, type ReactNode } from "react";
 import { applyOp, bounds, moveFigure, type Figure, type Op, type Pt } from "@/generators/transforms";
 import { Board } from "@/engine-2d/Board";
 import { fa } from "@/tools/registry";
-import { FigureG, GridG, Hatch, INK, LineG, LinksG, PivotG, progress } from "./Pictures";
+import { CountPathG, FigureG, GridG, Hatch, INK, LineG, LinksG, PivotG, progress } from "./Pictures";
 
 export interface Rect {
   x0: number;
@@ -55,6 +55,10 @@ interface SceneProps {
   onCell?: (i: number, j: number) => void;
   /** Extra figures drawn as plain pictures (e.g. the other frames of a sequence). */
   others?: Figure[];
+  /** Images drawn still, blue and hatched (e.g. where a slide ended). */
+  images?: Figure[];
+  /** A slide counted cell by cell from a point. */
+  count?: { from: Pt; legs: Pt[] };
   /** Places marked with a "?" box. */
   blanks?: Rect[];
   imageName?: string;
@@ -68,7 +72,7 @@ export function TransformScene(p: SceneProps) {
   const pivots = [...(p.given ?? []), ...p.ops].filter((o) => o.kind === "rotate").map((o) => (o as Extract<Op, { kind: "rotate" }>).about);
   const grid =
     p.grid ??
-    rectAround([...states, ...(p.others ?? [])], [...pivots, ...(p.blanks ?? []).flatMap((b): Pt[] => [[b.x0, b.y0], [b.x1, b.y1]])]);
+    rectAround([...states, ...(p.others ?? []), ...(p.images ?? [])], [...pivots, ...(p.blanks ?? []).flatMap((b): Pt[] => [[b.x0, b.y0], [b.x1, b.y1]])]);
   // A water line wants some water under it.
   const box = { ...grid };
   const view: [number, number, number, number] = [box.x0 - 0.3, -box.y1 - 0.3, box.x1 - box.x0 + 0.6, box.y1 - box.y0 + 0.6];
@@ -127,6 +131,10 @@ export function TransformScene(p: SceneProps) {
         <FigureG key={`o${i}`} fig={o} look="figure" />
       ))}
 
+      {(p.images ?? []).map((o, i) => (
+        <FigureG key={`i${i}`} fig={o} look="image" hatchId={hatch} />
+      ))}
+
       <FigureG fig={p.figure} look="figure" />
 
       {p.copy && p.f > 0 && (
@@ -136,6 +144,8 @@ export function TransformScene(p: SceneProps) {
           <FigureG fig={states[done]} partial={current ? { op: current, t } : undefined} look="image" hatchId={hatch} />
         </>
       )}
+
+      {p.count && <CountPathG from={p.count.from} legs={p.count.legs} />}
 
       {/* Turning points on top, so a turning copy does not hide them. */}
       {shownOps.map((o, i) => o.kind === "rotate" && <PivotG key={`p${i}`} at={o.about} deg={o.deg} />)}

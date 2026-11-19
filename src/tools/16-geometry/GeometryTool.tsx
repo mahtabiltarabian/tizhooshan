@@ -16,6 +16,8 @@ import {
   ptsFromParam,
   samePt,
   sampleShape,
+  type BuildQuestion,
+  type DivideQuestion,
   type GeometryQuestion,
   type GeometryQuestionType,
   type Level,
@@ -28,12 +30,49 @@ import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { areaFrames, degFa, ltr, num, perimeterFrames, approxDeg, type Frame } from "./frames";
-import { GEOMETRY_TYPE_LABEL, GeometryTryPanel } from "./GeometryTryPanel";
+import { GEOMETRY_TYPE_LABEL, GeometryTryPanel, LEVEL_LABEL } from "./GeometryTryPanel";
 import { GEOMETRY_GUIDE } from "./guide";
+import {
+  CIRCLE_R,
+  CircleExploreG,
+  circleExText,
+  circleExView,
+  COMP_LIMITS,
+  compExText,
+  compExView,
+  CompositeExploreG,
+  figureView,
+  fixComp,
+  MeasureFigureG,
+  SLICES,
+  type CircleEx,
+  type CompCut,
+  type CompEx,
+} from "./MeasurePictures";
+import { measureFrames, measurePrompt, type MeasureQuestion } from "./MeasureText";
 import { AngleFigureG, AngleMark, BandG, boardView, CellsG, CornerAnglesG, EdgeLabelsG, EXAMPLE, MINE, OverlayG, PegsG, SHAPE, type View } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
 type ShowSource = "sample" | "mine";
+/** Explore: the geoboard, a circle, or an L shape three ways. */
+type ExArea = "geo" | "circle" | "composite";
+/** Show me: counting area on the geoboard, or a circle or composite question. */
+type ShowKind = "area" | "circle" | "composite";
+const EX_AREAS: [ExArea, string][] = [
+  ["geo", "ژئوبرد"],
+  ["circle", "دایره"],
+  ["composite", "مساحت ترکیبی"],
+];
+const SHOW_KINDS: [ShowKind, string][] = [
+  ["area", "شمردن مساحت"],
+  ["circle", "دایره"],
+  ["composite", "مساحت ترکیبی"],
+];
+const CUTS: [CompCut, string][] = [
+  ["h", "برش افقی"],
+  ["v", "برش عمودی"],
+  ["box", "منهای گوشه"],
+];
 
 const TYPES = Object.keys(GEOMETRY_TYPE_LABEL) as GeometryQuestionType[];
 const SIZES = [5, 7, 9];
@@ -100,6 +139,9 @@ export function GeometryTool() {
   const [kind, setKind] = useState<ShapeKind>("rect");
   const [showAngles, setShowAngles] = useState(true);
   const [showCells, setShowCells] = useState(false);
+  const [exWhat, setExWhat] = useState<ExArea>("geo");
+  const [circ, setCirc] = useState<CircleEx>({ r: 3, view: "circ", k: 16 });
+  const [comp, setComp] = useState<CompEx>({ W: 8, H: 6, a: 3, b: 2, cut: "h" });
 
   // Show me
   const [showSrc, setShowSrc] = useState<ShowSource>("sample");
@@ -108,7 +150,10 @@ export function GeometryTool() {
   const [mine, setMine] = useState<{ n: number; poly: Pt[] }>({ n: 7, poly: START_BAND });
   const sample = useMemo(() => makeGeometryQuestion("area", showLevel, showSeed), [showLevel, showSeed]);
   const showPoly = showSrc === "mine" ? mine.poly : (sample as Extract<GeometryQuestion, { type: "area" }>).poly;
-  const showN = showSrc === "mine" ? mine.n : sample.n;
+  const showN = showSrc === "mine" ? mine.n : (sample as Extract<GeometryQuestion, { type: "area" }>).n;
+  const [showKind, setShowKind] = useState<ShowKind>("area");
+  const showMeasure = useMemo(() => (showKind === "area" ? null : (makeGeometryQuestion(showKind, showLevel, showSeed) as MeasureQuestion)), [showKind, showLevel, showSeed]);
+  const showFrames = () => (showMeasure ? measureFrames(showMeasure) : framesFor(showPoly));
 
   // Try it
   const [tryType, setTryType] = useState<GeometryQuestionType>("area");
@@ -119,16 +164,19 @@ export function GeometryTool() {
   const question = useMemo(() => makeGeometryQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
 
   const frames = useMemo(() => {
-    if (mode === "show") return framesFor(showPoly);
+    if (mode === "show") return showMeasure ? measureFrames(showMeasure) : framesFor(showPoly);
+    if (mode === "try" && checked !== null && (question.type === "circle" || question.type === "composite")) return measureFrames(question);
     if (mode === "try" && checked !== null && question.type === "area") return areaFrames(question.poly);
     if (mode === "try" && checked !== null && question.type === "perimeter") return perimeterFrames(question.poly);
     return [];
-  }, [mode, showPoly, question, checked]);
+  }, [mode, showPoly, showMeasure, question, checked]);
   const at = frames.length ? Math.min(frames.length - 1, Math.round(f * (frames.length - 1))) : 0;
   const frameMs = Math.max(1, frames.length - 1) * FRAME_MS;
 
   // Shareable links: #try=area&level=2&seed=7(&a=7.5 or &a=0-0_3-0_3-2), #show=sample&level=3&seed=5,
-  // #show=mine&n=7&p=1-1_5-1_5-4, #n=7&p=… (explore), #f=0.5, #classroom
+  // #show=mine&n=7&p=1-1_5-1_5-4, #n=7&p=… (explore), #f=0.5, #classroom;
+  // circle and composite: #try=circle&level=2&seed=7(&a=28.26), #show=composite&level=3&seed=5,
+  // #explore=circle&r=3&view=area&k=16, #explore=composite&w=8&h=6&a=3&b=2&cut=v
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -150,7 +198,7 @@ export function GeometryTool() {
         const a = params.get("a");
         if (a !== null) {
           if (type === "build" || type === "divide") {
-            const q = makeGeometryQuestion(type, level ?? 1, sdOk ? sd : 1616);
+            const q = makeGeometryQuestion(type, level ?? 1, sdOk ? sd : 1616) as BuildQuestion | DivideQuestion;
             const pts = ptsFromParam(a, q.n);
             if (pts && (type === "build" ? pts.length >= 3 : pts.length === 2)) {
               setTryBand(pts);
@@ -159,6 +207,12 @@ export function GeometryTool() {
           } else if (Number.isFinite(Number(a)) && a !== "") setChecked(Number(a));
           setF(1);
         } else setF(0);
+      } else if (show === "circle" || show === "composite") {
+        setMode("show");
+        setShowKind(show);
+        if (level) setShowLevel(level);
+        if (sdOk) setShowSeed(sd);
+        setF(1);
       } else if (show === "sample" || show === "mine") {
         setMode("show");
         setShowSrc(show);
@@ -167,6 +221,19 @@ export function GeometryTool() {
         const pts = ptsFromParam(params.get("p"), size);
         if (show === "mine" && pts && pts.length >= 3) setMine({ n: size, poly: pts });
         setF(1);
+      } else if (params.get("explore") === "circle") {
+        const r = Number(params.get("r"));
+        const k = Number(params.get("k"));
+        setExWhat("circle");
+        setCirc({ r: CIRCLE_R.includes(r) ? r : 3, view: params.get("view") === "area" ? "area" : "circ", k: SLICES.includes(k) ? k : 16 });
+      } else if (params.get("explore") === "composite") {
+        const get = (key: string, lo: number, hi: number, d: number) => {
+          const v = Number(params.get(key));
+          return params.has(key) && Number.isInteger(v) && v >= lo && v <= hi ? v : d;
+        };
+        const cut = params.get("cut");
+        setExWhat("composite");
+        setComp(fixComp({ W: get("w", ...COMP_LIMITS.W, 8), H: get("h", ...COMP_LIMITS.H, 6), a: get("a", 1, 9, 3), b: get("b", 1, 7, 2), cut: cut === "v" || cut === "box" ? cut : "h" }));
       } else {
         const pts = ptsFromParam(params.get("p"), size);
         if (pts && pts.length >= 3) {
@@ -195,7 +262,8 @@ export function GeometryTool() {
     setRun(null);
     setF(0);
   };
-  const freshShow = (level = showLevel) => {
+  const freshShow = (level = showLevel, kind = showKind) => {
+    setShowKind(kind);
     setShowSrc("sample");
     setShowLevel(level);
     setShowSeed(newSeed());
@@ -209,6 +277,7 @@ export function GeometryTool() {
   };
   const showMine = () => {
     setMine({ n, poly: band });
+    setShowKind("area");
     setShowSrc("mine");
     setMode("show");
     animate(Math.max(1, framesFor(band).length - 1) * FRAME_MS);
@@ -225,8 +294,8 @@ export function GeometryTool() {
 
   // ── Pegs on the board: drag a corner, or tap a peg ──────────────────
   const editing: "explore" | "build" | "divide" | null =
-    mode === "explore" ? "explore" : mode === "try" && checked === null && (question.type === "build" || question.type === "divide") ? question.type : null;
-  const boardN = mode === "explore" ? n : mode === "show" ? showN : question.n;
+    mode === "explore" ? (exWhat === "geo" ? "explore" : null) : mode === "try" && checked === null && (question.type === "build" || question.type === "divide") ? question.type : null;
+  const boardN = mode === "explore" ? n : mode === "show" ? showN : "n" in question ? question.n : 7;
   const editBand = mode === "explore" ? band : tryBand;
   const setEditBand = mode === "explore" ? setBand : setTryBand;
   const drag = useRef<{ start: Pt; vertex: number; at: Pt; moved: boolean } | null>(null);
@@ -291,7 +360,15 @@ export function GeometryTool() {
   const exProblem = bandProblem(band);
   const fr = frames.length ? frames[at] : null;
 
-  if (mode === "explore") {
+  if (mode === "explore" && exWhat === "circle") {
+    view = circleExView(circ);
+    label = circ.view === "circ" ? "دایره و محیط باز شده آن" : "دایره و برش‌هایش کنار هم";
+    scene = <CircleExploreG ex={circ} />;
+  } else if (mode === "explore" && exWhat === "composite") {
+    view = compExView();
+    label = "شکل L روی شبکه سانتی‌متری";
+    scene = <CompositeExploreG ex={comp} />;
+  } else if (mode === "explore") {
     label = "ژئوبرد؛ گوشه‌های کش را بکش یا میخ‌ها را لمس کن";
     scene = (
       <>
@@ -301,6 +378,10 @@ export function GeometryTool() {
         {showAngles && !exProblem && <CornerAnglesG poly={band} />}
       </>
     );
+  } else if (mode === "show" && showMeasure) {
+    view = figureView(showMeasure.fig);
+    label = GEOMETRY_TYPE_LABEL[showMeasure.type];
+    scene = <MeasureFigureG fig={showMeasure.fig} show={fr?.show} />;
   } else if (mode === "show") {
     scene = (
       <>
@@ -314,6 +395,12 @@ export function GeometryTool() {
     const q = question;
     const done = checked !== null;
     switch (q.type) {
+      case "circle":
+      case "composite":
+        view = figureView(q.fig);
+        label = GEOMETRY_TYPE_LABEL[q.type];
+        scene = <MeasureFigureG fig={q.fig} show={done ? fr?.show : undefined} />;
+        break;
       case "area":
       case "perimeter":
         scene = (
@@ -433,7 +520,7 @@ export function GeometryTool() {
             aria-selected={mode === "show"}
             onClick={() => {
               switchMode("show");
-              animate(Math.max(1, framesFor(showPoly).length - 1) * FRAME_MS);
+              animate(Math.max(1, showFrames().length - 1) * FRAME_MS);
             }}
           >
             نشانم بده
@@ -502,7 +589,11 @@ export function GeometryTool() {
           <p className={styles.stepText} style={{ margin: 0 }}>
             {inTry
               ? "اول فکر کن، بعد جواب بده"
-              : exProblem
+              : exWhat === "circle"
+                ? circleExText(circ).join(" · ")
+                : exWhat === "composite"
+                  ? compExText(comp)
+                  : exProblem
                 ? "کش از روی خودش رد شده؛ یک گوشه را جابه‌جا کن."
                 : `مساحت ${num(exArea!)} واحد مربع · ${exPerim === null ? "ضلع کج دارد" : `محیط ${fa(exPerim)} واحد`} · ${fa(band.length)} گوشه`}
           </p>
@@ -511,6 +602,17 @@ export function GeometryTool() {
 
       <aside className={styles.side}>
         {mode === "explore" && (
+          <div className={styles.chipsRow} role="radiogroup" aria-label="چه چیزی را کشف کنیم" style={{ marginTop: 0 }}>
+            {EX_AREAS.map(([k, name]) => (
+              <button key={k} role="radio" aria-checked={exWhat === k} onClick={() => setExWhat(k)}>
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "explore" && exWhat === "circle" && <CirclePanel ex={circ} set={setCirc} />}
+        {mode === "explore" && exWhat === "composite" && <CompositePanel ex={comp} set={(e) => setComp(fixComp(e))} />}
+        {mode === "explore" && exWhat === "geo" && (
           <>
             <h2>کش را روی ژئوبرد بکش</h2>
             <p className={styles.note}>گوشه‌های کش (حلقه‌ها) را بکش و روی میخ دیگری بگذار. میخ خالی را لمس کنی، نزدیک‌ترین ضلع کش به آن کشیده می‌شود؛ گوشه را لمس کنی، برداشته می‌شود.</p>
@@ -565,6 +667,51 @@ export function GeometryTool() {
         )}
 
         {mode === "show" && (
+          <div className={styles.chipsRow} role="radiogroup" aria-label="نوع نمونه" style={{ marginTop: 0 }}>
+            {SHOW_KINDS.map(([k, name]) => (
+              <button
+                key={k}
+                role="radio"
+                aria-checked={showKind === k}
+                onClick={() => {
+                  freshShow(showLevel, k);
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "show" && showMeasure && (
+          <>
+            <h2>{GEOMETRY_TYPE_LABEL[showMeasure.type]}</h2>
+            <div className={styles.chipsRow} role="radiogroup" aria-label="سطح" style={{ flexWrap: "wrap" }}>
+              {LEVEL_LABEL[showMeasure.type].map((name, i) => (
+                <button key={name} role="radio" aria-checked={showLevel === i + 1} onClick={() => freshShow((i + 1) as Level)} style={{ flex: "1 0 30%" }}>
+                  {name}
+                </button>
+              ))}
+            </div>
+            <p className={styles.note}>{measurePrompt(showMeasure)}</p>
+            <div className={styles.row} style={{ marginTop: 8 }}>
+              <button className={styles.clear} onClick={() => stepTo(at - 1)} disabled={at === 0}>
+                → قدم قبل
+              </button>
+              <button className={styles.clear} onClick={() => stepTo(at + 1)} disabled={at >= frames.length - 1}>
+                قدم بعد ←
+              </button>
+            </div>
+            <p className={styles.note}>
+              {showMeasure.type === "circle"
+                ? "تکه‌ای که هر قدم درباره‌اش است خط‌چین نارنجی و پررنگ می‌شود؛ طولی که پیدا می‌شود در قاب خط‌چین نوشته می‌شود."
+                : "هر تکه خط‌چین نارنجی می‌شود و اسم و مساحتش رویش نوشته می‌شود؛ تکه‌ای که کم می‌شود «−» دارد. طولی که پیدا می‌شود در قاب خط‌چین است."}
+            </p>
+            <button className={styles.clear} onClick={() => freshShow()}>
+              نمونه تازه
+            </button>
+          </>
+        )}
+        {mode === "show" && !showMeasure && (
           <>
             <h2>شمردن مساحت</h2>
             <div className={styles.chipsRow} role="radiogroup" aria-label="نوع شکل" style={{ flexWrap: "wrap" }}>
@@ -605,7 +752,8 @@ export function GeometryTool() {
             checked={checked}
             onCheck={(v) => {
               setChecked(v);
-              if (question.type === "area" || question.type === "perimeter") animate(Math.max(1, (question.type === "area" ? areaFrames(question.poly) : perimeterFrames(question.poly)).length - 1) * FRAME_MS);
+              if (question.type === "circle" || question.type === "composite") animate(Math.max(1, measureFrames(question).length - 1) * FRAME_MS);
+              else if (question.type === "area" || question.type === "perimeter") animate(Math.max(1, (question.type === "area" ? areaFrames(question.poly) : perimeterFrames(question.poly)).length - 1) * FRAME_MS);
               else setF(1);
             }}
             band={tryBand}
@@ -645,5 +793,86 @@ function PartsG({ parts }: { parts: [Pt[], Pt[]] }) {
         );
       })}
     </g>
+  );
+}
+
+function Stepper({ label, onLess, onMore, lessOff, moreOff }: { label: string; onLess: () => void; onMore: () => void; lessOff: boolean; moreOff: boolean }) {
+  return (
+    <div className={styles.row} style={{ marginTop: 6 }}>
+      <button className={styles.clear} onClick={onLess} disabled={lessOff} aria-label={`${label}: کمتر`}>
+        −
+      </button>
+      <span className={styles.stepperLabel}>{label}</span>
+      <button className={styles.clear} onClick={onMore} disabled={moreOff} aria-label={`${label}: بیشتر`}>
+        +
+      </button>
+    </div>
+  );
+}
+
+/** Explore a circle: its radius, and how its circumference and area come about. */
+function CirclePanel({ ex, set }: { ex: CircleEx; set: (e: CircleEx) => void }) {
+  return (
+    <>
+      <h2>دایره را بزرگ و کوچک کن</h2>
+      <Stepper label={`شعاع ${fa(ex.r)} سانتی‌متر`} onLess={() => set({ ...ex, r: ex.r - 1 })} onMore={() => set({ ...ex, r: ex.r + 1 })} lessOff={ex.r <= CIRCLE_R[0]} moreOff={ex.r >= CIRCLE_R[CIRCLE_R.length - 1]} />
+      <div className={styles.chipsRow} role="radiogroup" aria-label="چه ببینیم">
+        <button role="radio" aria-checked={ex.view === "circ"} onClick={() => set({ ...ex, view: "circ" })}>
+          محیط: باز کردن
+        </button>
+        <button role="radio" aria-checked={ex.view === "area"} onClick={() => set({ ...ex, view: "area" })}>
+          مساحت: برش‌ها
+        </button>
+      </div>
+      {ex.view === "area" && (
+        <div className={styles.chipsRow} role="radiogroup" aria-label="تعداد برش">
+          {SLICES.map((k) => (
+            <button key={k} role="radio" aria-checked={ex.k === k} onClick={() => set({ ...ex, k })}>
+              {fa(k)} برش
+            </button>
+          ))}
+        </div>
+      )}
+      <p className={`${styles.status} ${styles.info}`}>
+        {circleExText(ex).map((line, i) => (
+          <span key={i}>
+            {i > 0 && <br />}
+            {line}
+          </span>
+        ))}
+      </p>
+      <p className={styles.note}>
+        {ex.view === "circ"
+          ? "دایره را روی خط بغلتان: دورش کمی بیشتر از سه قطر است (۳٫۱۴ قطر). پس محیط = قطر × ۳٫۱۴. شعاع را عوض کن: این نسبت همیشه همین است."
+          : "دایره را برش بزن و برش‌ها را یکی در میان وارونه کنار هم بچین: تقریباً مستطیلی می‌شود که پهنایش نصف محیط (۳٫۱۴ × شعاع) و بلندی‌اش شعاع است. برش‌ها را بیشتر کن تا صاف‌تر شود. پس مساحت = شعاع × شعاع × ۳٫۱۴."}
+      </p>
+    </>
+  );
+}
+
+/** Explore an L shape: split it two ways or take a corner off a rectangle; the area stays the same. */
+function CompositePanel({ ex, set }: { ex: CompEx; set: (e: CompEx) => void }) {
+  const step = (key: "W" | "H" | "a" | "b", label: string, lo: number, hi: number) => (
+    <Stepper key={key} label={`${label} ${fa(ex[key])}`} onLess={() => set({ ...ex, [key]: ex[key] - 1 })} onMore={() => set({ ...ex, [key]: ex[key] + 1 })} lessOff={ex[key] <= lo} moreOff={ex[key] >= hi} />
+  );
+  return (
+    <>
+      <h2>یک شکل، سه راه</h2>
+      {step("W", "پهنای پایین", Math.max(COMP_LIMITS.W[0], ex.a + 1), COMP_LIMITS.W[1])}
+      {step("H", "بلندی چپ", Math.max(COMP_LIMITS.H[0], ex.b + 1), COMP_LIMITS.H[1])}
+      {step("a", "پهنای بالا", 1, ex.W - 1)}
+      {step("b", "بلندی راست", 1, ex.H - 1)}
+      <div className={styles.chipsRow} role="radiogroup" aria-label="راه حساب کردن">
+        {CUTS.map(([k, name]) => (
+          <button key={k} role="radio" aria-checked={ex.cut === k} onClick={() => set({ ...ex, cut: k })}>
+            {name}
+          </button>
+        ))}
+      </div>
+      <p className={`${styles.status} ${styles.info}`}>مساحت: {compExText(ex)}</p>
+      <p className={styles.note}>
+        راه را عوض کن: تکه‌ها فرق می‌کنند ولی مساحت همان می‌ماند. در «برش افقی» و «برش عمودی» هر تکه فقط یک بار حساب می‌شود؛ در «منهای گوشه» مستطیل دور شکل را می‌گیریم و گوشه خالی را کم می‌کنیم. طول ضلع‌های داخلی را از ضلع‌های روبه‌رو پیدا کن.
+      </p>
+    </>
   );
 }

@@ -201,7 +201,7 @@ describe("more digit questions", () => {
           const q = makeDigitsQuestion(type, level, seed) as MoreQuestion;
           expect(q.type).toBe(type);
           expect(digitsMistake(q, answerKey(q))).toBe("right");
-          expect(answerKey(q)).toMatch(/^\d+$/);
+          expect(answerKey(q)).toMatch(/^\d+(\.\d+)*$/);
           for (const [, v] of slips(q)) if (String(v) !== answerKey(q)) expect(digitsMistake(q, String(v))).not.toMatch(/^(other|right)$/);
           check(q);
         }

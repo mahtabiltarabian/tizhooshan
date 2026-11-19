@@ -29,6 +29,7 @@ import {
   type Statement,
   type VennQuestion,
 } from "@/generators/logic";
+import { ifSteps, type IfStep } from "@/generators/if-then";
 import { newSeed } from "@/generators/random";
 import { countsAfter, countSteps, refMask, stepRegion, type CountStep, type VennCountQuestion } from "@/generators/venn-count";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
@@ -54,6 +55,7 @@ import {
   vennStepText,
   type TryEntry,
 } from "./LogicTryPanel";
+import { ifBoard, ifExploreBoard, IfExplorePanel, ifExploreView, ifPrompt, ifStepText, ifView, useIfExplore, useUpright } from "./IfThen";
 import { blankCount, countExploreBoard, CountExplorePanel, countNames, countStepText, countView, CountVennFigure, givenTotals, useCountExplore } from "./VennCount";
 import { BANK_Y, GridFigure, gridView, LiarsFigure, liarsView, regionAt, TokenLayer, vennBox, VennFigure, type ClueState, type Token } from "./Pictures";
 
@@ -70,8 +72,9 @@ function blankEntry(q: LogicQuestion): TryEntry {
 }
 
 /** The show-me steps of any question. */
-type AnyStep = GridStep | ReturnType<typeof liarSteps>[number] | ReturnType<typeof vennSteps>[number] | CountStep;
-const stepsOf = (q: LogicQuestion): AnyStep[] => (q.type === "grid" ? gridSteps(q.size, q.clues).steps : q.type === "liars" ? liarSteps(q) : q.type === "vennNum" ? countSteps(q).steps : vennSteps(q));
+type AnyStep = GridStep | ReturnType<typeof liarSteps>[number] | ReturnType<typeof vennSteps>[number] | CountStep | IfStep;
+const stepsOf = (q: LogicQuestion): AnyStep[] =>
+  q.type === "grid" ? gridSteps(q.size, q.clues).steps : q.type === "liars" ? liarSteps(q) : q.type === "vennNum" ? countSteps(q).steps : q.type === "ifThen" ? ifSteps(q) : vennSteps(q);
 
 /** Board of a Venn-with-numbers question: show me after k steps, or try it with the child's notes. */
 function countBoard(q: VennCountQuestion, show: { steps: CountStep[]; k: number } | null, scratch: (number | null)[], solved: boolean, target: number | null, onRegion?: (r: number) => void) {
@@ -261,6 +264,8 @@ function judge(s: Statement, placed: { name: string; r: number }[]): { ok: boole
 }
 
 export function LogicTool() {
+  // Phones draw the if–then diagram top to bottom.
+  const upright = useUpright();
   const [mode, setMode] = useState<Mode>("explore");
   const [classroom, setClassroom] = useClassroom();
 
@@ -311,6 +316,7 @@ export function LogicTool() {
   const showQ = useMemo(() => make(showType, showLevel, showSeed, showSize, showExtra), [showType, showLevel, showSeed, showSize, showExtra]);
   const steps = useMemo(() => stepsOf(showQ), [showQ]);
   const countEx = useCountExplore();
+  const ifEx = useIfExplore();
   const stepMs = 1700;
 
   // Try it: answers belong to one question, so they reset with it.
@@ -326,7 +332,8 @@ export function LogicTool() {
   const setCur = (e: TryEntry) => setEntry({ ...e, key });
 
   // Shareable links: #try=grid&level=2&seed=7&size=3&extra=1(&a=v_x…), #try=liars…&a=rd_, #try=venn…&a=2,
-  // #try=vennNum&level=2&seed=7(&a=15), #show=venn&level=3&seed=5&step=4, #explore=venn (or vennNum), #classroom
+  // #try=vennNum&level=2&seed=7(&a=15), #try=ifThen&level=2&seed=7(&a=3), #show=venn&level=3&seed=5&step=4,
+  // #explore=venn (or vennNum, ifThen), #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -357,7 +364,7 @@ export function LogicTool() {
           const e = blankEntry(q);
           if (q.type === "grid") e.marks = e.marks.map((_, c) => (a[c] === "v" ? 1 : a[c] === "x" ? -1 : 0));
           if (q.type === "liars") e.liar = e.liar.map((_, p) => (a[p] === "d" ? true : a[p] === "r" ? false : null));
-          if (q.type === "venn") {
+          if (q.type === "venn" || q.type === "ifThen") {
             const pk = Number(a) - 1;
             e.pick = Number.isInteger(pk) && pk >= 0 && pk < q.options.length ? pk : null;
           }
@@ -380,7 +387,7 @@ export function LogicTool() {
         const n = stepsOf(q).length;
         const step = Number(params.get("step"));
         setF(params.has("step") && Number.isFinite(step) ? Math.min(1, Math.max(0, step / n)) : 1);
-      } else if (explore === "grid" || explore === "venn" || explore === "liars" || explore === "vennNum") setArea(explore);
+      } else if (explore === "grid" || explore === "venn" || explore === "liars" || explore === "vennNum" || explore === "ifThen") setArea(explore);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -472,6 +479,10 @@ export function LogicTool() {
       view = countView(countEx.k, true);
       boardLabel = "نمودار ون با عدد؛ روی یک بخش بزن و عددش را بنویس";
       board = countExploreBoard(countEx);
+    } else if (area === "ifThen") {
+      view = ifExploreView(ifEx, upright);
+      boardLabel = "نمودار پیکان؛ روی هر جعبه بزن: درست، نادرست یا نامعلوم";
+      board = ifExploreBoard(ifEx, upright);
     } else {
       const [x, y, w] = vennBox(3);
       view = [x, y, w, round2(BANK_Y + 0.62 + 0.45 - y)];
@@ -557,6 +568,10 @@ export function LogicTool() {
         boardLabel = "نمودار ون با عدد؛ برای یادداشت، روی یک بخش بزن و عددش را بنویس";
         board = countBoard(q, null, c.scratch, solved, c.target, !solved ? (r) => setCur({ ...cur, count: { ...c, target: r } }) : undefined);
       }
+    } else if (q.type === "ifThen") {
+      view = ifView(q, upright);
+      boardLabel = mode === "show" ? "نمودار پیکان، قدم‌به‌قدم" : "نمودار پیکان: هر جمله «اگر… آنگاه» یک پیکان است";
+      board = mode === "show" ? ifBoard(q, { steps: steps as IfStep[], k }, null, false, upright) : ifBoard(q, null, cur.pick, cur.checked && cur.pick !== null, upright);
     } else {
       view = vennView(q);
       const chain = chainOf(q);
@@ -596,6 +611,7 @@ export function LogicTool() {
     if (showQ.type === "grid") return gridStepText(showQ, s as GridStep);
     if (showQ.type === "liars") return liarStepText(showQ, s as ReturnType<typeof liarSteps>[number]);
     if (showQ.type === "vennNum") return countStepText(showQ, s as CountStep, countsAfter(showQ.k, steps as CountStep[], i + 1));
+    if (showQ.type === "ifThen") return ifStepText(showQ, s as IfStep);
     return vennStepText(showQ, s as ReturnType<typeof vennSteps>[number]);
   };
   const depthOf = (i: number) => (showQ.type === "liars" ? (steps[i] as { depth: number }).depth : 0);
@@ -673,7 +689,9 @@ export function LogicTool() {
                   ? "اول فکر کن: اگر نفر اول راستگو باشد، چه می‌شود؟"
                   : q.type === "vennNum"
                     ? "اول فکر کن: کدام بخش نمودار را مستقیم می‌دانی؟ از وسط شروع کن."
-                    : "اول فکر کن: هر جمله کدام بخش را خالی می‌کند؟"
+                    : q.type === "ifThen"
+                      ? "اول فکر کن: «درست» در جهت پیکان جلو می‌رود، «نادرست» برعکس پیکان."
+                      : "اول فکر کن: هر جمله کدام بخش را خالی می‌کند؟"
               : area === "grid"
                 ? exCheck.tag === "right"
                   ? "✓ جدول کامل است و تناقضی ندارد."
@@ -684,7 +702,9 @@ export function LogicTool() {
                     : "برای هر نفر حدس بزن و ببین کدام حرف جور نیست"
                   : area === "vennNum"
                     ? "جمع هر دایره = همه بخش‌های داخل آن دایره"
-                    : `${fa(placed.length)} از ${fa(tokens.length)} نام روی نمودار`}
+                    : area === "ifThen"
+                      ? "پیکان یک‌طرفه است: از «اگر» به «آنگاه»"
+                      : `${fa(placed.length)} از ${fa(tokens.length)} نام روی نمودار`}
           </p>
         )}
       </section>
@@ -756,6 +776,8 @@ export function LogicTool() {
             )}
 
             {area === "vennNum" && <CountExplorePanel ex={countEx} />}
+
+            {area === "ifThen" && <IfExplorePanel ex={ifEx} />}
 
             {area === "venn" && (
               <>
@@ -831,7 +853,7 @@ export function LogicTool() {
               </div>
             )}
             <h2 className={styles.progress} style={{ marginTop: 10 }}>
-              {showType === "grid" ? "سرنخ‌به‌سرنخ" : showType === "liars" ? "حالت‌به‌حالت" : showType === "vennNum" ? "بخش‌به‌بخش" : "جمله‌به‌جمله"}
+              {showType === "grid" ? "سرنخ‌به‌سرنخ" : showType === "liars" ? "حالت‌به‌حالت" : showType === "vennNum" ? "بخش‌به‌بخش" : showType === "ifThen" ? "پیکان‌به‌پیکان" : "جمله‌به‌جمله"}
             </h2>
             <p className={styles.note}>
               {showType === "grid"
@@ -840,9 +862,12 @@ export function LogicTool() {
                   ? `${LIARS_RULE} یک نفر را راستگو فرض می‌کنیم و ادامه می‌دهیم؛ اگر به تناقض رسیدیم، آن حالت نمی‌شود.`
                   : showType === "vennNum"
                     ? "اول بخش وسط پر می‌شود، بعد «فقط»ها با تفریق، آخر بیرون دایره‌ها. بخشی که همین حالا نوشته می‌شود هاشور و قاب دارد."
-                    : "هر جمله روی نمودار کشیده می‌شود: بخش خالی هاشور، «بعضی» ×. بعد هر گزینه امتحان می‌شود؛ نقطه‌ها یک نمونه‌اند."}
+                    : showType === "ifThen"
+                      ? "هر جمله «اگر… آنگاه» یک پیکان می‌شود. بعد چیزی که می‌دانیم علامت می‌خورد: «درست» فقط در جهت پیکان جلو می‌رود و «نادرست» فقط برعکس پیکان برمی‌گردد. پیکانِ در حال استفاده پررنگ است و جعبه تازه قاب دارد."
+                      : "هر جمله روی نمودار کشیده می‌شود: بخش خالی هاشور، «بعضی» ×. بعد هر گزینه امتحان می‌شود؛ نقطه‌ها یک نمونه‌اند."}
             </p>
             {showQ.type === "vennNum" && <p className={styles.stepText}>{logicPrompt(showQ)}</p>}
+            {showQ.type === "ifThen" && <p className={styles.stepText}>{ifPrompt(showQ)}</p>}
             {showQ.type === "venn" && <p className={styles.stepText}>{showQ.premises.map((s) => `«${stmtText(vennNames(showQ), s)}»`).join("، ")}</p>}
             <ol className={styles.note} style={{ listStyle: "none", padding: 0 }}>
               {k === 0 ? (

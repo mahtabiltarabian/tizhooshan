@@ -1,13 +1,16 @@
 "use client";
 
 // Worksheet for tool 16: shapes on a dot grid (the geoboard on paper), angle
-// figures, and blank dot grids for building. The answer key adds the working,
+// figures, blank dot grids for building, and circle and composite figures
+// with their lengths in centimetres. The answer key adds the working,
 // and for build and halving questions one answer drawn small (others count).
 
 import { makeGeometryQuestion, type GeometryQuestion, type GeometryQuestionType } from "@/generators/geometry";
 import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { degFa } from "./frames";
 import { answerFa, choicesOf, GEOMETRY_TYPE_LABEL, geometryHow, geometryPrompt } from "./GeometryTryPanel";
+import { MeasureSvg } from "./MeasurePictures";
+import { measureUnit } from "./MeasureText";
 import { AngleFigureG, AngleMark, BandG, EXAMPLE, FigureSvg, GeoSvg } from "./Pictures";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -37,6 +40,19 @@ function angleFigure(q: Extract<GeometryQuestion, { type: "angle" }>) {
 
 function figures(q: GeometryQuestion) {
   switch (q.type) {
+    case "circle":
+    case "composite":
+      return (
+        <>
+          {/* "From the circumference" questions have nothing on the figure but its «؟». */}
+          {(q.type === "composite" || q.given !== "C" || q.asks === "r" || q.asks === "d") && (
+            <FigureRow>
+              <MeasureSvg fig={q.fig} width={170} />
+            </FigureRow>
+          )}
+          <p className={styles.symbols}>جواب: ............ {measureUnit(q)}</p>
+        </>
+      );
     case "area":
     case "perimeter":
       return (

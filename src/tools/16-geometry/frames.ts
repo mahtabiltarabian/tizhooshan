@@ -23,6 +23,13 @@ export interface Overlay {
   pieces?: number;
   /** Side lengths along the band. */
   edges?: boolean;
+  // Circle and composite figures (MeasurePictures.tsx):
+  /** Parts outlined, with their label. */
+  parts?: Record<number, string>;
+  /** Edges drawn heavy (a curve, a straight edge). */
+  lines?: number[];
+  /** Hidden lengths now worked out and written. */
+  reveal?: string[];
 }
 
 export interface Frame {

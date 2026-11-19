@@ -106,3 +106,48 @@
 .steps li.later {
   opacity: 0.35;
 }
+
+.choice button {
+  flex: 1 0 40%;
+}
+
+.product {
+  display: block;
+  min-height: 44px;
+  padding: 6px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* The explore and show-me area picker: an even grid, so long names
+   («ک.م.م و ب.م.م») wrap inside their own cell instead of squeezing the row. */
+.areas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.areas button {
+  min-height: 42px;
+  padding: 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.areas button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}

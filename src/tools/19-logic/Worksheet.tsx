@@ -2,14 +2,15 @@
 
 // Worksheet for tool 19: an empty grid with its clues listed, the liars'
 // statements, the premises with numbered conclusions and blank circles to
-// draw on, or a counting question with an empty Venn diagram to write
-// numbers in. The answer key adds the solved grid (or the answer) and how.
+// draw on, a counting question with an empty Venn diagram to write
+// numbers in, or if–then sentences with numbered conclusions. The answer key adds the solved grid (or the answer) and how.
 
 import { makeLogicQuestion, type LogicQuestion, type LogicType } from "@/generators/logic";
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/Worksheet.module.css";
 import { clueText, itemsOf, LOGIC_TYPE_LABEL, logicAnswerFa, logicHow, logicPrompt, optionText, saysText, vennNames } from "./LogicTryPanel";
+import { ifOptionText } from "./IfThen";
 import { GridSvg, solvedMarks, VennSvg } from "./Pictures";
 import { countNames, CountVennSvg } from "./VennCount";
 
@@ -47,6 +48,17 @@ function figures(q: LogicQuestion) {
             ))}
           </ul>
           <p className={styles.symbols}>{q.people.map((name) => `${name}: ............`).join("   ")}</p>
+        </>
+      );
+    case "ifThen":
+      return (
+        <>
+          <ol style={list}>
+            {q.options.map((_, i) => (
+              <li key={i}>{ifOptionText(q, i)}</li>
+            ))}
+          </ol>
+          <p className={styles.symbols}>هر جمله را یک پیکان بکش: ............................................</p>
         </>
       );
     case "venn": {
@@ -87,9 +99,9 @@ const CONFIG: WorksheetConfig<LogicType, LogicQuestion> = {
   title: "تخته استدلال",
   backHref: "/tools/logic",
   typeLabels: LOGIC_TYPE_LABEL,
-  defaultTypes: ["grid", "liars", "venn", "vennNum"],
+  defaultTypes: ["grid", "liars", "venn", "vennNum", "ifThen"],
   make: (type, level, seed) => makeLogicQuestion(type, level, seed),
-  prompt: (q) => (q.type === "venn" ? logicPrompt(q, true) : `${logicPrompt(q, true)}${q.type === "grid" ? ` (${fa(q.clues.length)} سرنخ)` : ""}`),
+  prompt: (q) => (q.type === "venn" || q.type === "ifThen" ? logicPrompt(q, true) : `${logicPrompt(q, true)}${q.type === "grid" ? ` (${fa(q.clues.length)} سرنخ)` : ""}`),
   figures,
   answer,
 };

@@ -10,6 +10,7 @@ export const PUZZLE_TYPE_LABEL: Record<PuzzleType, string> = {
   pyramid: "هرم عددی",
   grid: "جدول جمع",
   star: "مثلث جادویی",
+  ring: "دایره و ستاره عددی",
   shape: "عدد داخل شکل",
 };
 
@@ -43,6 +44,12 @@ export function puzzlePrompt(q: NumberPuzzle, paper = false): string {
       return q.anyFill
         ? `عددهای ${setFa(q.set!)} را هر کدام یک بار در دایره‌ها ${place} تا جمع هر ضلع ${fa(q.target!)} شود. این معما بیش از یک جواب دارد؛ هر چینش درستی پذیرفته می‌شود.`
         : `عددهای ${setFa(q.set!)} هر کدام یک بار در دایره‌ها می‌آیند. دایره‌های خالی را پر کن تا جمع هر ضلع ${fa(q.target!)} شود.`;
+    case "ring": {
+      const what = q.cells.length === 7 ? "چرخ" : "ستاره";
+      return q.targetHidden
+        ? `عددهای ${setFa(q.set!)} هر کدام یک بار در دایره‌های ${what} می‌آیند و جمع چهار دایره هر خط یکی است. اول آن جمع را پیدا کن، بعد ${what} را کامل کن.`
+        : `عددهای ${setFa(q.set!)} هر کدام یک بار در دایره‌های ${what} می‌آیند. دایره‌های خالی را پر کن تا جمع هر خط ${fa(q.target!)} شود.`;
+    }
     case "shape": {
       const blank = blankCells(q)[0];
       return `در هر مثلث، عدد وسط با یک قانون از سه عدد گوشه ساخته می‌شود. ${LEVEL_HINT[q.level]} ${blank % 4 === 3 ? "عدد وسط شکل ۳ چند است؟" : "عدد گوشه‌ای که «؟» دارد چند است؟"}`;
@@ -56,7 +63,9 @@ export function firstHint(q: NumberPuzzle): string {
     case "rule":
       return "اول فکر کن: چه قانونی در شکل ۱ و شکل ۲ هر دو درست است؟";
     case "sum":
-      return "اول فکر کن: جمع هر خط چند است؟ سه سطر با هم همه عددها را می‌گیرند.";
+      return q.type === "ring"
+        ? "اول فکر کن: جمع هر خط چند است؟ هر دایره روی دو خط است؛ پس شش خط با هم هر عدد را دو بار می‌شمارند."
+        : "اول فکر کن: جمع هر خط چند است؟ سه سطر با هم همه عددها را می‌گیرند.";
     case "cornerSum":
       return "اول فکر کن: هر گوشه در دو ضلع هست. جمع سه ضلع با جمع همه عددها چه فرقی دارد؟";
     case "only":
@@ -73,6 +82,10 @@ export function stepText(q: NumberPuzzle, s: Step): string {
   const v = q.cells.map((c) => c.value);
   switch (s.kind) {
     case "sum":
+      if (q.type === "ring") {
+        const all = q.set!.reduce((a, b) => a + b, 0);
+        return `جمع همه عددها ${fa(all)} است. هر دایره روی دو خط است، پس جمع ${fa(q.lines.length)} خط ${ltr(`۲ × ${fa(all)} = ${fa(2 * all)}`)} است و هر خط ${ltr(`${fa(2 * all)} ÷ ${fa(q.lines.length)} = ${fa(s.value)}`)}.`;
+      }
       return `جمع همه عددها ${fa(q.set!.reduce((a, b) => a + b, 0))} است و سه سطر همه را می‌گیرند؛ پس جمع هر خط ${ltr(`${fa(q.set!.reduce((a, b) => a + b, 0))} ÷ ۳ = ${fa(s.value)}`)}.`;
     case "centre":
       return `خانه وسط در چهار خط هست و همیشه یک‌سوم جمع خط است: ${ltr(`${fa(q.target!)} ÷ ۳ = ${fa(s.value)}`)}.`;
@@ -141,6 +154,14 @@ export function feedback(q: NumberPuzzle, vals: readonly (number | null)[]): { t
       return { tone: "turned", text: "فقط سه گوشه را جمع کردی؛ ولی در شکل‌های ۱ و ۲ عدد وسط جمع گوشه‌ها نیست. یک قانون دیگر را روی شکل ۱ امتحان کن." };
     case "oneExample":
       return { tone: "turned", text: "نزدیک بود! قانونی که پیدا کردی فقط در شکل ۱ درست است. قانون باید در شکل ۲ هم درست باشد." };
+    case "crossing": {
+      const [cell, good, bad] = m.cross!;
+      const on = q.lines.filter((l) => l.cells.includes(cell)).length;
+      return {
+        tone: "turned",
+        text: `نزدیک بود! دایره‌ای که ${fa(m.value!)} در آن گذاشتی روی ${on === 3 ? "سه" : "دو"} خط است: «${q.lines[good].name}» درست شد ولی «${q.lines[bad].name}» نه. عددی پیدا کن که همه خط‌های آن دایره را درست کند.${hatch}`,
+      };
+    }
     case "diagonal":
       return { tone: "turned", text: `سطرها و ستون‌ها درست‌اند، ولی جمع هر دو قطر هم باید ${fa(q.target!)} شود.${hatch}` };
     case "lines":

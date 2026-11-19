@@ -5,7 +5,7 @@
 // holes as dark dots, cut-away parts with a dashed edge, cuts in red with ✂.
 // Paper coordinates have y up; the picture has y down.
 
-import { useId } from "react";
+import { useId, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import {
   centroid,
   chord,
@@ -30,6 +30,14 @@ const PAPER = "#fffaf0";
 const FLAP = "#dbe8ff";
 const CUT = "#d6343a";
 const GONE = "#8a8478";
+
+/** Pointer handlers in paper coordinates (unsnapped), for drawing on the paper. */
+export interface PaperPad {
+  down: (p: Pt) => void;
+  move: (p: Pt) => void;
+  up: (p: Pt) => void;
+  cancel: () => void;
+}
 
 /** Marks on a grid answer: the child's dot, the right place (ring), or both. */
 export type Mark = { cell: [number, number]; mine: boolean; right: boolean };
@@ -59,6 +67,13 @@ interface PaperSvgProps {
   spots?: Pt[];
   onSpot?: (p: Pt) => void;
   onVertex?: (v: number) => void;
+  /** A cut being drawn: its corners so far, and the segment under the finger. */
+  draft?: Pt[];
+  preview?: [Pt, Pt] | null;
+  /** Small dots where a cut can bend (the half-grid). */
+  dots?: Pt[];
+  /** Draw on the paper with a finger or mouse. */
+  pad?: PaperPad;
   label?: string;
 }
 
@@ -80,14 +95,46 @@ export function PaperSvg({
   spots = [],
   onSpot,
   onVertex,
+  draft = [],
+  preview,
+  dots = [],
+  pad: drawPad,
   label,
 }: PaperSvgProps) {
   const id = useId();
+  const svgRef = useRef<SVGSVGElement>(null);
   const pad = 10;
   const u = (size - 2 * pad) / S;
   const X = (x: number) => pad + x * u;
   const Y = (y: number) => pad + (S - y) * u;
   const pts = (poly: Poly) => poly.map(([x, y]) => `${X(x)},${Y(y)}`).join(" ");
+  // Screen → paper coordinates, whatever size the picture is drawn at.
+  const toPaper = (e: ReactPointerEvent): Pt | null => {
+    const m = svgRef.current?.getScreenCTM();
+    if (!m) return null;
+    const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return [(q.x - pad) / u, S - (q.y - pad) / u];
+  };
+  const padEvents = drawPad && {
+    onPointerDown: (e: ReactPointerEvent<SVGSVGElement>) => {
+      if (e.button !== 0) return;
+      const p = toPaper(e);
+      if (!p) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drawPad.down(p);
+    },
+    onPointerMove: (e: ReactPointerEvent<SVGSVGElement>) => {
+      const p = e.currentTarget.hasPointerCapture(e.pointerId) && toPaper(e);
+      if (p) drawPad.move(p);
+    },
+    onPointerUp: (e: ReactPointerEvent<SVGSVGElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      const p = toPaper(e);
+      if (p) drawPad.up(p);
+      else drawPad.cancel();
+    },
+    onPointerCancel: () => drawPad.cancel(),
+  };
   const paper = shape ?? square(S);
   const clipId = `${id}-paper`;
   const arrowId = `${id}-arrow`;
@@ -119,7 +166,17 @@ export function PaperSvg({
     );
 
   return (
-    <svg className={styles.svg} width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label}>
+    <svg
+      ref={svgRef}
+      className={styles.svg}
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={label}
+      style={drawPad ? { touchAction: "none", cursor: "crosshair" } : undefined}
+      {...padEvents}
+    >
       <defs>
         <clipPath id={clipId}>
           <polygon points={pts(paper)} />
@@ -170,6 +227,29 @@ export function PaperSvg({
           </text>
         </g>
       ))}
+
+      {dots.map(([x, y]) => (
+        <circle key={`d${x},${y}`} cx={X(x)} cy={Y(y)} r={1.6} fill="#9a8f7c" pointerEvents="none" />
+      ))}
+      {draft.length > 0 && (
+        <g pointerEvents="none">
+          {/* A loop started inside must come back to its start: a dashed ring marks it. */}
+          <circle cx={X(draft[0][0])} cy={Y(draft[0][1])} r={Math.max(7, u * 0.28)} fill="none" stroke={CUT} strokeWidth={2} strokeDasharray="3 2" />
+          <polyline points={pts(draft)} fill="none" stroke={CUT} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" />
+          {draft.map(([x, y], i) => (
+            <circle key={`q${i}`} cx={X(x)} cy={Y(y)} r={3.5} fill={CUT} />
+          ))}
+        </g>
+      )}
+      {preview && (
+        <g pointerEvents="none">
+          <line x1={X(preview[0][0])} y1={Y(preview[0][1])} x2={X(preview[1][0])} y2={Y(preview[1][1])} stroke={CUT} strokeWidth={3} strokeDasharray="8 4" strokeLinecap="round" />
+          <circle cx={X(preview[1][0])} cy={Y(preview[1][1])} r={6} fill="#ffffff" stroke={CUT} strokeWidth={2.5} />
+          <text x={X(preview[1][0]) + 12} y={Y(preview[1][1]) - 12} fontSize={16} textAnchor="middle" dominantBaseline="central" fill={CUT}>
+            ✂
+          </text>
+        </g>
+      )}
 
       {arrow && <path d={arrow} fill="none" stroke={INK} strokeWidth={2} markerEnd={`url(#${arrowId})`} />}
 

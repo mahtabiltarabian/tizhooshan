@@ -17,6 +17,7 @@
 // never move, so an equation always reads A ± B = C. Every slot must stay a
 // digit or a sign: no digit may vanish and no new slot appears.
 
+import { numberAnswerKind } from "./digits-numbers";
 import { isMoreType, makeMoreQuestion, moreAnswerKey, moreMistake, moreSlips, type MoreQuestion, type MoreTag, type MoreType } from "./digits-more";
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
@@ -169,11 +170,15 @@ export interface MatchQuestion extends Base {
 
 export type DigitsQuestion = ExtremeQuestion | ConditionQuestion | CountQuestion | DigitSumQuestion | DivisibleQuestion | MatchQuestion | MoreQuestion;
 
-/** One of the five later topics (digits-more.ts)? */
+/** One of the later topics (digits-more.ts and digits-numbers.ts)? */
 export const isMore = (q: DigitsQuestion): q is MoreQuestion => isMoreType(q.type);
 
-/** How a question is answered: arranging the cards, a number on the pad, moving matchsticks, a digit for each letter, or a sign in each gap. */
-export function answerKind(q: DigitsQuestion): "cards" | "number" | "match" | "letters" | "ops" {
+/**
+ * How a question is answered: arranging the cards, a number on the pad, moving matchsticks,
+ * a digit for each letter, a sign in each gap, one of two choices, or a product of primes.
+ */
+export function answerKind(q: DigitsQuestion): "cards" | "number" | "match" | "letters" | "ops" | "choice" | "factors" {
+  if (q.type === "prime" || q.type === "parity") return numberAnswerKind(q);
   if (q.type === "match") return "match";
   if (q.type === "crypt") return "letters";
   if (q.type === "signs") return "ops";

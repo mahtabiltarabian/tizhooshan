@@ -100,6 +100,8 @@ export function MachineTool() {
   const [num, setNum] = useState(5);
   const [back, setBack] = useState(false);
   const [sel, setSel] = useState(0);
+  // The machine before the last move of a step, to compare outputs (shown while the rule is unchanged since).
+  const [moved, setMoved] = useState<{ before: Rule; after: Rule } | null>(null);
   const [form, setForm] = useState<ExploreForm>("plus");
   const [opP, setOpP] = useState(2);
   const [opQ, setOpQ] = useState(1);
@@ -383,6 +385,28 @@ export function MachineTool() {
                 </button>
               ))}
             </div>
+            <p className={styles.note}>جای مرحله {fa(sel + 1)} را در ماشین عوض کن:</p>
+            <div className={styles.row} dir="ltr">
+              {([-1, 1] as const).map((d) => (
+                <button
+                  key={d}
+                  className={styles.clear}
+                  disabled={sel + d < 0 || sel + d >= rule.length}
+                  aria-label={d < 0 ? `مرحله ${fa(sel + 1)} یک جعبه زودتر` : `مرحله ${fa(sel + 1)} یک جعبه دیرتر`}
+                  onClick={() => {
+                    const next = rule.map((s, i) => (i === sel ? rule[sel + d] : i === sel + d ? rule[sel] : s));
+                    setMoved({ before: rule, after: next });
+                    setRule(next);
+                    setSel(sel + d);
+                  }}
+                >
+                  {d < 0 ? "◀ زودتر" : "دیرتر ▶"}
+                </button>
+              ))}
+            </div>
+            {moved && ruleFa(moved.after) === ruleFa(rule) && ruleFa(moved.before) !== ruleFa(rule) && (
+              <MovedNote before={slotValues(num, moved.before, back)} after={values} back={back} rule={moved.before} />
+            )}
             <p className={styles.note}>مرحله {fa(sel + 1)} را عوض کن:</p>
             <div className={styles.chipsRow} role="radiogroup" aria-label="کار">
               {(["+", "-", "×", "÷"] as Op[]).map((o) => (
@@ -542,6 +566,23 @@ export function MachineTool() {
         )}
       </aside>
     </main>
+  );
+}
+
+/** Output (or input, backwards) before and after a step moved, and whether it changed. */
+function MovedNote({ before, after, back, rule }: { before: number[]; after: number[]; back: boolean; rule: Rule }) {
+  const end = (vs: number[]) => (back ? vs[0] : vs[vs.length - 1]);
+  const word = back ? "ورودی" : "خروجی";
+  const ok = clean(before) && clean(after);
+  const same = ok && end(before) === end(after);
+  return (
+    <p className={`${styles.status} ${styles.info}`} aria-live="polite">
+      پیش از جابه‌جایی (<bdi dir="ltr">{ruleFa(rule)}</bdi>): {word} {clean(before) ? numFa(end(before)) : "عدد صحیح نبود"}
+      <br />
+      حالا: {word} {clean(after) ? numFa(end(after)) : "عدد صحیح نیست"}
+      <br />
+      {!ok ? "" : same ? "= این بار جابه‌جایی جواب را عوض نکرد. مرحله‌های دیگری امتحان کن." : "≠ با جابه‌جا کردن مرحله‌ها، جواب عوض شد: ترتیب مهم است."}
+    </p>
   );
 }
 

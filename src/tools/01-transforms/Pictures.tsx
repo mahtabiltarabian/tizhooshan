@@ -7,6 +7,7 @@
 
 import { useId } from "react";
 import { bounds, mul, opAt, type Figure, type Line, type Mat, type Op, type Pt } from "@/generators/transforms";
+import { fa } from "@/tools/registry";
 import styles from "./Pictures.module.css";
 
 export const INK = "#1f2430";
@@ -170,6 +171,49 @@ export function PivotG({ at, deg }: { at: Pt; deg?: number }) {
       <circle cx={x} cy={-y} r={0.18} fill="#e5484d" stroke="#fff" strokeWidth={0.05} />
     </g>
   );
+}
+
+/**
+ * A slide counted cell by cell: an arrow from one cell's centre along each
+ * part of the slide, with the count (۱، ۲، …) on every cell it lands on.
+ * Each part starts counting again, as in «۳ خانه به راست، ۲ خانه به بالا».
+ */
+export function CountPathG({ from, legs }: { from: Pt; legs: Pt[] }) {
+  const id = useId();
+  const pts: Pt[] = [from];
+  const marks: { at: Pt; n: number }[] = [];
+  for (const [dx, dy] of legs) {
+    const [x, y] = pts[pts.length - 1];
+    const k = Math.abs(dx) + Math.abs(dy);
+    for (let i = 1; i <= k; i++) marks.push({ at: [x + (Math.sign(dx) * i) || 0, y + (Math.sign(dy) * i) || 0], n: i });
+    pts.push([x + dx, y + dy]);
+  }
+  if (pts.length < 2) return null;
+  return (
+    <g pointerEvents="none">
+      <defs>
+        <marker id={id} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="3.5" markerHeight="3.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#d9480f" />
+        </marker>
+      </defs>
+      <circle cx={from[0]} cy={-from[1]} r={0.13} fill="#d9480f" />
+      <polyline points={pts.map(([x, y]) => `${x},${-y}`).join(" ")} fill="none" stroke="#d9480f" strokeWidth={0.08} strokeLinejoin="round" markerEnd={`url(#${id})`} />
+      {marks.map(({ at: [x, y], n }, i) => (
+        <g key={i}>
+          <circle cx={x} cy={-y} r={0.21} fill="#ffffff" stroke="#d9480f" strokeWidth={0.04} />
+          <text x={x} y={-y} fontSize={0.28} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill={INK} style={{ fontFamily: "Vazirmatn, sans-serif" }}>
+            {fa(n)}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** Where a slide is counted from: the lettered cell, or the lowest, then leftmost, cell. */
+export function countFrom(f: Figure): Pt {
+  if (f.mark) return f.mark.at;
+  return [...f.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
 }
 
 /** Dashed links from points to their images. */

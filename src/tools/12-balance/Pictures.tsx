@@ -19,8 +19,8 @@ const COIN_FILL = "#e9c46a";
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
 
-/** Something on a pan. */
-export type Item = { sym: number } | { w: number } | { coin: number } | { pile: number };
+/** Something on a pan. A fruit with a count above 1 is a pile ("×۱۲"). */
+export type Item = { sym: number } | { w: number } | { coin: number } | { pile: number } | { fruit: number; count?: number };
 
 export interface ItemView {
   item: Item;
@@ -106,8 +106,72 @@ export function CoinG({ x, y, r, tag, out, fake }: { x: number; y: number; r: nu
   );
 }
 
+/** Exchange goods (apple, pear, pomegranate, melon): each its own outline; colour only helps. */
+export const FRUIT_FILL = ["#e05a47", "#e8c547", "#9b3a6b", "#c9d86a"];
+
+export function FruitG({ fruit, x, y, s, ring, crossed }: { fruit: number; x: number; y: number; s: number; ring?: boolean; crossed?: boolean }) {
+  const h = s * 0.42;
+  const P = (dx: number, dy: number) => `${r4(x + dx * h)},${r4(y + dy * h)}`;
+  const paint = { fill: FRUIT_FILL[fruit] ?? INK, stroke: INK, strokeWidth: 2, vectorEffect: "non-scaling-stroke" as const };
+  const thin = { fill: "none", stroke: INK, strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" as const };
+  let shape: React.ReactNode;
+  if (fruit === 0)
+    // Apple: two lobes, a stem and a leaf.
+    shape = (
+      <>
+        <path d={`M${P(0, -0.55)} C${P(0.5, -1.05)} ${P(1.15, -0.6)} ${P(1, 0.15)} C${P(0.9, 0.8)} ${P(0.4, 1)} ${P(0, 0.85)} C${P(-0.4, 1)} ${P(-0.9, 0.8)} ${P(-1, 0.15)} C${P(-1.15, -0.6)} ${P(-0.5, -1.05)} ${P(0, -0.55)} Z`} {...paint} />
+        <path d={`M${P(0, -0.55)} L${P(0.12, -1.05)}`} {...thin} />
+        <ellipse cx={r4(x + 0.42 * h)} cy={r4(y - 0.95 * h)} rx={0.28 * h} ry={0.13 * h} fill="#4c9a2a" stroke={INK} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      </>
+    );
+  else if (fruit === 1)
+    // Pear: narrow top, round bottom.
+    shape = (
+      <>
+        <path d={`M${P(0, -0.95)} C${P(0.35, -0.95)} ${P(0.42, -0.5)} ${P(0.5, -0.2)} C${P(1, 0.15)} ${P(0.95, 1)} ${P(0, 1)} C${P(-0.95, 1)} ${P(-1, 0.15)} ${P(-0.5, -0.2)} C${P(-0.42, -0.5)} ${P(-0.35, -0.95)} ${P(0, -0.95)} Z`} {...paint} />
+        <path d={`M${P(0, -0.95)} L${P(0.1, -1.25)}`} {...thin} />
+      </>
+    );
+  else if (fruit === 2)
+    // Pomegranate: round with a crown.
+    shape = (
+      <>
+        <circle cx={x} cy={r4(y + 0.12 * h)} r={0.86 * h} {...paint} />
+        <path d={`M${P(-0.34, -0.62)} L${P(-0.42, -1.08)} L${P(-0.14, -0.84)} L${P(0, -1.14)} L${P(0.14, -0.84)} L${P(0.42, -1.08)} L${P(0.34, -0.62)} Z`} {...paint} />
+      </>
+    );
+  else
+    // Melon: a wide oval with stripes.
+    shape = (
+      <>
+        <ellipse cx={x} cy={y} rx={1.15 * h} ry={0.8 * h} {...paint} />
+        <path d={`M${P(-1.0, -0.38)} Q${P(0, -0.05)} ${P(1.0, -0.38)} M${P(-1.0, 0.38)} Q${P(0, 0.05)} ${P(1.0, 0.38)}`} {...thin} />
+      </>
+    );
+  return (
+    <g opacity={crossed ? 0.45 : 1}>
+      {shape}
+      {ring && <circle cx={x} cy={y} r={s * 0.55} fill="none" stroke={INK} strokeWidth={2} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
+      {crossed && <Cross x={x} y={y} r={s * 0.42} />}
+    </g>
+  );
+}
+
 export function ItemG({ v, x, y, s }: { v: ItemView; x: number; y: number; s: number }) {
   const it = v.item;
+  if ("fruit" in it) {
+    if (!it.count || it.count <= 1) return <FruitG fruit={it.fruit} x={x} y={y} s={s} ring={v.ring} crossed={v.crossed} />;
+    // A pile: one fruit and its count, two slots wide.
+    return (
+      <g>
+        {v.ring && <rect x={x - s} y={y - s * 0.5} width={2 * s} height={s} rx={s * 0.2} fill="none" stroke={INK} strokeWidth={2} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
+        <FruitG fruit={it.fruit} x={x - s * 0.45} y={y} s={s * 0.95} crossed={v.crossed} />
+        <text x={x + s * 0.5} y={y + s * 0.04} fontSize={s * 0.42} fontWeight={700} fill={INK} textAnchor="middle" dominantBaseline="central">
+          {`×${fa(it.count)}`}
+        </text>
+      </g>
+    );
+  }
   if ("sym" in it) return <SymbolG sym={it.sym} x={x} y={y} s={s} ring={v.ring} crossed={v.crossed} />;
   if ("w" in it) return <BlockG value={it.w} x={x} y={y} s={s} ring={v.ring} crossed={v.crossed} />;
   if ("coin" in it) return <CoinG x={x} y={y} r={s * 0.4} tag={v.tag} />;
@@ -125,7 +189,7 @@ export function ItemG({ v, x, y, s }: { v: ItemView; x: number; y: number; s: nu
 }
 
 /** Slots an item takes on a pan (a pile is wide). */
-const slots = (it: Item) => ("pile" in it ? 2 : 1);
+const slots = (it: Item) => ("pile" in it || ("fruit" in it && (it.count ?? 1) > 1) ? 2 : 1);
 
 // ── The scale ───────────────────────────────────────────────────────────
 

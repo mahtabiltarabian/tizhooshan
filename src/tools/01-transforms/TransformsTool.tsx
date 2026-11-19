@@ -6,6 +6,7 @@ import {
   makeTransformQuestion,
   moveFigure,
   normalize,
+  shiftLegs,
   stagedOps,
   SYMBOLS,
   type Figure,
@@ -21,9 +22,9 @@ import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { TRANSFORMS_GUIDE } from "./guide";
-import { progress } from "./Pictures";
+import { countFrom, progress } from "./Pictures";
 import { TransformScene } from "./Scene";
-import { MOVE_NAME, TRANSFORM_TYPE_LABEL, TransformTryPanel, type SceneSetup } from "./TransformTryPanel";
+import { MOVE_NAME, TRANSFORM_TYPE_LABEL, TransformTryPanel, vecText, type SceneSetup } from "./TransformTryPanel";
 
 type Mode = "explore" | "show" | "try";
 type MoveKind = "mirror" | "water" | "rotate" | "shift";
@@ -52,7 +53,14 @@ const SHOW_CHOICES: { key: string; label: string; moves: MoveName[] }[] = [
   { key: "r180", label: "۱۸۰°", moves: ["r180"] },
   { key: "ccw90", label: "۹۰° ↺", moves: ["ccw90"] },
   { key: "combo", label: "آینه، بعد ۹۰° ↻", moves: ["mirror", "cw90"] },
+  // A slide has no named move: it is shown in its two parts (see SHOW_SLIDE).
+  { key: "shift", label: "انتقال", moves: [] },
 ];
+
+/** The slide shown in "show me": across, then up. */
+const SHOW_SLIDE: Pt = [5, 2];
+const SHIFT_WHY =
+  "انتقال: هر خانه شکل به یک اندازه و یک جهت جابه‌جا می‌شود؛ شکل نه می‌چرخد و نه برعکس می‌شود و حرف همان‌طور می‌ماند. از یک خانه شکل بشمار، نه از لبه شکل: هر پرش یک خانه است و خانه شروع شمرده نمی‌شود.";
 
 const SHOW_WHY: Record<MoveName, string> = {
   mirror: "آینه: هر خانه به همان فاصله، آن طرف آینه می‌رود. چپ و راست جابه‌جا می‌شود، بالا و پایین نه. حرف برعکس می‌شود.",
@@ -140,11 +148,13 @@ export function TransformsTool() {
     const base = figure.cells.length ? normalize(figure) : normalize(STARTER);
     return moveFigure(base, { kind: "shift", by: [1, 3] });
   }, [figure]);
-  const showOps = useMemo(() => stagedOps(showFigure, showMoves), [showFigure, showMoves]);
-  // Which named move each board move belongs to (a turn is a slide, then the turn).
-  const moveOfOp = showOps.map((_, i) => showOps.slice(0, i + 1).filter((o) => o.kind !== "shift").length - (showOps[i].kind === "shift" ? 0 : 1));
+  const showSlide = showKey === "shift";
+  const showOps = useMemo(() => (showSlide ? shiftLegs(SHOW_SLIDE) : stagedOps(showFigure, showMoves)), [showSlide, showFigure, showMoves]);
+  // Which named move each board move belongs to (a turn is a slide, then the turn); a slide's parts are steps of their own.
+  const moveOfOp = showOps.map((_, i) => (showSlide ? i : showOps.slice(0, i + 1).filter((o) => o.kind !== "shift").length - (showOps[i].kind === "shift" ? 0 : 1)));
   const { done } = progress(showOps, f);
-  const showStep = f > 0 ? Math.min(showMoves.length - 1, moveOfOp[done]) : -1;
+  const showSteps = showSlide ? showOps.length : showMoves.length;
+  const showStep = f > 0 ? Math.min(showSteps - 1, moveOfOp[done]) : -1;
 
   // Try it
   const [tryType, setTryType] = useState<TransformQuestionType>("mirror");
@@ -203,9 +213,19 @@ export function TransformsTool() {
     setF(0);
   };
 
-  const onAnswered = useCallback(() => animate(0, 1, question.type === "combo" ? question.moves.length : 1), [question, animate]);
+  const onAnswered = useCallback(
+    () => animate(0, 1, question.type === "combo" ? question.moves.length : question.type === "shift" ? (question.form === "draw" ? question.ops.length : shiftLegs(question.vec).length) : 1),
+    [question, animate],
+  );
 
-  const steps = mode === "show" ? showMoves.length : mode === "try" && scene ? Math.max(1, scene.ops.filter((o) => o.kind !== "shift").length) : 1;
+  const steps =
+    mode === "show"
+      ? showSteps
+      : mode === "try" && scene
+        ? question.type === "shift"
+          ? scene.ops.length
+          : Math.max(1, scene.ops.filter((o) => o.kind !== "shift").length)
+        : 1;
   const play = () => {
     if (run) return setRun(null);
     animate(f >= 0.99 ? 0 : f, 1, steps);
@@ -221,13 +241,26 @@ export function TransformsTool() {
         copy={!!image}
         given={[exploreOp]}
         links={links}
+        count={kind === "shift" && links && image ? { from: countFrom(figure), legs: shiftLegs(shift).map((o) => (o.kind === "shift" ? o.by : ([0, 0] as Pt))) } : undefined}
         grid={BOARD}
         onCell={tapCell}
         imageName="transforms"
         label="صفحه شطرنجی؛ روی خانه‌ها بزن"
       />
     );
-  else if (mode === "show") board = <TransformScene figure={showFigure} ops={showOps} f={f} copy guides links imageName="transforms" />;
+  else if (mode === "show")
+    board = (
+      <TransformScene
+        figure={showFigure}
+        ops={showOps}
+        f={f}
+        copy
+        guides
+        links
+        count={showSlide && f > 0 ? { from: countFrom(showFigure), legs: showOps.slice(0, done + 1).map((o) => (o.kind === "shift" ? o.by : ([0, 0] as Pt))) } : undefined}
+        imageName="transforms"
+      />
+    );
   else if (scene)
     board = (
       <TransformScene
@@ -249,13 +282,13 @@ export function TransformsTool() {
           → همه ابزارها
         </Link>
         <h1>
-          <span className={styles.badge}>{fa(1)}</span> تبدیل‌ها: آینه، آب، چرخش
+          <span className={styles.badge}>{fa(1)}</span> تبدیل‌ها: آینه، آب، چرخش، انتقال
         </h1>
         <div className={styles.tabs} role="tablist" aria-label="حالت ابزار">
           <button role="tab" aria-selected={mode === "explore"} onClick={() => switchMode("explore")}>
             کشف: خودت بساز
           </button>
-          <button role="tab" aria-selected={mode === "show"} onClick={() => { switchMode("show"); animate(0, 1, showMoves.length); }}>
+          <button role="tab" aria-selected={mode === "show"} onClick={() => { switchMode("show"); animate(0, 1, showSteps); }}>
             نشانم بده
           </button>
           <button role="tab" aria-selected={mode === "try"} onClick={() => switchMode("try")}>
@@ -405,7 +438,7 @@ export function TransformsTool() {
                   aria-checked={showKey === c.key}
                   onClick={() => {
                     setShowKey(c.key);
-                    animate(0, 1, c.moves.length);
+                    animate(0, 1, c.key === "shift" ? shiftLegs(SHOW_SLIDE).length : c.moves.length);
                   }}
                 >
                   {c.key === "combo" && reversed ? "۹۰° ↻، بعد آینه" : c.label}
@@ -414,13 +447,19 @@ export function TransformsTool() {
             </div>
             <p className={styles.note}>{figure.cells.length ? "شکلی که خودت کشیدی" : "یک شکل نمونه"}. خط‌چین‌های آبی هر خانه را به جایش در تصویر وصل می‌کنند.</p>
             <ol className={styles.pairs}>
-              {showMoves.map((m, i) => (
-                <li key={i} aria-current={showStep === i ? "step" : undefined} style={{ fontWeight: showStep === i ? 700 : 400 }}>
-                  <span className={styles.chip}>{fa(i + 1)}</span> {MOVE_NAME[m]}
-                </li>
-              ))}
+              {showSlide
+                ? showOps.map((o, i) => (
+                    <li key={i} aria-current={showStep === i ? "step" : undefined} style={{ fontWeight: showStep === i ? 700 : 400 }}>
+                      <span className={styles.chip}>{fa(i + 1)}</span> {o.kind === "shift" ? vecText(o.by) : ""}
+                    </li>
+                  ))
+                : showMoves.map((m, i) => (
+                    <li key={i} aria-current={showStep === i ? "step" : undefined} style={{ fontWeight: showStep === i ? 700 : 400 }}>
+                      <span className={styles.chip}>{fa(i + 1)}</span> {MOVE_NAME[m]}
+                    </li>
+                  ))}
             </ol>
-            <p className={styles.stepText}>{SHOW_WHY[showMoves[Math.max(0, showStep)]]}</p>
+            <p className={styles.stepText}>{showSlide ? `${SHIFT_WHY} روی هر خانه‌ای که فلش نارنجی به آن می‌رسد، شماره‌اش نوشته شده: ${vecText(SHOW_SLIDE)}.` : SHOW_WHY[showMoves[Math.max(0, showStep)]]}</p>
             {showKey === "combo" && <p className={`${styles.status} ${styles.info}`}>ترتیب مهم است: با ترتیب برعکس، شکل آخر فرق می‌کند. امتحانش کن!</p>}
             {showKey === "combo" && (
               <button

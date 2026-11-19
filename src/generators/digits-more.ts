@@ -7,6 +7,7 @@
 // Only types come from digits.ts, so the two modules do not load each other.
 
 import type { Level } from "./digits";
+import { makeNumberQuestion, numberAnswerKey, numberMistake, numberSlips, type NumberQuestion, type NumberTag } from "./digits-numbers";
 import { pick, randInt, shuffle, type Rng } from "./random";
 
 interface Base {
@@ -48,6 +49,7 @@ export type MoreTag =
   | "cyclePos"
   | "baseOnly"
   | "wrongOp"
+  | NumberTag
   | "other";
 
 // ── 1. LCM and GCD in stories ────────────────────────────────────────────
@@ -702,10 +704,11 @@ export function unitsSlips(q: UnitsQuestion): [MoreTag, number][] {
 }
 
 // ── Together ─────────────────────────────────────────────────────────────
+// Primes and divisors, and odd and even, live in digits-numbers.ts.
 
-export type MoreQuestion = LcmQuestion | CryptQuestion | SignsQuestion | PagesQuestion | UnitsQuestion;
+export type MoreQuestion = LcmQuestion | CryptQuestion | SignsQuestion | PagesQuestion | UnitsQuestion | NumberQuestion;
 export type MoreType = MoreQuestion["type"];
-export const MORE_TYPES: MoreType[] = ["lcm", "crypt", "signs", "pages", "units"];
+export const MORE_TYPES: MoreType[] = ["lcm", "crypt", "signs", "pages", "units", "prime", "parity"];
 export const isMoreType = (t: string): t is MoreType => (MORE_TYPES as string[]).includes(t);
 
 export function makeMoreQuestion(type: MoreType, rng: Rng, level: Level, seed: number): MoreQuestion {
@@ -720,26 +723,32 @@ export function makeMoreQuestion(type: MoreType, rng: Rng, level: Level, seed: n
       return pagesQuestion(rng, level, seed);
     case "units":
       return unitsQuestion(rng, level, seed);
+    case "prime":
+    case "parity":
+      return makeNumberQuestion(type, rng, level, seed);
   }
 }
 
-/** A question's answer as checked (and written in a link): digits only. */
+/** A question's answer as checked (and written in a link): digits, and dots between prime factors. */
 export function moreAnswerKey(q: MoreQuestion): string {
+  if (q.type === "prime" || q.type === "parity") return numberAnswerKey(q);
   if (q.type === "crypt") return q.solution.join("");
   if (q.type === "signs") return q.ops.map((o) => o + 1).join("");
   return String(q.answer);
 }
 
-/** Wrong numbers with a known cause (for number answers). */
+/** Wrong numbers with a known cause (for number and choice answers). */
 export function moreSlips(q: MoreQuestion): [MoreTag, number][] {
   if (q.type === "lcm") return lcmSlips(q);
   if (q.type === "pages") return pagesSlips(q);
   if (q.type === "units") return unitsSlips(q);
+  if (q.type === "prime" || q.type === "parity") return numberSlips(q);
   return [];
 }
 
 export function moreMistake(q: MoreQuestion, value: string): MoreTag {
   if (value === moreAnswerKey(q)) return "right";
+  if (q.type === "prime" || q.type === "parity") return numberMistake(q, value);
   if (q.type === "crypt") return cryptMistake(q, value);
   if (q.type === "signs") return signsMistake(q, value);
   if (!/^\d+$/.test(value)) return "other";

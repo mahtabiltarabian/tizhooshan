@@ -1,4 +1,4 @@
-// Words for the five later topics of tool 13: prompts, worked steps (for
+// Words for the later topics of tool 13 (primes and odd/even are in NumberText.ts): prompts, worked steps (for
 // «نشانم بده», the answer and the worksheet key) and feedback that names the
 // slip. Numbers and expressions are kept left to right inside Persian text.
 
@@ -24,6 +24,7 @@ import {
   type UnitsQuestion,
 } from "@/generators/digits-more";
 import { fa } from "@/tools/registry";
+import { NUMBER_BAD_TAGS, numberAnswerFa, numberFeedback, numberPrompt, numberSteps } from "./NumberText";
 
 const ltr = (s: string) => `⁦${s}⁩`;
 const n = (x: number | string) => ltr(fa(x));
@@ -132,6 +133,9 @@ export function morePrompt(q: MoreQuestion, paper = false): string {
       return pagesPrompt(q);
     case "units":
       return unitsPrompt(q);
+    case "prime":
+    case "parity":
+      return numberPrompt(q, paper);
   }
 }
 
@@ -346,6 +350,9 @@ export function moreSteps(q: MoreQuestion): string[] {
       return pagesSteps(q);
     case "units":
       return unitsSteps(q);
+    case "prime":
+    case "parity":
+      return numberSteps(q);
   }
 }
 
@@ -358,6 +365,9 @@ export function moreAnswerFa(q: MoreQuestion): string {
       return q.letters.map((l, i) => `${l} = ${fa(q.solution[i])}`).join("، ");
     case "signs":
       return `${exprFa(q.nums, q.ops, q.paren)} ${ltr(`= ${fa(q.target)}`)}`;
+    case "prime":
+    case "parity":
+      return numberAnswerFa(q);
     default:
       return n(q.answer);
   }
@@ -492,9 +502,20 @@ export function moreFeedback(q: MoreQuestion, value: string): { tone: Tone; text
   if (tag === "right") return { tone: "good", text: `درست است! ${how}` };
   const v = Number(value);
   const named =
-    q.type === "lcm" ? lcmFeedback(q, tag, v) : q.type === "crypt" ? cryptFeedback(q, tag, value) : q.type === "signs" ? signsFeedback(q, tag, value) : q.type === "pages" ? pagesFeedback(q, tag) : unitsFeedback(q, tag);
+    q.type === "prime" || q.type === "parity"
+      ? numberFeedback(q, tag, value)
+      : q.type === "lcm"
+        ? lcmFeedback(q, tag, v)
+        : q.type === "crypt"
+          ? cryptFeedback(q, tag, value)
+          : q.type === "signs"
+            ? signsFeedback(q, tag, value)
+            : q.type === "pages"
+              ? pagesFeedback(q, tag)
+              : unitsFeedback(q, tag);
   if (!named) return { tone: "bad", text: `${q.type === "lcm" && q.ask === "clock" && typedTimeFa(value) ? `تو ساعت ${typedTimeFa(value)} را زدی. ` : ""}${right}` };
   // A plain wrong sum or value is still a miss; a named slip is "nearly".
-  const tone: Tone = tag === "notSum" || tag === "wrongValue" || tag === "badTime" ? "bad" : "turned";
+  // A wrong choice of two is a miss too, though its slip is named.
+  const tone: Tone = tag === "notSum" || tag === "wrongValue" || tag === "badTime" || NUMBER_BAD_TAGS.has(tag) || q.type === "parity" || (q.type === "prime" && q.ask === "isPrime") ? "bad" : "turned";
   return { tone, text: `${named} ${right}` };
 }

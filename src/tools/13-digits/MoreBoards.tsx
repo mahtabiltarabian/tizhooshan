@@ -27,6 +27,7 @@ import {
 } from "@/generators/digits-more";
 import { fa } from "@/tools/registry";
 import { divisorsOf, pageGroups, signsTrace, timeFa } from "./MoreText";
+import { NumberBoard } from "./NumberBoards";
 
 export const MORE_VIEW: [number, number, number, number] = [0, 0, 16, 9];
 const INK = "#1f2430";
@@ -612,7 +613,7 @@ function UnitsBoard({ q, step }: { q: UnitsQuestion; step: number }) {
   );
 }
 
-// ── Any of the five ──────────────────────────────────────────────────────
+// ── Any of the later topics ──────────────────────────────────────────────────────
 
 export function MoreBoard({ q, step, entry, active, onSlot }: { q: MoreQuestion; step: number; entry?: (number | null)[]; active?: number | null; onSlot?: (i: number) => void }) {
   switch (q.type) {
@@ -626,6 +627,9 @@ export function MoreBoard({ q, step, entry, active, onSlot }: { q: MoreQuestion;
       return <PagesBoard q={q} step={step} />;
     case "units":
       return <UnitsBoard q={q} step={step} />;
+    case "prime":
+    case "parity":
+      return <NumberBoard q={q} step={step} entry={entry} />;
   }
 }
 

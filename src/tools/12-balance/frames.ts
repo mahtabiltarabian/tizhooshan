@@ -20,7 +20,11 @@ import {
   type Weighing,
 } from "@/generators/balance";
 import { fa } from "@/tools/registry";
+import type { ColumnsFrame } from "./Columns";
+import { exchangeFrames } from "./exchangeText";
+import { meanFrames } from "./meanText";
 import { tiltFor, type BarRow, type ItemView, type Part } from "./Pictures";
+import type { AnyQ } from "./questions";
 
 /** Keeps an equation left to right inside a Persian sentence, on one line. */
 export const ltr = (s: string) => `⁦${s.replace(/ /g, " ")}⁩`;
@@ -49,7 +53,8 @@ export interface ScaleView {
 export type Frame =
   | { kind: "scales"; scales: ScaleView[]; note: string }
   | { kind: "coins"; n: number; heavy: boolean; w: Weighing | null; alive: [number, number]; tilt: number; fake?: number; note: string }
-  | { kind: "bars"; rows: BarRow[]; scale: number; caption?: string; note: string };
+  | { kind: "bars"; rows: BarRow[]; scale: number; caption?: string; note: string }
+  | ColumnsFrame;
 
 interface Overlay {
   removed?: Pan;
@@ -322,8 +327,12 @@ export function ageFrames(q: AgeQuestion): Frame[] {
 }
 
 /** Frames for any question; `attempt` adds the child's released pan first (fill). */
-export function framesOf(q: BalanceQuestion | FillQuestion | CoinQuestion | AgeQuestion, attempt?: number): Frame[] {
+export function framesOf(q: AnyQ, attempt?: number): Frame[] {
   switch (q.type) {
+    case "mean":
+      return meanFrames(q);
+    case "exchange":
+      return exchangeFrames(q);
     case "balance":
       return balanceFrames(q);
     case "fill":

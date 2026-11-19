@@ -12,6 +12,7 @@ import {
   magicFrame,
   makeNumberPuzzle,
   pyramidFrame,
+  ringFrame,
   solveSteps,
   starFrame,
   valuesAfter,
@@ -32,7 +33,8 @@ import { figureView, PuzzleFigure } from "./Pictures";
 import { firstHint, linesRight, PUZZLE_TYPE_LABEL, PuzzleTryPanel, setFa, stepText } from "./PuzzleTryPanel";
 
 type Mode = "explore" | "show" | "try";
-type Area = "square" | "triangle" | "pyramid";
+type Area = "square" | "triangle" | "ring" | "pyramid";
+type RingKind = "wheel" | "star";
 type Vals = (number | null)[];
 
 const arith = (a: number, d: number, n: number) => Array.from({ length: n }, (_, i) => a + i * d);
@@ -89,6 +91,19 @@ const SQUARE_SETS: [string, number, number][] = [
   ["زوج‌ها", 2, 2],
   ["فردها", 1, 2],
 ];
+/** Number wheel (7 circles) or star (12 circles): label, first number, step. */
+const RING_SETS: Record<RingKind, [string, number, number][]> = {
+  wheel: [
+    ["۱ تا ۷", 1, 1],
+    ["۲ تا ۸", 2, 1],
+    ["فردها", 1, 2],
+  ],
+  star: [
+    ["۱ تا ۱۲", 1, 1],
+    ["زوج‌ها", 2, 2],
+  ],
+};
+const ringSize = (k: RingKind) => (k === "star" ? 12 : 7);
 const TRIANGLE_SETS: [string, number, number][] = [
   ["۱ تا ۶", 1, 1],
   ["۲ تا ۷", 2, 1],
@@ -126,6 +141,9 @@ export function NumberPuzzlesTool() {
   const [sqVals, setSqVals] = useState<Vals>(() => Array(9).fill(null));
   const [triSet, setTriSet] = useState<[number, number]>([1, 1]);
   const [triVals, setTriVals] = useState<Vals>(() => Array(6).fill(null));
+  const [ringKind, setRingKind] = useState<RingKind>("wheel");
+  const [ringSet, setRingSet] = useState<[number, number]>([1, 1]);
+  const [ringVals, setRingVals] = useState<Vals>(() => Array(7).fill(null));
   const [base, setBase] = useState<Vals>([3, 5, 2, 4]);
   const [exSel, setExSel] = useState<number | null>(null);
 
@@ -149,7 +167,7 @@ export function NumberPuzzlesTool() {
   const blanks = useMemo(() => blankCells(question), [question]);
   const cur = entry?.key === qKey ? entry : { key: qKey, vals: givenValues(question), sel: blanks[0] ?? null, checked: false };
 
-  // Shareable links: #try=magic&level=2&seed=7&big=1(&a=4,_,9), #show=pyramid&level=3&seed=5&step=2, #explore=triangle, #classroom
+  // Shareable links: #try=magic&level=2&seed=7&big=1(&a=4,_,9), #show=pyramid&level=3&seed=5&step=2, #explore=triangle, #explore=ring(&star=1), #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -193,8 +211,12 @@ export function NumberPuzzlesTool() {
         const n = solveSteps(makeNumberPuzzle(t, l, s, b))?.length ?? 1;
         const step = Number(params.get("step"));
         setF(params.has("step") && Number.isFinite(step) ? Math.min(1, Math.max(0, step / n)) : 1);
-      } else if (explore === "square" || explore === "triangle" || explore === "pyramid") {
+      } else if (explore === "square" || explore === "triangle" || explore === "ring" || explore === "pyramid") {
         setArea(explore);
+        if (explore === "ring" && params.get("star") === "1") {
+          setRingKind("star");
+          setRingVals(Array(12).fill(null));
+        }
         if (explore === "pyramid") setExSel(6);
       }
     }, 0);
@@ -261,9 +283,11 @@ export function NumberPuzzlesTool() {
   // Explore: the figure and its editing
   const sqNumbers = arith(sqSet[0], sqSet[1], 9);
   const triNumbers = arith(triSet[0], triSet[1], 6);
-  const exQ: NumberPuzzle = area === "square" ? magicFrame(sqNumbers) : area === "triangle" ? starFrame(triNumbers) : pyramidFrame(4);
-  const exVals = area === "square" ? sqVals : area === "triangle" ? triVals : pyramidVals(base);
-  const setExVals = area === "square" ? setSqVals : setTriVals;
+  const ringNumbers = arith(ringSet[0], ringSet[1], ringSize(ringKind));
+  const exQ: NumberPuzzle =
+    area === "square" ? magicFrame(sqNumbers) : area === "triangle" ? starFrame(triNumbers) : area === "ring" ? ringFrame(ringNumbers) : pyramidFrame(4);
+  const exVals = area === "square" ? sqVals : area === "triangle" ? triVals : area === "ring" ? ringVals : pyramidVals(base);
+  const setExVals = area === "square" ? setSqVals : area === "ring" ? setRingVals : setTriVals;
   const exCells = area === "pyramid" ? [6, 7, 8, 9] : exQ.cells.map((_, i) => i);
   const exTile = (v: number) => {
     const at = exSel !== null ? exSel : nextEmpty(exCells, exVals, null);
@@ -297,7 +321,15 @@ export function NumberPuzzlesTool() {
     const k = Math.round(f * steps.length);
     const last = steps[k - 1];
     view = figureView(showQ);
-    board = <PuzzleFigure q={showQ} vals={valuesAfter(showQ, steps, k)} focusLine={last?.kind === "line" ? last.line : null} focusCells={stepCells(last)} sums={showQ.type === "magic" || showQ.type === "star" ? "full" : null} />;
+    board = (
+      <PuzzleFigure
+        q={showQ}
+        vals={valuesAfter(showQ, steps, k)}
+        focusLine={last?.kind === "line" ? last.line : null}
+        focusCells={stepCells(last)}
+        sums={showQ.type === "magic" || showQ.type === "star" || showQ.type === "ring" ? "full" : null}
+      />
+    );
   } else {
     const bank = question.set;
     view = figureView(question, bank);
@@ -321,6 +353,9 @@ export function NumberPuzzlesTool() {
   const sqRight = linesRight(exQ, exVals);
   const sideSums = area === "triangle" ? exQ.lines.map((l) => lineSum(l, triVals)) : [];
   const triDone = sideSums.length > 0 && sideSums.every((s) => s !== null && s === sideSums[0]);
+  const ringSums = area === "ring" ? exQ.lines.map((l) => lineSum(l, ringVals)) : [];
+  const ringDone = ringSums.length > 0 && ringSums.every((s) => s !== null && s === ringSums[0]);
+  const ringTotal = ringNumbers.reduce((a, b) => a + b, 0);
   const pv = pyramidVals(base);
 
   return (
@@ -397,6 +432,10 @@ export function NumberPuzzlesTool() {
                   ? triDone
                     ? `هر سه ضلع ${fa(sideSums[0]!)} ✓`
                     : "سه ضلع را برابر کن"
+                  : area === "ring"
+                    ? ringDone
+                      ? `همه خط‌ها ${fa(ringSums[0]!)} ✓`
+                      : "همه خط‌ها را برابر کن"
                   : `بالای هرم: ${fa(pv[0] ?? 0)}`}
           </p>
         )}
@@ -410,6 +449,7 @@ export function NumberPuzzlesTool() {
                 [
                   ["square", "مربع جادویی"],
                   ["triangle", "مثلث جادویی"],
+                  ["ring", "دایره و ستاره"],
                   ["pyramid", "هرم"],
                 ] as [Area, string][]
               ).map(([a, label]) => (
@@ -491,6 +531,67 @@ export function NumberPuzzlesTool() {
                 </p>
                 <p className={styles.note}>راهنما: هر گوشه در دو ضلع حساب می‌شود. گوشه‌های کوچک جمع کوچک می‌سازند.</p>
                 <button className={styles.clear} onClick={() => setTriVals(Array(6).fill(null))}>
+                  پاک کردن
+                </button>
+              </>
+            )}
+
+            {area === "ring" && (
+              <>
+                <h2 className={styles.progress}>خط‌ها را برابر کن</h2>
+                <div className={styles.chipsRow} role="radiogroup" aria-label="شکل">
+                  {(
+                    [
+                      ["wheel", "چرخ ۷ دایره"],
+                      ["star", "ستاره ۱۲ دایره"],
+                    ] as [RingKind, string][]
+                  ).map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      role="radio"
+                      aria-checked={ringKind === kind}
+                      onClick={() => {
+                        setRingKind(kind);
+                        setRingSet([1, 1]);
+                        setRingVals(Array(ringSize(kind)).fill(null));
+                        setExSel(null);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className={styles.note}>عددها را در دایره‌ها بکش. جمع هر خط کنار آن نوشته می‌شود؛ همه برابر شوند، کار تمام است.</p>
+                <div className={styles.chipsRow} role="radiogroup" aria-label="عددها">
+                  {RING_SETS[ringKind].map(([label, a, d]) => (
+                    <button
+                      key={label}
+                      role="radio"
+                      aria-checked={ringSet[0] === a && ringSet[1] === d}
+                      onClick={() => {
+                        setRingSet([a, d]);
+                        setRingVals(Array(ringSize(ringKind)).fill(null));
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className={styles.status + " " + (ringDone ? styles.good : styles.info)}>
+                  {ringDone ? `✓ همه ${fa(ringSums.length)} خط ${fa(ringSums[0]!)} است.` : `خط‌ها: ${ringSums.map((s) => (s === null ? "…" : fa(s))).join("، ")}`}
+                </p>
+                {ringKind === "wheel" ? (
+                  <p className={styles.note}>راهنما: دایره وسط روی هر سه خط است. چه عددهایی در وسط جواب می‌دهند؟ هر کدام چه جمعی می‌سازد؟</p>
+                ) : (
+                  <p className={styles.note}>
+                    راهنما: هر دایره روی دو خط است؛ پس جمع شش خط دو برابر جمع همه عددهاست و هر خط باید{" "}
+                    <bdi dir="ltr">
+                      ۲ × {fa(ringTotal)} ÷ ۶ = {fa(ringTotal / 3)}
+                    </bdi>{" "}
+                    شود.
+                  </p>
+                )}
+                <button className={styles.clear} onClick={() => setRingVals(Array(ringSize(ringKind)).fill(null))}>
                   پاک کردن
                 </button>
               </>
@@ -615,6 +716,7 @@ export function NumberPuzzlesTool() {
 function tryNote(q: NumberPuzzle) {
   if (q.type === "magic" && q.set) return `عددها: ${setFa(q.set)}. بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.`;
   if (q.type === "shape") return "شکل‌ها از راست خوانده می‌شوند: شکل ۱ سمت راست است.";
+  if (q.type === "ring") return "هر دایره روی بیش از یک خط است؛ عددی که می‌گذاری باید همه خط‌های آن دایره را درست کند. بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.";
   if (q.type === "grid") return `جمع کل (گوشه پایین چپ) هم جمع ستون «جمع» است و هم جمع سطر «جمع».`;
   return "بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.";
 }

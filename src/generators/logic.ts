@@ -15,12 +15,13 @@
 // sound, solved also means the answer is the only one.
 
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
+import { makeIfThenQuestion, type IfThenQuestion } from "./if-then";
 import { makeVennCountQuestion, type VennCountQuestion } from "./venn-count";
 
 export type Level = 1 | 2 | 3;
-/** vennNum: Venn diagrams with numbers (generators/venn-count.ts). */
-export type LogicType = "grid" | "liars" | "venn" | "vennNum";
-export const LOGIC_TYPES: LogicType[] = ["grid", "liars", "venn", "vennNum"];
+/** vennNum: Venn diagrams with numbers (generators/venn-count.ts); ifThen: if–then reasoning (generators/if-then.ts). */
+export type LogicType = "grid" | "liars" | "venn" | "vennNum" | "ifThen";
+export const LOGIC_TYPES: LogicType[] = ["grid", "liars", "venn", "vennNum", "ifThen"];
 
 export const NAMES = ["سارا", "علی", "مریم", "رضا", "نیما", "زهرا", "آرش", "هستی", "پارسا", "نازنین"];
 
@@ -700,7 +701,7 @@ export function vennSteps(q: VennQuestion): VennStep[] {
 
 // ───────────────────────── all questions ─────────────────────────
 
-export type LogicQuestion = GridQuestion | LiarsQuestion | VennQuestion | VennCountQuestion;
+export type LogicQuestion = GridQuestion | LiarsQuestion | VennQuestion | VennCountQuestion | IfThenQuestion;
 
 /** What kind of answer a question wants. */
 export const answerKind = (type: LogicType): "grid" | "people" | "choice" | "number" => (type === "grid" ? "grid" : type === "liars" ? "people" : type === "vennNum" ? "number" : "choice");
@@ -722,5 +723,7 @@ export function makeLogicQuestion(type: LogicType, level: Level, seed: number, o
       return vennQuestion(rng, level, seed);
     case "vennNum":
       return makeVennCountQuestion(level, seed);
+    case "ifThen":
+      return makeIfThenQuestion(level, seed);
   }
 }

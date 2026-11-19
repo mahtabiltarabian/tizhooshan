@@ -18,11 +18,12 @@ import {
   type MatchQuestion,
 } from "@/generators/digits";
 import { moreSlips } from "@/generators/digits-more";
+import { choiceWords, readFactors } from "@/generators/digits-numbers";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
 import own from "./Digits.module.css";
-import { LetterPad, OpsPad } from "./MoreInputs";
+import { ChoicePad, FactorPad, LetterPad, OpsPad } from "./MoreInputs";
 import { moreAnswerFa, moreFeedback, morePrompt, moreSteps, typedTimeFa } from "./MoreText";
 
 export const DIGITS_TYPE_LABEL: Record<DigitsQuestionType, string> = {
@@ -37,12 +38,14 @@ export const DIGITS_TYPE_LABEL: Record<DigitsQuestionType, string> = {
   signs: "گذاشتن علامت",
   pages: "رقم‌های صفحه",
   units: "رقم یکان",
+  prime: "عدد اول و شمارنده‌ها",
+  parity: "زوج و فرد",
 };
 
 /** Question types in four groups, so the picker fits a phone: a group, then its types. */
 export const DIGITS_TYPE_GROUPS: { label: string; types: DigitsQuestionType[] }[] = [
   { label: "ساختن عدد", types: ["extreme", "condition", "digitSum"] },
-  { label: "بخش‌پذیری", types: ["divisible", "lcm", "units"] },
+  { label: "بخش‌پذیری", types: ["divisible", "prime", "parity", "lcm", "units"] },
   { label: "شمارش رقم", types: ["count", "pages"] },
   { label: "معما", types: ["match", "crypt", "signs"] },
 ];
@@ -274,7 +277,7 @@ interface Props {
 function padDigits(q: DigitsQuestion) {
   if (q.type === "divisible") return 1;
   if (q.type === "units") return 1;
-  if (isMore(q)) return Math.max(String(q.type === "lcm" || q.type === "pages" ? q.answer : 0).length, ...moreSlips(q).map(([, v]) => String(v).length)) + 1;
+  if (isMore(q)) return Math.max(String(q.type === "lcm" || q.type === "pages" || q.type === "prime" ? q.answer : 0).length, ...moreSlips(q).map(([, v]) => String(v).length)) + 1;
   return String((q as { answer: number }).answer).length + 1;
 }
 
@@ -282,15 +285,41 @@ export function DigitsTryPanel(p: Props) {
   const { question: q, checked } = p;
   const kind = answerKind(q);
   const [num, setNum] = useState(kind === "number" && checked !== null ? checked : "");
+  const [choice, setChoice] = useState(kind === "choice" && checked !== null ? checked : "");
+  const factors = kind === "factors" ? p.entry.filter((x): x is number => x !== null) : [];
+  const shownFactors = kind === "factors" && checked !== null ? (readFactors(checked) ?? []) : factors;
   const fb = checked !== null ? feedback(q, checked) : null;
   const done = checked !== null;
   const moved = q.type === "match" ? stickDiff(q.start, p.sticks) : null;
   const need = kind === "cards" ? (q.type === "condition" ? q.use : (q as { cards: number[] }).cards.length) : 0;
 
   const filled = p.entry.every((x) => x !== null);
-  const value = kind === "number" ? num : kind === "cards" ? p.built : kind === "match" ? p.sticks.join(".") : kind === "letters" ? p.entry.join("") : p.entry.map((o) => (o ?? 0) + 1).join("");
+  const value =
+    kind === "number"
+      ? num
+      : kind === "choice"
+        ? choice
+        : kind === "factors"
+          ? [...factors].sort((a, b) => a - b).join(".")
+          : kind === "cards"
+            ? p.built
+            : kind === "match"
+              ? p.sticks.join(".")
+              : kind === "letters"
+                ? p.entry.join("")
+                : p.entry.map((o) => (o ?? 0) + 1).join("");
   const ready =
-    kind === "number" ? !!num : kind === "cards" ? p.built.length === need : kind === "letters" || kind === "ops" ? filled && p.entry.length > 0 : moved !== null && moved.removed === moved.added && moved.removed === (q as MatchQuestion).moves;
+    kind === "number"
+      ? !!num
+      : kind === "choice"
+        ? !!choice
+        : kind === "factors"
+          ? factors.length > 0
+          : kind === "cards"
+            ? p.built.length === need
+            : kind === "letters" || kind === "ops"
+              ? filled && p.entry.length > 0
+              : moved !== null && moved.removed === moved.added && moved.removed === (q as MatchQuestion).moves;
   const clock = q.type === "lcm" && q.ask === "clock";
   const group = groupOf(p.type);
 
@@ -322,6 +351,14 @@ export function DigitsTryPanel(p: Props) {
 
       {kind === "number" && <NumberPad value={num} onChange={setNum} disabled={done} maxDigits={padDigits(q)} />}
       {clock && num && <p className={styles.hint}>{typedTimeFa(num) ? `یعنی ساعت ${typedTimeFa(num)}` : `${fa(num)} — برای ساعت، ساعت و دقیقه را با هم بزن (مثلاً ۸۰۵).`}</p>}
+
+      {kind === "choice" && (q.type === "prime" || q.type === "parity") && <ChoicePad words={choiceWords(q)} value={choice} onChange={setChoice} disabled={done} />}
+      {kind === "factors" && (
+        <>
+          <FactorPad value={shownFactors} onChange={p.onEntry} disabled={done} />
+          {!done && <p className={styles.hint}>هر عامل را به تعدادی که در ضرب می‌آید بزن؛ ترتیب مهم نیست.</p>}
+        </>
+      )}
 
       {kind === "letters" && q.type === "crypt" && (
         <>

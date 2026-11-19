@@ -1,15 +1,17 @@
 "use client";
 
-// Worksheet for tool 13: cards to arrange, a number with a box, or a
-// matchstick equation to correct. Counting and digit-sum questions are text
+// Worksheet for tool 13: cards to arrange, a number with a box, a
+// matchstick equation to correct, or a board to cover with dominoes. Counting and digit-sum questions are text
 // with an answer line. The answer key adds the working.
 
-import { isMore, makeDigitsQuestion, type DigitsQuestion, type DigitsQuestionType } from "@/generators/digits";
+import { answerKind, isMore, makeDigitsQuestion, type DigitsQuestion, type DigitsQuestionType } from "@/generators/digits";
+import { choiceWords } from "@/generators/digits-numbers";
 import { fa } from "@/tools/registry";
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { answerFa, digitsHow, DIGITS_TYPE_LABEL, digitsPrompt, holeFa } from "./DigitsTryPanel";
 import { CryptG } from "./MoreBoards";
 import { exprFa, moreSteps } from "./MoreText";
+import { DominoPaper } from "./NumberBoards";
 import { CardsSvg, MatchSvg } from "./Pictures";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -57,6 +59,22 @@ function figures(q: DigitsQuestion) {
           {exprFa(q.nums, q.ops.map(() => null), q.paren).replace(/؟/g, "☐")} = {fa(q.target)}
         </p>
       );
+    case "prime":
+    case "parity": {
+      const kind = answerKind(q);
+      return (
+        <>
+          {q.type === "parity" && q.ask === "domino" && (
+            <FigureRow>
+              <DominoPaper rows={q.nums[0]} cols={q.nums[1]} variant={q.variant} />
+            </FigureRow>
+          )}
+          <p className={styles.symbols}>
+            {kind === "choice" ? `${choiceWords(q).join("  /  ")} (یکی را دور کن) · دلیل: ..................` : kind === "factors" && q.type === "prime" ? `${fa(q.n)} = .... × .... × .... × ....` : "جواب: .................."}
+          </p>
+        </>
+      );
+    }
     default:
       return <p className={styles.symbols}>جواب: ..................</p>;
   }

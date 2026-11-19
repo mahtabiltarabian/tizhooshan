@@ -1,14 +1,17 @@
 "use client";
 
 // Worksheet for tool 12: the scales of each question drawn level, with a
-// "?" on the empty pan; coins and ages are text with an answer line. The
-// answer key adds the working.
+// "?" on the empty pan; exchanges are drawn as balanced scales of fruit;
+// coins, ages and averages are text with an answer line. The answer key adds
+// the working.
 
-import { makeBalanceQuestion, type BalanceQ, type BalanceQuestionType } from "@/generators/balance";
+import { MEAN_CONTEXTS } from "@/generators/mean";
 import { WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
 import { answerFa, BALANCE_TYPE_LABEL, balanceHow, balancePrompt } from "./BalanceTryPanel";
+import { goodName, goodsItems } from "./exchangeText";
 import { glyph, itemsOf } from "./frames";
+import { makeTryQuestion, type AnyQ, type TryType } from "./questions";
 import { BalanceSvg, type ItemView } from "./Pictures";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -22,8 +25,25 @@ function Fig({ left, right, name, width, ask }: { left: ItemView[]; right: ItemV
   );
 }
 
-function figures(q: BalanceQ) {
+function figures(q: AnyQ) {
   switch (q.type) {
+    case "mean":
+      return <p className={styles.symbols}>............ {MEAN_CONTEXTS[q.context].noun}</p>;
+    case "exchange": {
+      const g = q.goods;
+      const asked = q.variant === "compare" ? g[0] : g[q.to];
+      return (
+        <>
+          <div className={styles.row} style={{ flexWrap: "wrap", rowGap: 4 }}>
+            {q.order.map((i) => (
+              <Fig key={i} left={goodsItems(g[i], q.rates[i].p)} right={goodsItems(g[i + 1], q.rates[i].q)} width={150} name={`${fa(q.rates[i].p)} ${goodName(g[i])} = ${fa(q.rates[i].q)} ${goodName(g[i + 1])}`} />
+            ))}
+            {q.variant === "compare" && <Fig left={goodsItems(g[0], q.offer)} right={goodsItems(g[2], 1)} width={150} name={`فروشنده: ${fa(q.offer)} ${goodName(g[0])} = ۱ ${goodName(g[2])}`} />}
+          </div>
+          <p className={styles.symbols}>............ {goodName(asked)}</p>
+        </>
+      );
+    }
     case "balance":
       return (
         <>
@@ -54,7 +74,7 @@ function figures(q: BalanceQ) {
   }
 }
 
-function answer(q: BalanceQ) {
+function answer(q: AnyQ) {
   return (
     <>
       {answerFa(q)} · <span style={{ fontWeight: 400 }}>{balanceHow(q)}</span>
@@ -62,12 +82,12 @@ function answer(q: BalanceQ) {
   );
 }
 
-const CONFIG: WorksheetConfig<BalanceQuestionType, BalanceQ> = {
+const CONFIG: WorksheetConfig<TryType, AnyQ> = {
   title: "ترازو",
   backHref: "/tools/balance",
   typeLabels: BALANCE_TYPE_LABEL,
   defaultTypes: ["balance", "fill", "coin", "age"],
-  make: makeBalanceQuestion,
+  make: makeTryQuestion,
   prompt: (q) => balancePrompt(q, true),
   figures,
   answer,

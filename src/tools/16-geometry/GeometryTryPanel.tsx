@@ -17,6 +17,8 @@ import {
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import { approxDeg, areaHow, degFa, ltr, num, perimeterHow } from "./frames";
+import { DecimalPad } from "./MeasurePictures";
+import { measureAnswerFa, measureHow, measurePrompt, measureSlipText } from "./MeasureText";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const GEOMETRY_TYPE_LABEL: Record<GeometryQuestionType, string> = {
@@ -26,6 +28,8 @@ export const GEOMETRY_TYPE_LABEL: Record<GeometryQuestionType, string> = {
   classify: "نوع زاویه",
   build: "ساختن شکل",
   divide: "دو نیمه کردن",
+  circle: "دایره",
+  composite: "مساحت ترکیبی",
 };
 
 /** What each level means, per type (the "new example" knobs). */
@@ -36,7 +40,12 @@ export const LEVEL_LABEL: Record<GeometryQuestionType, [string, string, string]>
   classify: ["یک زاویه", "مثلث", "مثلث کج"],
   build: ["مستطیل", "مثلث و چندضلعی", "مربع کج یا L"],
   divide: ["مستطیل", "مثلث و ذوزنقه", "شکل کج"],
+  circle: ["دایره کامل", "نیم و ربع دایره", "حلقه و از محیط"],
+  composite: ["دو مستطیل", "منهای یک تکه", "با دایره"],
 };
+
+/** Questions with lengths on a figure (π = 3.14) rather than on the geoboard. */
+export const isMeasure = (t: GeometryQuestionType) => t === "circle" || t === "composite";
 
 /** Choices for "classify": one angle (level 1) or a triangle by its largest angle. */
 export const choicesOf = (level: Level, short = false) =>
@@ -48,6 +57,9 @@ const ANY = "هر شکلی که این شرط را داشته باشد درست 
 
 export function geometryPrompt(q: GeometryQuestion, paper = false): string {
   switch (q.type) {
+    case "circle":
+    case "composite":
+      return measurePrompt(q);
     case "area":
       return "مساحت این شکل چند واحد مربع است؟ (هر مربع کوچک بین چهار میخ، یک واحد مربع است.)";
     case "perimeter":
@@ -111,6 +123,9 @@ function classifyAngle(q: Extract<GeometryQuestion, { type: "classify" }>) {
 /** The working, in a line or two. */
 export function geometryHow(q: GeometryQuestion): string {
   switch (q.type) {
+    case "circle":
+    case "composite":
+      return measureHow(q);
     case "area":
       return areaHow(q.poly);
     case "perimeter":
@@ -198,6 +213,9 @@ function divideHow(q: DivideQuestion) {
 /** The answer, in words. */
 export function answerFa(q: GeometryQuestion): string {
   switch (q.type) {
+    case "circle":
+    case "composite":
+      return measureAnswerFa(q);
     case "area":
       return `${num(q.answer)} واحد مربع`;
     case "perimeter":
@@ -221,6 +239,12 @@ function numberFeedback(q: GeometryQuestion, v: number): { tone: Tone; text: str
   const right = `جواب ${answerFa(q)} است. ${how}`;
   const t = (text: string) => ({ tone: "turned" as Tone, text: `${text} ${right}` });
   const a = q.type === "angle" ? q.angles : [];
+  if (q.type === "circle" || q.type === "composite") {
+    const tag = geometryMistake(q, v);
+    if (tag === "right") return { tone: "good", text: `درست است! ${how}` };
+    if (tag === "other") return { tone: "bad", text: right };
+    return t(measureSlipText(q, tag as Parameters<typeof measureSlipText>[1]));
+  }
   switch (geometryMistake(q, v)) {
     case "right":
       return { tone: "good", text: `درست است! ${how}` };
@@ -343,7 +367,8 @@ interface Props {
 export function GeometryTryPanel(p: Props) {
   const { question: q, checked } = p;
   const kind = answerKind(q.type);
-  const [num0, setNum] = useState(kind === "number" && checked !== null ? String(Math.floor(checked)) : "");
+  const decimal = isMeasure(q.type);
+  const [num0, setNum] = useState(kind === "number" && checked !== null ? String(decimal ? checked : Math.floor(checked)) : "");
   const [half, setHalf] = useState(kind === "number" && checked !== null && checked % 1 !== 0);
   const [choice, setChoice] = useState<number | null>(kind === "choice" ? checked : null);
   const done = checked !== null;
@@ -355,7 +380,7 @@ export function GeometryTryPanel(p: Props) {
     else fb = numberFeedback(q, checked);
   }
 
-  const ready = kind === "number" ? num0 !== "" || half : kind === "choice" ? choice !== null : kind === "shape" ? p.band.length >= 3 : p.band.length === 2;
+  const ready = kind === "number" ? (decimal ? num0 !== "" && num0 !== "0." : num0 !== "" || half) : kind === "choice" ? choice !== null : kind === "shape" ? p.band.length >= 3 : p.band.length === 2;
   const value = kind === "number" ? Number(num0 || 0) + (half ? 0.5 : 0) : kind === "choice" ? choice! : 0;
 
   return (
@@ -379,7 +404,7 @@ export function GeometryTryPanel(p: Props) {
 
       {kind === "number" && (
         <>
-          <NumberPad value={num0} onChange={setNum} disabled={done} />
+          {decimal ? <DecimalPad value={num0} onChange={setNum} disabled={done} /> : <NumberPad value={num0} onChange={setNum} disabled={done} />}
           {q.type === "area" && (
             <div className={styles.chips}>
               <button aria-pressed={half} onClick={() => setHalf(!half)} disabled={done}>
@@ -444,7 +469,7 @@ export function GeometryTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && (q.type === "area" || q.type === "perimeter") && <p className={styles.hint}>روی صفحه، شمارش قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && (q.type === "area" || q.type === "perimeter" || decimal) && <p className={styles.hint}>روی صفحه، {decimal ? "راه‌حل" : "شمارش"} قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
       {done && (q.type === "build" || q.type === "divide") && fb?.tone !== "good" && <p className={styles.hint}>روی صفحه، کش تو نارنجی و پررنگ است و یک جواب درست سبز و خط‌چین.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

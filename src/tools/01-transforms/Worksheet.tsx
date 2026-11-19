@@ -1,11 +1,13 @@
 "use client";
 
 // Worksheet for tool 1. Mirror and water questions show the mirror or the
-// water line next to the figure; draw questions give a grid to colour.
+// water line next to the figure; draw and slide questions give a grid to
+// colour, and "which slide?" shows both pictures on the grid.
 
 import { useId } from "react";
 import {
   makeTransformQuestion,
+  moveAll,
   moveFigure,
   stagedOps,
   type Figure,
@@ -17,7 +19,7 @@ import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/tool
 import { fa } from "@/tools/registry";
 import { boxFor, FigureG, FigureSvg, GridG, Hatch, LineG, PivotG } from "./Pictures";
 import { rectAround, type Rect } from "./Scene";
-import { MOVE_NAME, sequenceFrames, TRANSFORM_TYPE_LABEL, transformPrompt } from "./TransformTryPanel";
+import { MOVE_NAME, sequenceFrames, TRANSFORM_TYPE_LABEL, transformPrompt, vecText } from "./TransformTryPanel";
 import styles from "@/toolkit/Worksheet.module.css";
 
 /** A small still board: figures on a grid with the lines and turning points of some moves. */
@@ -46,6 +48,27 @@ function MiniBoard({ figs, ops = [], grid, size = 150, image, plain = false }: {
 }
 
 function figures(q: TransformQuestion) {
+  if (q.type === "shift") {
+    const grid = { x0: 0, y0: 0, x1: q.w, y1: q.h };
+    if (q.form === "draw")
+      return (
+        <div className={styles.answerGrid}>
+          <MiniBoard figs={[q.figure]} ops={q.ops} grid={grid} size={240} plain />
+        </div>
+      );
+    return (
+      <>
+        <div className={styles.answerGrid}>
+          <MiniBoard figs={[q.figure]} grid={grid} size={240} image={q.image} />
+        </div>
+        <Choices>
+          {q.options.map((v) => (
+            <span key={v.join()}>{vecText(v)}</span>
+          ))}
+        </Choices>
+      </>
+    );
+  }
   if (q.type === "draw")
     return (
       <div className={styles.answerGrid}>
@@ -118,6 +141,14 @@ function figures(q: TransformQuestion) {
 }
 
 function answer(q: TransformQuestion) {
+  if (q.type === "shift")
+    return q.form === "vector" ? (
+      <>{vecText(q.vec)}</>
+    ) : (
+      <span className={styles.keyGrid}>
+        <MiniBoard figs={[q.figure]} ops={q.ops} grid={{ x0: 0, y0: 0, x1: q.w, y1: q.h }} size={110} image={moveAll(q.figure, q.ops)} plain />
+      </span>
+    );
   if (q.type === "draw")
     return (
       <span className={styles.keyGrid}>
@@ -129,7 +160,7 @@ function answer(q: TransformQuestion) {
 }
 
 const CONFIG: WorksheetConfig<TransformQuestionType, TransformQuestion> = {
-  title: "تبدیل‌ها: آینه، آب، چرخش",
+  title: "تبدیل‌ها: آینه، آب، چرخش، انتقال",
   backHref: "/tools/transforms",
   typeLabels: TRANSFORM_TYPE_LABEL,
   defaultTypes: ["mirror", "water", "draw"],

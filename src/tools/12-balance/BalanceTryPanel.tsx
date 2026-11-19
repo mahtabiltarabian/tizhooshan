@@ -2,41 +2,53 @@
 
 import { useState } from "react";
 import {
-  answerKind,
   balanceMistake,
   BLOCKS,
   stagesOf,
   SYMBOLS,
   type BalanceQ,
-  type BalanceQuestionType,
   type FillQuestion,
   type Level,
 } from "@/generators/balance";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
+import { exchangeAnswerFa, exchangeFeedback, exchangeHow, exchangePrompt } from "./exchangeText";
 import { answerUnit, glyph, ltr, panFa, powerFa, stepNote } from "./frames";
+import { meanAnswerFa, meanFeedback, meanHow, meanPrompt } from "./meanText";
+import type { AnyQ, TryType } from "./questions";
 import styles from "@/toolkit/TryPanel.module.css";
 
-export const BALANCE_TYPE_LABEL: Record<BalanceQuestionType, string> = {
+export const BALANCE_TYPE_LABEL: Record<TryType, string> = {
   balance: "ترازوی نمادین",
   fill: "کفه خالی",
   coin: "سکه تقلبی",
   age: "سن با نوار",
+  mean: "میانگین",
+  exchange: "مبادله",
 };
 
 /** What each level means, per type (the "new example" knobs). */
-export const LEVEL_LABEL: Record<BalanceQuestionType, [string, string, string]> = {
+export const LEVEL_LABEL: Record<TryType, [string, string, string]> = {
   balance: ["۱ ترازو، ۱ شکل", "۲ ترازو، ۲ شکل", "۳ ترازو، ۳ شکل"],
   fill: ["۱ شکل", "۲ شکل", "۳ شکل"],
   coin: ["تا ۹ سکه", "تا ۳۰ سکه", "تا ۱۲۰ سکه"],
   age: ["جمع و تفاضل", "چند برابر", "چند سال بعد"],
+  mean: ["میانگین ۳ یا ۴ عدد", "عدد گمشده", "آمدن، رفتن، دو گروه"],
+  exchange: ["یک مبادله", "زنجیره‌ی دوتایی", "باقی‌مانده یا مقایسه"],
 };
+
+/** A number, or blocks on the empty pan (fill). */
+const kindOf = (t: TryType): "number" | "pan" => (t === "fill" ? "pan" : "number");
 
 const symName = (j: number) => `${SYMBOLS[j].name} (${glyph(j)})`;
 const fakeWord = (heavy: boolean) => (heavy ? "سنگین‌تر" : "سبک‌تر");
 
-export function balancePrompt(q: BalanceQ, paper = false): string {
+export function balancePrompt(q: AnyQ, paper = false): string {
   switch (q.type) {
+    case "mean":
+      return meanPrompt(q);
+    case "exchange":
+      return exchangePrompt(q);
     case "balance":
       return `${q.n === 1 ? "ترازو متعادل است" : `هر ${fa(q.n)} ترازو متعادل‌اند`}. هر ${symName(q.ask)} چند کیلو است؟`;
     case "fill":
@@ -64,8 +76,12 @@ export function balancePrompt(q: BalanceQ, paper = false): string {
 }
 
 /** The working, briefly. */
-export function balanceHow(q: BalanceQ): string {
+export function balanceHow(q: AnyQ): string {
   switch (q.type) {
+    case "mean":
+      return meanHow(q);
+    case "exchange":
+      return exchangeHow(q);
     case "balance":
       return stagesOf(q)
         .stages.map((s) => stepNote(s.step, s.before))
@@ -105,8 +121,12 @@ export function balanceHow(q: BalanceQ): string {
   }
 }
 
-export function answerFa(q: BalanceQ, v = q.answer): string {
+export function answerFa(q: AnyQ, v = q.answer): string {
   switch (q.type) {
+    case "mean":
+      return meanAnswerFa(q, v);
+    case "exchange":
+      return exchangeAnswerFa(q, v);
     case "balance":
       return `${ltr(`${glyph(q.ask)} = ${fa(v)}`)} کیلو`;
     case "fill":
@@ -121,7 +141,13 @@ export function answerFa(q: BalanceQ, v = q.answer): string {
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
-function feedback(q: BalanceQ, v: number): { tone: Tone; text: string } {
+function feedback(q: AnyQ, v: number): { tone: Tone; text: string } {
+  if (q.type === "mean") return meanFeedback(q, v);
+  if (q.type === "exchange") return exchangeFeedback(q, v);
+  return balanceFeedback(q, v);
+}
+
+function balanceFeedback(q: BalanceQ, v: number): { tone: Tone; text: string } {
   const how = balanceHow(q);
   const right = `جواب ${answerFa(q)} است. ${how}`;
   const near = (s: string) => ({ tone: "turned" as const, text: `نزدیک بود! ${s} ${right}` });
@@ -169,8 +195,8 @@ function feedback(q: BalanceQ, v: number): { tone: Tone; text: string } {
 }
 
 interface Props {
-  question: BalanceQ;
-  type: BalanceQuestionType;
+  question: AnyQ;
+  type: TryType;
   level: Level;
   /** Fill: what is on the empty pan (in the answer's unit) and the controls for it. */
   onPan: number;
@@ -179,14 +205,14 @@ interface Props {
   onEmpty: () => void;
   checked: number | null;
   onCheck: (v: number) => void;
-  onType: (t: BalanceQuestionType) => void;
+  onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
 }
 
 export function BalanceTryPanel(p: Props) {
   const { question: q, checked } = p;
-  const kind = answerKind(q.type);
+  const kind = kindOf(q.type);
   const [num, setNum] = useState(kind === "number" && checked !== null ? String(checked) : "");
   const fb = checked !== null ? feedback(q, checked) : null;
   const done = checked !== null;
@@ -195,7 +221,7 @@ export function BalanceTryPanel(p: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        {(Object.keys(BALANCE_TYPE_LABEL) as BalanceQuestionType[]).map((t) => (
+        {(Object.keys(BALANCE_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {BALANCE_TYPE_LABEL[t]}
           </button>

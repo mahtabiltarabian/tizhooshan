@@ -150,6 +150,8 @@ function problems(q: GeometryQuestion): string[] {
   };
   const n = BOARD[q.level];
   const fits = (ps: Pt[]) => ps.every(([x, y]) => x >= 0 && y >= 0 && x < n && y < n);
+  // Circle and composite questions have their own tests (circle.test.ts, composite-area.test.ts).
+  if (q.type === "circle" || q.type === "composite") return ["not a geoboard question"];
   ok(q.n === n, "board");
   const known = slips(q);
   ok(geometryMistake(q, q.answer, known) === "right", "answer is right");

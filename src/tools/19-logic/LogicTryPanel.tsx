@@ -29,6 +29,7 @@ import {
 } from "@/generators/logic";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
+import { ifAnswerFa, ifFeedback, ifHow, ifOptionText, ifPrompt, ifTone } from "./IfThen";
 import { CountAnswer, countFeedback, countHow, countPrompt, type CountEntry } from "./VennCount";
 
 export const LOGIC_TYPE_LABEL: Record<LogicType, string> = {
@@ -36,6 +37,7 @@ export const LOGIC_TYPE_LABEL: Record<LogicType, string> = {
   liars: "راستگو و دروغگو",
   venn: "همه و بعضی",
   vennNum: "ون با عدد",
+  ifThen: "اگر… آنگاه",
 };
 
 /** Keeps a formula left to right inside a Persian sentence, on one line (no-break spaces). */
@@ -250,6 +252,8 @@ export function logicPrompt(q: LogicQuestion, paper = false): string {
     }
     case "vennNum":
       return countPrompt(q);
+    case "ifThen":
+      return ifPrompt(q);
     case "venn":
       return `در سرزمین خیال: ${q.premises.map((s) => `«${stmtText(vennNames(q), s)}»`).join("، ")}. هر گروه دست‌کم یک عضو دارد. کدام نتیجه حتماً درست است؟`;
   }
@@ -266,6 +270,8 @@ export function logicAnswerFa(q: LogicQuestion): string {
       return `گزینه ${fa(q.answer + 1)}: «${optionText(q, q.answer)}»`;
     case "vennNum":
       return fa(q.answer);
+    case "ifThen":
+      return ifAnswerFa(q);
   }
 }
 
@@ -285,6 +291,8 @@ export function logicHow(q: LogicQuestion): string {
     }
     case "vennNum":
       return countHow(q);
+    case "ifThen":
+      return ifHow(q);
   }
 }
 
@@ -392,9 +400,11 @@ export function LogicTryPanel(p: Props) {
           ? entry.count && entry.count.value !== ""
             ? countFeedback(q, Number(entry.count.value))
             : null
-          : entry.pick !== null
-            ? vennFeedback(q, entry.pick)
-            : null;
+          : entry.pick === null
+            ? null
+            : q.type === "ifThen"
+              ? ifFeedback(q, entry.pick)
+              : vennFeedback(q, entry.pick);
   const right = fb?.tone === "good";
   const ticks = entry.marks.filter((m) => m === 1).length;
   const done = kind === "choice" ? entry.pick !== null && entry.checked : right;
@@ -454,10 +464,11 @@ export function LogicTryPanel(p: Props) {
         </ul>
       )}
 
-      {q.type === "venn" && (
+      {(q.type === "venn" || q.type === "ifThen") && (
         <ul className={styles.options} style={{ gridTemplateColumns: "1fr" }}>
           {q.options.map((_, i) => {
-            const m = entry.checked && entry.pick !== null ? (i === q.answer ? "good" : i === entry.pick ? (q.tags[i] === "notSure" ? "bad" : "turned") : null) : null;
+            const wrongTone = q.type === "ifThen" ? ifTone(q.tags[i]) : q.tags[i] === "notSure" ? "bad" : "turned";
+            const m = entry.checked && entry.pick !== null ? (i === q.answer ? "good" : i === entry.pick ? wrongTone : null) : null;
             const icon = m === "good" ? "✓" : m ? "✗" : "";
             return (
               <li key={i}>
@@ -471,7 +482,7 @@ export function LogicTryPanel(p: Props) {
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {icon}
                   </span>
-                  <span>{optionText(q, i)}</span>
+                  <span>{q.type === "ifThen" ? ifOptionText(q, i) : optionText(q, i)}</span>
                 </button>
               </li>
             );

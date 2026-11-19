@@ -66,7 +66,8 @@ export function PatternsTool() {
     let frame = 0;
     const start = performance.now();
     const tick = (now: number) => {
-      const a = Math.min(1, (now - start) / run.ms);
+      // The first frame's time can be a little before `start`: never go below 0.
+      const a = Math.max(0, Math.min(1, (now - start) / run.ms));
       setF(run.from + (1 - run.from) * a);
       if (a < 1) frame = requestAnimationFrame(tick);
       else setRun(null);
@@ -116,6 +117,8 @@ export function PatternsTool() {
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(303);
   const [picked, setPicked] = useState<number | null>(null);
+  // An option is being dragged over the «؟».
+  const [dropHover, setDropHover] = useState(false);
   const question = useMemo(() => makePatternQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const trySteps = useMemo(() => stepsOf(question), [question]);
   const pickAnswer = (i: number) => {
@@ -161,12 +164,13 @@ export function PatternsTool() {
     setTryLevel(level);
     setSeed(newSeed());
     setPicked(null);
+    setDropHover(false);
     setRun(null);
     setF(1);
   };
 
   const steps = mode === "show" ? showSteps : trySteps;
-  const stepAt = Math.min(steps.length - 1, Math.floor(f * steps.length));
+  const stepAt = Math.max(0, Math.min(steps.length - 1, Math.floor(f * steps.length)));
   const play = () => {
     if (run) return setRun(null);
     animate(steps.length, f >= 0.99 ? 0 : f);
@@ -212,10 +216,11 @@ export function PatternsTool() {
             return k < 0 ? t : answered ? right[k] : null;
           })}
           highlight={hl}
+          dropHover={dropHover && !answered}
           label="تصویر با جای خالی"
         />
       );
-    } else board = <PatternScene rows={q.rows} cols={q.cols} cells={q.cells.map((t, i) => (i === q.blank && !answered ? null : t))} signs={q.signs} highlight={hl} label="الگو" />;
+    } else board = <PatternScene rows={q.rows} cols={q.cols} cells={q.cells.map((t, i) => (i === q.blank && !answered ? null : t))} signs={q.signs} highlight={hl} dropHover={dropHover && !answered} label="الگو" />;
   }
 
   const showControls = mode === "show" || (mode === "try" && picked !== null);
@@ -284,7 +289,7 @@ export function PatternsTool() {
           </label>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {mode === "explore" ? "کارت‌های قانون را روشن و خاموش کن؛ الگو خودش پر می‌شود." : "گزینه درست را انتخاب کن"}
+            {mode === "explore" ? "کارت‌های قانون را روشن و خاموش کن؛ الگو خودش پر می‌شود." : question.type === "odd" ? "گزینه درست را انتخاب کن" : "گزینه درست را بکش و روی «؟» رها کن، یا روی آن بزن"}
           </p>
         )}
         {showControls && <p className={styles.stepText} style={{ margin: 0, flexBasis: "100%", textAlign: "start" }}>{steps[stepAt].text}</p>}
@@ -401,6 +406,7 @@ export function PatternsTool() {
             level={tryLevel}
             picked={picked}
             onPick={pickAnswer}
+            onDropHover={setDropHover}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
             onNew={() => freshQuestion()}

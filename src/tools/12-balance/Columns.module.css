@@ -1,0 +1,10 @@
+/* Blocks slide to their new place when a frame changes (levelling). */
+.block {
+  transition: transform 0.7s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    transition: none;
+  }
+}

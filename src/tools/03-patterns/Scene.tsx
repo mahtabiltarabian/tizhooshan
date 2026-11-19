@@ -20,12 +20,17 @@ interface Props {
   /** Text under each cell (e.g. numbers to tap, ✓). */
   labels?: string[];
   onCell?: (i: number) => void;
+  /** An option is being dragged over the blank: it gets a solid, thick frame. */
+  dropHover?: boolean;
   label?: string;
 }
 
+/** Marks the blank cells as the place to drop a dragged option (found by PatternTryPanel). */
+export const DROP_ATTR = "data-pattern-drop";
+
 const ACCENT = "#3d7be0";
 
-export function PatternScene({ rows, cols, cells, highlight = [], signs, labels, onCell, label }: Props) {
+export function PatternScene({ rows, cols, cells, highlight = [], signs, labels, onCell, dropHover = false, label }: Props) {
   const defs = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const gap = signs ? 0.6 : 0.16;
   const step = 1 + gap;
@@ -55,8 +60,19 @@ export function PatternScene({ rows, cols, cells, highlight = [], signs, labels,
             {t ? (
               <TileCard tile={t} x={x} y={y} size={1} defs={defs} />
             ) : (
-              <g>
-                <rect x={x} y={y} width={1} height={1} rx={0.08} fill="#fffaf0" stroke={INK} strokeWidth={2} strokeDasharray="7 5" vectorEffect="non-scaling-stroke" />
+              <g {...{ [DROP_ATTR]: "" }}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={1}
+                  height={1}
+                  rx={0.08}
+                  fill={dropHover ? "#e6efff" : "#fffaf0"}
+                  stroke={dropHover ? ACCENT : INK}
+                  strokeWidth={dropHover ? 5 : 2}
+                  strokeDasharray={dropHover ? undefined : "7 5"}
+                  vectorEffect="non-scaling-stroke"
+                />
                 <text x={x + 0.5} y={y + 0.5} fontSize={0.55} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill={INK} style={{ fontFamily: "Vazirmatn, sans-serif" }}>
                   ؟
                 </text>

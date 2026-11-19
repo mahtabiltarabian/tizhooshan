@@ -5,10 +5,13 @@
 // a whole number of units long. Each question keeps its answer and the usual
 // slips, so the feedback can say which slip a wrong answer was.
 
+import { makeCircleQuestion, measureMistake, type CircleQuestion, type MeasureTag } from "./circle";
+import { makeCompositeQuestion, type CompositeQuestion } from "./composite-area";
 import { mulberry32, pick, randInt, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type GeometryQuestionType = "area" | "perimeter" | "angle" | "classify" | "build" | "divide";
+/** circle and composite: generators/circle.ts and generators/composite-area.ts (π = 3.14, lengths on a figure, not the geoboard). */
+export type GeometryQuestionType = "area" | "perimeter" | "angle" | "classify" | "build" | "divide" | "circle" | "composite";
 export type Pt = [number, number];
 
 /** Pegs on each side of the board, by level. */
@@ -456,7 +459,8 @@ export interface DivideQuestion extends Base {
   answer: number;
 }
 
-export type GeometryQuestion = AreaQuestion | PerimeterQuestion | AngleQuestion | ClassifyQuestion | BuildQuestion | DivideQuestion;
+export type GeometryQuestion = AreaQuestion | PerimeterQuestion | AngleQuestion | ClassifyQuestion | BuildQuestion | DivideQuestion | CircleQuestion | CompositeQuestion;
+export type { CircleQuestion, CompositeQuestion };
 
 /** What kind of answer a question wants. */
 export const answerKind = (type: GeometryQuestionType): "number" | "choice" | "shape" | "cut" =>
@@ -804,6 +808,8 @@ function divideQuestion(rng: Rng, level: Level, seed: number): DivideQuestion {
 }
 
 export function makeGeometryQuestion(type: GeometryQuestionType, level: Level, seed: number): GeometryQuestion {
+  if (type === "circle") return makeCircleQuestion(level, seed);
+  if (type === "composite") return makeCompositeQuestion(level, seed);
   const rng = mulberry32(seed * 7 + level * 101 + type.length * 13 + (type === "build" ? 5 : 0));
   switch (type) {
     case "area":
@@ -863,6 +869,8 @@ export type GeometryTag =
   | "nearRight"
   | "smallAngle"
   | "swap"
+  // circle and composite (generators/circle.ts)
+  | MeasureTag
   | "other";
 
 /** Wrong answers with a known cause, in the order they are checked. */
@@ -953,6 +961,9 @@ export function slips(q: GeometryQuestion): [GeometryTag, number][] {
       if (q.answer !== 1) out.push(["swap", 2 - q.answer]);
       return out;
     }
+    case "circle":
+    case "composite":
+      return q.slips.map((s): [GeometryTag, number] => [s.tag, s.value]);
     default:
       return [];
   }
@@ -960,6 +971,8 @@ export function slips(q: GeometryQuestion): [GeometryTag, number][] {
 
 /** Which slip an answer is, if any. */
 export function geometryMistake(q: GeometryQuestion, value: number, known = slips(q)): GeometryTag {
+  // Decimal answers are compared in hundredths.
+  if (q.type === "circle" || q.type === "composite") return measureMistake(q, value);
   if (value === q.answer) return "right";
   for (const [tag, v] of known) if (v !== q.answer && value === v) return tag;
   return "other";

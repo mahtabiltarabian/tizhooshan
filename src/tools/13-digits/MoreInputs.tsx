@@ -1,7 +1,7 @@
 "use client";
 
-// Answer pads for the later topics: a digit for each letter (cryptarithms)
-// and a sign for each gap. The chosen slot has a thicker frame and a word
+// Answer pads for the later topics: a digit for each letter (cryptarithms),
+// a sign for each gap, one of two choices, and primes to multiply. The chosen slot has a thicker frame and a word
 // on it, not only a colour. Also the worked-steps list for «نشانم بده».
 
 import { OPS } from "@/generators/digits-more";
@@ -94,5 +94,51 @@ export function StepList({ steps, shown }: { steps: string[]; shown: number }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** One of two choices (yes / no, even / odd); the chosen one has a thicker frame and ◀. */
+export function ChoicePad({ words, value, onChange, disabled }: { words: [string, string]; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  return (
+    <div className={`${styles.slots} ${styles.choice}`} role="radiogroup" aria-label="جواب">
+      {words.map((w, i) => (
+        <button key={w} role="radio" aria-checked={value === String(i + 1)} onClick={() => onChange(String(i + 1))} disabled={disabled}>
+          {value === String(i + 1) ? "◀ " : ""}
+          {w}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Numbers to multiply (1 and some that are not prime are there on purpose: a slip is named). */
+export const FACTOR_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 17, 19, 23];
+
+/** Tap numbers to build a product; the product so far is said in words. */
+export function FactorPad({ value, onChange, disabled }: { value: number[]; onChange: (v: number[]) => void; disabled?: boolean }) {
+  const product = value.reduce((p, x) => p * x, 1);
+  return (
+    <>
+      <output className={styles.product} aria-live="polite">
+        {value.length ? <bdi dir="ltr">{`${value.map((x) => fa(x)).join(" × ")} = ${fa(product)}`}</bdi> : "؟"}
+      </output>
+      <div className={styles.keys} aria-label="عامل‌ها">
+        {FACTOR_KEYS.map((d) => (
+          <button key={d} onClick={() => value.length < 9 && onChange([...value, d])} disabled={disabled} aria-label={`ضرب در ${fa(d)}`}>
+            {fa(d)}
+          </button>
+        ))}
+      </div>
+      {!disabled && (
+        <div className={styles.slots}>
+          <button onClick={() => onChange(value.slice(0, -1))} disabled={!value.length}>
+            برداشتن آخری
+          </button>
+          <button onClick={() => onChange([])} disabled={!value.length}>
+            پاک کردن
+          </button>
+        </div>
+      )}
+    </>
   );
 }

@@ -322,6 +322,160 @@ export function maskKey(S: number, polys: Poly[], res = 8): string {
 }
 
 // ---------------------------------------------------------------------------
+// Free cuts (explore). The child draws a path of straight segments on the
+// folded shape, every corner on the half-grid. A path from edge to edge cuts
+// the shape in two and one part falls away; a path that starts inside and
+// comes back to its start cuts out the loop. The part that falls away is cut
+// from every layer, so unfolding mirrors it across each fold (unfoldPolys).
+
+/** Inside or on the edge of any simple polygon (convex or not). */
+export function pointInPoly(p: Pt, poly: Poly): boolean {
+  if (onBoundary(p, poly)) return true;
+  let into = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) into = !into;
+  }
+  return into;
+}
+
+/** Inside or on the edge of a convex polygon. */
+const inOrOn = (p: Pt, poly: Poly) => inside(p, poly) || onBoundary(p, poly);
+
+/** The half-grid point (multiples of ½) of the shape, edge included, nearest to p. */
+export function snapToShape(p: Pt, shape: Poly, S: number): Pt {
+  let best: Pt = [0, 0];
+  let bestD = Infinity;
+  for (let v = 0; v <= 2 * S; v++)
+    for (let u = 0; u <= 2 * S; u++) {
+      const q: Pt = [u / 2, v / 2];
+      const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
+      if (d < bestD - EPS && inOrOn(q, shape)) {
+        best = q;
+        bestD = d;
+      }
+    }
+  return best;
+}
+
+const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+const onSegment = (p: Pt, a: Pt, b: Pt) =>
+  Math.abs(cross(a, b, p)) < EPS && p[0] >= Math.min(a[0], b[0]) - EPS && p[0] <= Math.max(a[0], b[0]) + EPS && p[1] >= Math.min(a[1], b[1]) - EPS && p[1] <= Math.max(a[1], b[1]) + EPS;
+
+/** Do segments ab and cd meet anywhere except at the `shared` points? */
+export function segmentsMeet(a: Pt, b: Pt, c: Pt, d: Pt, shared: Pt[] = []): boolean {
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  if (((d1 > EPS && d2 < -EPS) || (d1 < -EPS && d2 > EPS)) && ((d3 > EPS && d4 < -EPS) || (d3 < -EPS && d4 > EPS))) return true;
+  const free = (p: Pt) => !shared.some((q) => samePoint(p, q));
+  return (free(a) && onSegment(a, c, d)) || (free(b) && onSegment(b, c, d)) || (free(c) && onSegment(c, a, b)) || (free(d) && onSegment(d, a, b));
+}
+
+/** Where a point on the edge of a polygon sits: edge index plus how far along it (0 … <1). */
+function edgePos(p: Pt, poly: Poly): number {
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    if (onSegment(p, a, b)) {
+      const len2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2;
+      const t = ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / len2;
+      if (t < 1 - EPS) return i + Math.max(0, t);
+    }
+  }
+  return -1;
+}
+
+/** The polygon's corners met walking forward along its edge from position `from` to `to` (both excluded). */
+function walk(poly: Poly, from: number, to: number): Pt[] {
+  const n = poly.length;
+  const span = (to - from + n) % n;
+  const out: Pt[] = [];
+  // Corners in walking order: the one after `from`'s edge start comes first.
+  for (let step = 1; step <= n; step++) {
+    const k = (Math.floor(from) + step) % n;
+    const d = (k - from + n) % n;
+    if (d > EPS && d < span - EPS) out.push(poly[k]);
+  }
+  return out;
+}
+
+/**
+ * The two parts of a convex shape cut along `path`, which runs from one edge
+ * point to another with every other corner strictly inside. Null if the
+ * path is not such a cut.
+ */
+export function splitConvex(shape: Poly, path: Pt[]): [Poly, Poly] | null {
+  if (path.length < 2) return null;
+  const first = path[0];
+  const last = path[path.length - 1];
+  const a = edgePos(first, shape);
+  const b = edgePos(last, shape);
+  if (a < 0 || b < 0 || samePoint(first, last)) return null;
+  if (path.slice(1, -1).some((p) => !inside(p, shape))) return null;
+  const one = dedupe([...path, ...walk(shape, b, a)]);
+  const two = dedupe([...[...path].reverse(), ...walk(shape, a, b)]);
+  if (area(one) < EPS || area(two) < EPS) return null;
+  return [one, two];
+}
+
+/** A free cut on the folded shape: the path drawn and the part that falls away. */
+export interface FreeCut {
+  path: Pt[];
+  /** The parts the cut makes (one for a closed loop, two for an edge-to-edge cut). */
+  parts: Poly[];
+  /** Which part falls away. */
+  pick: number;
+}
+
+/** The part a free cut takes away. */
+export const cutAway = (c: FreeCut): Poly => c.parts[c.pick];
+
+export type CutStep =
+  | { kind: "start"; path: Pt[] }
+  | { kind: "add"; path: Pt[] }
+  | { kind: "done"; cut: FreeCut }
+  | { kind: "bad"; why: "same" | "edge" | "crossing" | "insideToEdge" | "outside" };
+
+/**
+ * Add the corner `p` to a cut path that is being drawn on `shape`. The path
+ * is finished when it reaches the edge again (if it started on the edge) or
+ * comes back to its start (if it started inside). For an edge-to-edge cut
+ * the smaller part falls away (pick can be changed afterwards).
+ */
+export function addCutPoint(shape: Poly, path: Pt[], p: Pt): CutStep {
+  if (!inOrOn(p, shape)) return { kind: "bad", why: "outside" };
+  if (!path.length) return { kind: "start", path: [p] };
+  const last = path[path.length - 1];
+  if (samePoint(last, p)) return { kind: "bad", why: "same" };
+  const startOnEdge = onBoundary(path[0], shape);
+  const closing = !startOnEdge && path.length >= 3 && samePoint(p, path[0]);
+  // A segment between two edge points that runs along the edge cuts nothing.
+  const mid: Pt = [(last[0] + p[0]) / 2, (last[1] + p[1]) / 2];
+  if (onBoundary(mid, shape)) return { kind: "bad", why: "edge" };
+  for (let i = 0; i + 1 < path.length; i++) {
+    const shared = i === path.length - 2 ? [last] : closing && i === 0 ? [path[0]] : [];
+    if (segmentsMeet(path[i], path[i + 1], last, p, shared)) return { kind: "bad", why: "crossing" };
+  }
+  const next = [...path, p];
+  if (closing) return { kind: "done", cut: { path: next, parts: [dedupe(path)], pick: 0 } };
+  if (onBoundary(p, shape)) {
+    if (!startOnEdge) return { kind: "bad", why: "insideToEdge" };
+    const parts = splitConvex(shape, next);
+    if (!parts) return { kind: "bad", why: "edge" };
+    return { kind: "done", cut: { path: next, parts, pick: area(parts[0]) <= area(parts[1]) + EPS ? 0 : 1 } };
+  }
+  return { kind: "add", path: next };
+}
+
+/** Where a point of the open paper ends up once every fold is made. */
+export function foldPoint(p: Pt, folds: Fold[]): Pt {
+  return folds.reduce((q, f) => (side(q, f.line) * f.moving > EPS ? reflect(q, f.line) : q), p);
+}
+
+// ---------------------------------------------------------------------------
 // Layers for the 3D animation.
 
 /** One flat panel of paper and, for each fold, whether it was on the moving side. */

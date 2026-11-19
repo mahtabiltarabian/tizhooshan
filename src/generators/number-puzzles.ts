@@ -9,12 +9,16 @@
 // possibility. A puzzle is kept only if the solver finishes it, which also
 // proves its answer is unique. The fully empty magic triangle is the one
 // exception: it has several answers, so the tool accepts any valid one.
+//
+// The number circle and star ("ring") put numbers on circles that sit on
+// straight lines: a wheel of seven (three lines through the centre) at
+// level 1, and a six-pointed star of twelve (six lines of four) above it.
 
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type PuzzleType = "magic" | "pyramid" | "grid" | "star" | "shape";
-export const PUZZLE_TYPES: PuzzleType[] = ["magic", "pyramid", "grid", "star", "shape"];
+export type PuzzleType = "magic" | "pyramid" | "grid" | "star" | "ring" | "shape";
+export const PUZZLE_TYPES: PuzzleType[] = ["magic", "pyramid", "grid", "star", "ring", "shape"];
 
 export interface Cell {
   /** Centre of the cell in board units (x to the right, y down). */
@@ -25,7 +29,8 @@ export interface Cell {
   given: boolean;
 }
 
-export type LineKind = "row" | "col" | "diag" | "side" | "brick";
+/** spoke: a line of the number wheel; ray: a side of one of the star's two triangles. */
+export type LineKind = "row" | "col" | "diag" | "side" | "brick" | "spoke" | "ray";
 
 export interface Line {
   cells: number[];
@@ -140,6 +145,41 @@ function starFigure(): { cells: Cell[]; lines: Line[] } {
   };
 }
 
+const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+const onCircle = (r: number, deg: number): [number, number] => [r3(r * Math.cos((deg * Math.PI) / 180)), r3(r * Math.sin((deg * Math.PI) / 180))];
+
+/** Number wheel: the centre (0) and six circles round it, 1 at the top and on clockwise; three lines through the centre. */
+export function wheelFigure(): { cells: Cell[]; lines: Line[] } {
+  const cells = [blankCell(0, 0), ...Array.from({ length: 6 }, (_, k) => blankCell(...onCircle(1.7, -90 + 60 * k)))];
+  return {
+    cells,
+    lines: [
+      { cells: [1, 0, 4], kind: "spoke", name: "خط ایستاده", total: false },
+      { cells: [2, 0, 5], kind: "spoke", name: "خط کج از بالا راست", total: false },
+      { cells: [6, 0, 3], kind: "spoke", name: "خط کج از بالا چپ", total: false },
+    ],
+  };
+}
+
+/**
+ * Six-pointed star: tips 0 … 5 (0 at the top, then clockwise) and the six
+ * crossings 6 … 11 (crossing 6 + k sits between tips k and k + 1). The up
+ * triangle joins the even tips, the down triangle the odd ones; each side
+ * runs tip, crossing, crossing, tip. Every circle is on exactly two sides.
+ */
+export function hexagramFigure(): { cells: Cell[]; lines: Line[] } {
+  const R = 2.3;
+  const cells = [
+    ...Array.from({ length: 6 }, (_, k) => blankCell(...onCircle(R, -90 + 60 * k))),
+    ...Array.from({ length: 6 }, (_, k) => blankCell(...onCircle(R / Math.sqrt(3), -60 + 60 * k))),
+  ];
+  const side = (a: number): number[] => [a, 6 + a, 6 + ((a + 1) % 6), (a + 2) % 6];
+  // By starting tip: 0 → 2 is the up triangle's right side, 1 → 3 the down triangle's right side, …
+  const names = ["ضلع راست مثلث ▲", "ضلع راست مثلث ▼", "ضلع پایین مثلث ▲", "ضلع چپ مثلث ▼", "ضلع چپ مثلث ▲", "ضلع بالای مثلث ▼"];
+  // Up sides first (from tips 0, 2, 4), then down sides (from tips 1, 3, 5).
+  return { cells, lines: [0, 2, 4, 1, 3, 5].map((a): Line => ({ cells: side(a), kind: "ray", name: names[a], total: false })) };
+}
+
 /** Three triangles; the first (read first, on the right) is shape 0. Cell 4k + j: j = 0 top, 1 and 2 bottom, 3 centre. */
 function shapeFigure(): { cells: Cell[]; lines: Line[] } {
   const cells: Cell[] = [];
@@ -155,6 +195,7 @@ const FIGURES: Record<PuzzleType, () => { cells: Cell[]; lines: Line[] }> = {
   pyramid: () => pyramidFigure(4),
   grid: gridFigure,
   star: starFigure,
+  ring: wheelFigure,
   shape: shapeFigure,
 };
 
@@ -167,6 +208,11 @@ export function magicFrame(set: number[]): NumberPuzzle {
 }
 export function starFrame(set: number[]): NumberPuzzle {
   return { type: "star", level: 1, seed: 0, big: false, ...starFigure(), set, target: null, targetHidden: false, anyFill: true, rule: null };
+}
+/** Empty wheel (7 numbers) or star (12 numbers) for exploring; the star's total is fixed by its numbers. */
+export function ringFrame(set: number[]): NumberPuzzle {
+  const star = set.length === 12;
+  return { type: "ring", level: 1, seed: 0, big: false, ...(star ? hexagramFigure() : wheelFigure()), set, target: star ? total(set) / 3 : null, targetHidden: false, anyFill: true, rule: null };
 }
 export function pyramidFrame(n = 4): NumberPuzzle {
   return { type: "pyramid", level: 1, seed: 0, big: false, ...pyramidFigure(n), set: null, target: null, targetHidden: false, anyFill: true, rule: null };
@@ -301,6 +347,76 @@ function starPuzzle(rng: Rng, q: NumberPuzzle): NumberPuzzle {
   return hide(rng, p, level === 1 ? 1 + randInt(rng, 2) : 3);
 }
 
+/** Every way to put the numbers 1 … n on a figure so that all its lines have the same sum (lines prune the search). */
+export function equalLineFills(fig: { cells: Cell[]; lines: Line[] }): number[][] {
+  const n = fig.cells.length;
+  // Fill cells in the order the lines need them, so each line is checked as soon as it is full.
+  const order: number[] = [];
+  for (const l of fig.lines) for (const c of l.cells) if (!order.includes(c)) order.push(c);
+  const closes = order.map((c, k) => fig.lines.filter((l) => l.cells.includes(c) && l.cells.every((x) => order.indexOf(x) <= k)));
+  const open = order.map((c, k) => fig.lines.filter((l) => l.cells.includes(c) && !closes[k].includes(l)));
+  const out: number[][] = [];
+  const vals: number[] = Array(n).fill(0);
+  const used: boolean[] = Array(n + 1).fill(false);
+  const walk = (k: number, target: number | null) => {
+    if (k === n) {
+      out.push([...vals]);
+      return;
+    }
+    for (let v = 1; v <= n; v++) {
+      if (used[v]) continue;
+      vals[order[k]] = v;
+      let t = target;
+      let ok = true;
+      for (const l of closes[k]) {
+        const s = l.cells.reduce((a, c) => a + vals[c], 0);
+        if (t === null) t = s;
+        else if (s !== t) ok = false;
+      }
+      // Once the total is known, a line that is not full yet must still leave room (at least 1 per empty circle).
+      if (ok && t !== null)
+        for (const l of open[k]) {
+          const filled = l.cells.filter((c) => vals[c] > 0);
+          if (filled.reduce((a, c) => a + vals[c], 0) + (l.cells.length - filled.length) > t) ok = false;
+        }
+      if (!ok) continue;
+      used[v] = true;
+      walk(k + 1, t);
+      used[v] = false;
+    }
+    vals[order[k]] = 0;
+  };
+  // When every circle is on the same number of lines, the total is known from the start.
+  const per = fig.cells.map((_, c) => fig.lines.filter((l) => l.cells.includes(c)).length);
+  const known = per.every((m) => m === per[0]) ? (per[0] * n * (n + 1)) / 2 / fig.lines.length : null;
+  walk(0, known !== null && Number.isInteger(known) ? known : null);
+  return out;
+}
+
+let wheelCache: number[][] | null = null;
+let starCache: number[][] | null = null;
+/** All number wheels of 1 … 7 (144: the centre is 1, 4 or 7). */
+export const wheelFills = () => (wheelCache ??= equalLineFills(wheelFigure()));
+/** All six-pointed stars of 1 … 12 (960, every side 26). */
+export const hexagramFills = () => (starCache ??= equalLineFills(hexagramFigure()));
+
+/** Blanks of the number circle and star by level. */
+export const RING_BLANKS: Record<Level, [number, number]> = { 1: [1, 2], 2: [4, 5], 3: [6, 7] };
+
+function ringPuzzle(rng: Rng, q: NumberPuzzle): NumberPuzzle {
+  const { level, big } = q;
+  const star = level > 1;
+  const fig = star ? hexagramFigure() : wheelFigure();
+  const [a, d] = big ? [between(rng, 2, 10), pick(rng, [2, 3, 5])] : [1, 1];
+  const set = arith(a, d, fig.cells.length);
+  const fill = pick(rng, star ? hexagramFills() : wheelFills());
+  const cells = fig.cells.map((c, i) => ({ ...c, value: a + (fill[i] - 1) * d }));
+  const target = fig.lines[0].cells.reduce((s, i) => s + cells[i].value, 0);
+  const p: NumberPuzzle = { ...q, ...fig, cells, set, target, targetHidden: level === 3 };
+  const [lo, hi] = RING_BLANKS[level];
+  return hide(rng, p, lo + randInt(rng, hi - lo + 1));
+}
+
 function shapePuzzle(rng: Rng, q: NumberPuzzle): NumberPuzzle {
   const { level, big } = q;
   const [lo, hi] = big ? ([[5, 30], [3, 20], [2, 12]] as const)[level - 1] : [1, 9];
@@ -333,6 +449,8 @@ export function makeNumberPuzzle(type: PuzzleType, level: Level, seed: number, b
       return gridPuzzle(rng, q);
     case "star":
       return starPuzzle(rng, q);
+    case "ring":
+      return ringPuzzle(rng, q);
     case "shape":
       return shapePuzzle(rng, q);
   }
@@ -342,7 +460,7 @@ export function makeNumberPuzzle(type: PuzzleType, level: Level, seed: number, b
 // Solver: one forced cell at a time
 
 export type Step =
-  /** The hidden magic total: all numbers fill three rows. */
+  /** The hidden line total: all numbers fill three rows (magic square), or every circle is on two sides (star). */
   | { kind: "sum"; value: number }
   /** The centre of a 3×3 magic square is a third of the total. */
   | { kind: "centre"; cell: number; value: number }
@@ -439,10 +557,10 @@ export function solveSteps(q: NumberPuzzle): Step[] | null {
   const vals = givenValues(q);
   const steps: Step[] = [];
   let targetKnown = !q.targetHidden;
-  if (q.type === "magic" && q.targetHidden) {
+  if ((q.type === "magic" || q.type === "ring") && q.targetHidden) {
     steps.push({ kind: "sum", value: q.target! });
     targetKnown = true;
-    if (vals[4] === null) {
+    if (q.type === "magic" && vals[4] === null) {
       vals[4] = q.target! / 3;
       steps.push({ kind: "centre", cell: 4, value: vals[4] });
     }
@@ -513,7 +631,7 @@ export function lineOk(q: NumberPuzzle, line: Line, vals: readonly (number | nul
 /** Full lines that are wrong. */
 export const badLines = (q: NumberPuzzle, vals: readonly (number | null)[]) => q.lines.flatMap((l, i) => (lineOk(q, l, vals) === false ? [i] : []));
 
-export type PuzzleTag = "right" | "anyValid" | "notInSet" | "repeat" | "addedDown" | "sumHabit" | "oneExample" | "diagonal" | "lines" | "other";
+export type PuzzleTag = "right" | "anyValid" | "notInSet" | "repeat" | "addedDown" | "sumHabit" | "oneExample" | "diagonal" | "crossing" | "lines" | "other";
 
 /** Wrong values for one cell with a known cause: [cell, tag, value]. */
 export function cellSlips(q: NumberPuzzle): [number, PuzzleTag, number][] {
@@ -544,7 +662,24 @@ export function cellSlips(q: NumberPuzzle): [number, PuzzleTag, number][] {
 }
 
 /** What an answer is: right, a known slip, or which lines are wrong. */
-export function puzzleMistake(q: NumberPuzzle, vals: readonly (number | null)[]): { tag: PuzzleTag; bad: number[]; value?: number } {
+/**
+ * Number circle and star: a wrong circle that makes one of its lines right
+ * but another wrong (the child finished one line and forgot the circle is on
+ * a second one). Returns [cell, a right line, a wrong line], or null.
+ */
+export function crossingSlip(q: NumberPuzzle, vals: readonly (number | null)[]): [number, number, number] | null {
+  if (q.type !== "ring") return null;
+  for (const c of blankCells(q)) {
+    if (vals[c] === null || vals[c] === q.cells[c].value) continue;
+    const through = q.lines.map((_, i) => i).filter((i) => q.lines[i].cells.includes(c));
+    const good = through.find((i) => lineOk(q, q.lines[i], vals) === true);
+    const bad = through.find((i) => lineOk(q, q.lines[i], vals) === false);
+    if (good !== undefined && bad !== undefined) return [c, good, bad];
+  }
+  return null;
+}
+
+export function puzzleMistake(q: NumberPuzzle, vals: readonly (number | null)[]): { tag: PuzzleTag; bad: number[]; value?: number; cross?: [number, number, number] } {
   const blanks = blankCells(q);
   if (blanks.every((i) => vals[i] === q.cells[i].value)) return { tag: "right", bad: [] };
   const bad = badLines(q, vals);
@@ -561,6 +696,8 @@ export function puzzleMistake(q: NumberPuzzle, vals: readonly (number | null)[])
   }
   for (const [c, tag, x] of cellSlips(q)) if (vals[c] === x) return { tag, bad, value: x };
   if (bad.length && q.type === "magic" && bad.every((i) => q.lines[i].kind === "diag")) return { tag: "diagonal", bad };
+  const cross = crossingSlip(q, vals);
+  if (cross) return { tag: "crossing", bad, value: vals[cross[0]]!, cross };
   if (bad.length) return { tag: "lines", bad };
   return { tag: "other", bad };
 }

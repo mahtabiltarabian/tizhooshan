@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FILL_NAME, SHAPE_NAME, type Level, type PatternQuestion, type PatternQuestionType, type Tag, type Tile } from "@/generators/patterns";
 import { fa } from "@/tools/registry";
 import { PatchSvg, TileSvg } from "./Pictures";
+import { DROP_ATTR } from "./Scene";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const PATTERN_TYPE_LABEL: Record<PatternQuestionType, string> = {
@@ -87,12 +89,137 @@ function feedback(q: PatternQuestion, picked: number): { tone: Tone; text: strin
   }
 }
 
+/** Is the screen point over a blank of the board? */
+function overBlank(x: number, y: number): boolean {
+  return [...document.querySelectorAll(`[${DROP_ATTR}]`)].some((el) => {
+    const r = el.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  });
+}
+
+/** Size of the card that follows the pointer (px). */
+const GHOST = 84;
+
+interface Ghost {
+  i: number;
+  /** Top-left corner on screen, and the card's size. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Sliding back to its place after a drop somewhere else. */
+  back: boolean;
+}
+
+/**
+ * Dragging an option onto the «؟» of the board. Pointer events, so mouse,
+ * pen and touch all work; a press that does not move is an ordinary tap
+ * (and Enter or Space on the focused option still choose it). Dropped
+ * anywhere but the blank, the card slides back to its place.
+ */
+function useOptionDrag(enabled: boolean, onDrop: (i: number) => void, onHover: (over: boolean) => void) {
+  const [ghost, setGhost] = useState<Ghost | null>(null);
+  const drag = useRef<{ i: number; id: number; sx: number; sy: number; home: DOMRect; moved: boolean; over: boolean; py: number } | null>(null);
+  const swallowClick = useRef(false);
+  const scrollFrame = useRef(0);
+  const backTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(scrollFrame.current);
+      clearTimeout(backTimer.current);
+    },
+    [],
+  );
+
+  // On phones the board sits above the options: near the screen's top or bottom edge, scroll.
+  const autoScroll = () => {
+    cancelAnimationFrame(scrollFrame.current);
+    const tick = () => {
+      const d = drag.current;
+      if (!d?.moved) return;
+      const edge = 70;
+      const v = d.py < edge ? -Math.ceil((edge - d.py) / 6) : d.py > window.innerHeight - edge ? Math.ceil((d.py - window.innerHeight + edge) / 6) : 0;
+      if (v) window.scrollBy(0, v);
+      scrollFrame.current = requestAnimationFrame(tick);
+    };
+    scrollFrame.current = requestAnimationFrame(tick);
+  };
+
+  const end = (dropped: boolean) => {
+    const d = drag.current;
+    drag.current = null;
+    cancelAnimationFrame(scrollFrame.current);
+    if (!d?.moved) return;
+    onHover(false);
+    if (dropped) {
+      setGhost(null);
+      onDrop(d.i);
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setGhost(null);
+    // Snap back: slide to where the option sits now (the page may have scrolled).
+    const home = document.querySelector(`[data-option="${d.i}"]`)?.getBoundingClientRect() ?? d.home;
+    setGhost((g) => (g ? { ...g, x: home.left + (home.width - g.w) / 2, y: home.top + (home.height - g.h) / 2, back: true } : g));
+    clearTimeout(backTimer.current);
+    backTimer.current = setTimeout(() => setGhost(null), 230);
+  };
+
+  const props = (i: number) =>
+    enabled
+      ? {
+          "data-option": i,
+          style: { touchAction: "none" as const, opacity: ghost?.i === i ? 0.35 : undefined },
+          onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+            swallowClick.current = false;
+            if (e.button !== 0 || ghost) return;
+            const home = e.currentTarget.getBoundingClientRect();
+            drag.current = { i, id: e.pointerId, sx: e.clientX, sy: e.clientY, home, moved: false, over: false, py: e.clientY };
+            e.currentTarget.setPointerCapture(e.pointerId);
+          },
+          onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+            const d = drag.current;
+            if (!d || d.id !== e.pointerId) return;
+            if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) return;
+            if (!d.moved) {
+              d.moved = true;
+              swallowClick.current = true;
+              autoScroll();
+            }
+            d.py = e.clientY;
+            // A small card centred on the pointer, so the frame of the «؟» under it stays in sight.
+            setGhost({ i, x: e.clientX - GHOST / 2, y: e.clientY - GHOST / 2, w: GHOST, h: GHOST, back: false });
+            const over = overBlank(e.clientX, e.clientY);
+            if (over !== d.over) {
+              d.over = over;
+              onHover(over);
+            }
+          },
+          onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+            if (drag.current?.id === e.pointerId) end(overBlank(e.clientX, e.clientY));
+          },
+          onPointerCancel: () => end(false),
+        }
+      : {};
+
+  /** A click right after a drag is the end of that drag, not a tap. */
+  const isDragClick = () => {
+    const was = swallowClick.current;
+    swallowClick.current = false;
+    return was;
+  };
+
+  return { ghost, props, isDragClick };
+}
+
 interface Props {
   question: PatternQuestion;
   type: PatternQuestionType;
   level: Level;
   picked: number | null;
   onPick: (i: number) => void;
+  /** An option is being dragged over the blank (or not any more). */
+  onDropHover?: (over: boolean) => void;
   onType: (t: PatternQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
@@ -101,6 +228,11 @@ interface Props {
 export function PatternTryPanel(p: Props) {
   const { question: q, picked } = p;
   const [rulesOpen, setRulesOpen] = useState(false);
+  // «شکل متفاوت» is chosen on the board itself; every other type can be dragged into the blank.
+  const draggable = q.type !== "odd" && picked === null;
+  const { ghost, props: dragProps, isDragClick } = useOptionDrag(draggable, p.onPick, (over) => p.onDropHover?.(over));
+  const picture = (o: Tile | Tile[], size?: number) =>
+    q.type === "missing" ? <PatchSvg tiles={o as Tile[]} size={size ?? 84} /> : <TileSvg tile={o as Tile} size={size ?? (q.type === "odd" ? 48 : 72)} />;
   const fb = picked !== null ? feedback(q, picked) : null;
   const mark = (i: number): Tone | null => {
     if (picked === null) return null;
@@ -129,14 +261,23 @@ export function PatternTryPanel(p: Props) {
       </div>
 
       <p className={styles.prompt}>{patternPrompt(q)}</p>
+      {draggable && <p className={styles.hint}>گزینه را بکش و روی «؟» رها کن، یا روی گزینه بزن.</p>}
 
       <ul className={styles.options} style={q.type === "odd" ? { gridTemplateColumns: "repeat(5, minmax(0, 1fr))" } : q.options.length === 6 ? { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" } : undefined}>
         {(q.type === "odd" ? q.tiles : q.options).map((o, i) => {
           const m = mark(i);
           return (
             <li key={i}>
-              <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => p.onPick(i)} disabled={picked !== null} aria-label={`گزینه ${fa(i + 1)}`}>
-                {q.type === "missing" ? <PatchSvg tiles={o as Tile[]} size={84} /> : <TileSvg tile={o as Tile} size={q.type === "odd" ? 48 : 72} />}
+              <button
+                className={`${styles.option} ${m ? styles[m] : ""}`}
+                onClick={() => {
+                  if (!isDragClick()) p.onPick(i);
+                }}
+                disabled={picked !== null}
+                aria-label={`گزینه ${fa(i + 1)}`}
+                {...dragProps(i)}
+              >
+                {picture(o)}
                 <span className={styles.optionNum}>
                   {fa(i + 1)} {m && ICON[m]}
                 </span>
@@ -145,6 +286,32 @@ export function PatternTryPanel(p: Props) {
           );
         })}
       </ul>
+
+      {ghost &&
+        createPortal(
+          <div
+            aria-hidden
+            className={styles.option}
+            style={{
+              position: "fixed",
+              left: ghost.x,
+              top: ghost.y,
+              width: ghost.w,
+              height: ghost.h,
+              zIndex: 1000,
+              pointerEvents: "none",
+              opacity: 0.92,
+              borderColor: "var(--accent)",
+              boxShadow: ghost.back ? "none" : "0 10px 24px rgba(31, 36, 48, 0.28)",
+              transform: ghost.back ? "none" : "scale(1.06)",
+              transition: ghost.back ? "left 0.2s ease-out, top 0.2s ease-out, transform 0.2s" : "none",
+              justifyContent: "center",
+            }}
+          >
+            {picture(q.type === "odd" ? q.tiles[ghost.i] : q.options[ghost.i], GHOST - 22)}
+          </div>,
+          document.body,
+        )}
 
       {fb && (
         <p className={`${styles.feedback} ${styles[fb.tone]}`} role="status" aria-live="polite">

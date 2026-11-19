@@ -1,8 +1,8 @@
 "use client";
 
 // A number puzzle in board units: squares for the magic square and the
-// table, bricks for the pyramid, circles for the magic triangle, triangles for
-// "number in shape". Given numbers sit on a tinted cell with a solid border;
+// table, bricks for the pyramid, circles for the magic triangle and the
+// number circle and star, triangles for "number in shape". Given numbers sit on a tinted cell with a solid border;
 // blanks are white with a dashed border, and what the child writes is blue.
 // Wrong lines are hatched and marked ✗, so nothing depends on colour alone.
 // Numbers can be dragged from the bank under the figure onto a cell, from a
@@ -29,6 +29,7 @@ function cellHalf(q: NumberPuzzle, i: number): [number, number] {
     case "pyramid":
       return [0.48, 0.43];
     case "star":
+    case "ring":
       return [0.42, 0.42];
     case "shape":
       return i % 4 === 3 ? [0.4, 0.34] : [0.38, 0.38];
@@ -37,7 +38,7 @@ function cellHalf(q: NumberPuzzle, i: number): [number, number] {
   }
 }
 
-const isRound = (q: NumberPuzzle, i: number) => q.type === "star" || (q.type === "shape" && i % 4 !== 3);
+const isRound = (q: NumberPuzzle, i: number) => q.type === "star" || q.type === "ring" || (q.type === "shape" && i % 4 !== 3);
 
 /** The outline of a cell, grown by `pad`. */
 function CellOutline({ q, i, pad = 0, ...rest }: { q: NumberPuzzle; i: number; pad?: number } & React.SVGProps<SVGRectElement & SVGCircleElement>) {
@@ -70,7 +71,7 @@ function bounds(q: NumberPuzzle): [number, number, number, number] {
   const xs = q.cells.map((c) => c.x);
   const ys = q.cells.map((c) => c.y);
   let [x0, y0, x1, y1] = [Math.min(...xs) - 0.6, Math.min(...ys) - 0.6, Math.max(...xs) + 0.6, Math.max(...ys) + 0.6];
-  if (q.type === "magic" || q.type === "star")
+  if (q.type === "magic" || q.type === "star" || q.type === "ring")
     q.lines.forEach((_, li) => {
       const [x, y] = labelAt(q, li);
       [x0, y0, x1, y1] = [Math.min(x0, x - 0.5), Math.min(y0, y - 0.35), Math.max(x1, x + 0.5), Math.max(y1, y + 0.35)];
@@ -201,6 +202,17 @@ export function PuzzleFigure({ q, vals, editable, selected, onSelect, onDrop, on
 
       {/* Triangle edges */}
       {q.type === "star" && <polygon points={[0, 1, 2].map((i) => `${q.cells[i].x},${q.cells[i].y}`).join(" ")} fill="none" stroke={SOFT} strokeWidth={0.03} />}
+      {/* Number wheel: the rim and three lines through the centre. Star: its two triangles. */}
+      {q.type === "ring" && q.cells.length === 7 && (
+        <g fill="none" stroke={SOFT} strokeWidth={0.03}>
+          <circle cx={q.cells[0].x} cy={q.cells[0].y} r={round(Math.hypot(q.cells[1].x - q.cells[0].x, q.cells[1].y - q.cells[0].y))} strokeDasharray="0.1 0.08" />
+          {q.lines.map((l, li) => (
+            <line key={li} x1={q.cells[l.cells[0]].x} y1={q.cells[l.cells[0]].y} x2={q.cells[l.cells[2]].x} y2={q.cells[l.cells[2]].y} />
+          ))}
+        </g>
+      )}
+      {q.type === "ring" && q.cells.length === 12 &&
+        [0, 1].map((k) => <polygon key={k} points={[k, k + 2, k + 4].map((i) => `${q.cells[i].x},${q.cells[i].y}`).join(" ")} fill="none" stroke={SOFT} strokeWidth={0.03} />)}
       {q.type === "shape" &&
         [0, 1, 2].map((k) => (
           <g key={k}>

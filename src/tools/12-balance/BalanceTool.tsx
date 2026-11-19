@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Board } from "@/engine-2d/Board";
-import { BLOCKS, blocksFor, makeBalanceQuestion, SYMBOLS, type BalanceQuestionType, type FillQuestion, type Level } from "@/generators/balance";
+import { BLOCKS, blocksFor, SYMBOLS, type FillQuestion, type Level } from "@/generators/balance";
 import { newSeed } from "@/generators/random";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { BALANCE_TYPE_LABEL, BalanceTryPanel, balancePrompt, LEVEL_LABEL } from "./BalanceTryPanel";
+import { ColumnsG, columnsView } from "./Columns";
+import { useExchangeExplore } from "./ExploreExchange";
+import { useMeanExplore } from "./ExploreMean";
 import { coinPan, fillValue, fillViews, framesOf, glyph, groupOf, ltr, type Frame, type ScaleView } from "./frames";
 import { BALANCE_GUIDE } from "./guide";
+import { makeTryQuestion, type TryType } from "./questions";
 import {
   ARM,
   BarsG,
@@ -31,8 +35,15 @@ import {
 type Mode = "explore" | "show" | "try";
 type Side = "left" | "right";
 type View = [number, number, number, number];
+/** What explore shows: the weights balance, levelling columns, or exchanging on a balance. */
+type Topic = "weights" | "mean" | "exchange";
+const TOPICS: [Topic, string][] = [
+  ["weights", "وزنه"],
+  ["mean", "میانگین"],
+  ["exchange", "مبادله"],
+];
 
-const TYPES = Object.keys(BALANCE_TYPE_LABEL) as BalanceQuestionType[];
+const TYPES = Object.keys(BALANCE_TYPE_LABEL) as TryType[];
 const FRAME_MS = 2200;
 /** Explore: what each palette offers (shapes and the numbered blocks). */
 const EXPLORE_PALETTE: Item[] = [{ sym: 0 }, { sym: 1 }, { sym: 2 }, ...BLOCKS.map((w) => ({ w }))];
@@ -66,12 +77,14 @@ function ScalesScene({ scales, onItem }: { scales: ScaleView[]; onItem?: (scale:
 }
 
 function sceneView(fr: Frame, extra = 0): View {
+  if (fr.kind === "columns") return columnsView(fr);
   if (fr.kind === "scales") return [0, 0, 16, scalesHeight(fr.scales.length) + extra];
   if (fr.kind === "coins") return [0, 0, 16, 0.4 + coinRowsHeight(fr.n, 15) + 1.9 + 3.15 * 0.8 + 0.5];
   return [0, 0, 16, barsHeight(fr.rows.length) + 0.9];
 }
 
 function Scene({ fr }: { fr: Frame }) {
+  if (fr.kind === "columns") return <ColumnsG {...fr} />;
   if (fr.kind === "scales") return <ScalesScene scales={fr.scales} />;
   if (fr.kind === "bars") return <BarsG rows={fr.rows} x={0.3} y={0.5} width={15.4} scale={fr.scale} caption={fr.caption} />;
   const cy = 0.4 + coinRowsHeight(fr.n, 15) + 1.9;
@@ -119,23 +132,26 @@ export function BalanceTool() {
   }, []);
 
   // Explore
+  const [topic, setTopic] = useState<Topic>("weights");
+  const meanEx = useMeanExplore();
+  const exchangeEx = useExchangeExplore();
   const [pans, setPans] = useState<Record<Side, Item[]>>({ left: [{ sym: 0 }, { sym: 0 }, { w: 2 }], right: [{ sym: 1 }] });
   const [symW, setSymW] = useState([3, 8, 5]);
   const [showW, setShowW] = useState(false);
 
   // Show me
-  const [showType, setShowType] = useState<BalanceQuestionType>("balance");
+  const [showType, setShowType] = useState<TryType>("balance");
   const [showLevel, setShowLevel] = useState<Level>(2);
   const [showSeed, setShowSeed] = useState(1212);
-  const showQ = useMemo(() => makeBalanceQuestion(showType, showLevel, showSeed), [showType, showLevel, showSeed]);
+  const showQ = useMemo(() => makeTryQuestion(showType, showLevel, showSeed), [showType, showLevel, showSeed]);
 
   // Try it
-  const [tryType, setTryType] = useState<BalanceQuestionType>("balance");
+  const [tryType, setTryType] = useState<TryType>("balance");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(1212);
   const [checked, setChecked] = useState<number | null>(null);
   const [placed, setPlaced] = useState<number[]>([]);
-  const question = useMemo(() => makeBalanceQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+  const question = useMemo(() => makeTryQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const fillQ = question.type === "fill" ? (question as FillQuestion) : null;
   const placedItems: ItemView[] = useMemo(() => (fillQ ? placed.map((b) => ({ item: fillQ.fillWith === null ? { w: b } : { sym: fillQ.fillWith }, mine: true })) : []), [fillQ, placed]);
   const onPan = fillQ ? fillValue(fillQ, placedItems) : 0;
@@ -148,12 +164,14 @@ export function BalanceTool() {
   const at = frames.length ? Math.min(frames.length - 1, Math.round(f * (frames.length - 1))) : 0;
   const frameMs = Math.max(1, frames.length - 1) * FRAME_MS;
 
-  // Shareable links: #try=fill&level=2&seed=7(&a=12), #show=age&level=3&seed=5, #f=0.5, #classroom
+  // Shareable links: #try=fill&level=2&seed=7(&a=12), #show=age&level=3&seed=5, #try=mean&level=3&seed=4,
+  // #show=exchange&level=2&seed=9, #explore=mean (or exchange), #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
     const tryParam = params.get("try");
     const show = params.get("show");
+    const explore = params.get("explore");
     const timer = setTimeout(() => {
       const lv = Number(params.get("level"));
       const level = lv === 1 || lv === 2 || lv === 3 ? (lv as Level) : null;
@@ -161,23 +179,23 @@ export function BalanceTool() {
       const sdOk = params.has("seed") && Number.isInteger(sd) && sd >= 0;
       if (tryParam && (TYPES as string[]).includes(tryParam)) {
         setMode("try");
-        setTryType(tryParam as BalanceQuestionType);
+        setTryType(tryParam as TryType);
         if (level) setTryLevel(level);
         if (sdOk) setSeed(sd);
         const a = Number(params.get("a"));
         if (params.has("a") && Number.isInteger(a) && a > 0) {
-          const q = makeBalanceQuestion(tryParam as BalanceQuestionType, level ?? 1, sdOk ? sd : 1212);
+          const q = makeTryQuestion(tryParam as TryType, level ?? 1, sdOk ? sd : 1212);
           if (q.type === "fill") setPlaced(q.fillWith === null ? blocksFor(a) : Array<number>(a).fill(0));
           setChecked(a);
           setF(1);
         } else setF(0);
       } else if (show && (TYPES as string[]).includes(show)) {
         setMode("show");
-        setShowType(show as BalanceQuestionType);
+        setShowType(show as TryType);
         if (level) setShowLevel(level);
         if (sdOk) setShowSeed(sd);
         setF(1);
-      }
+      } else if (explore && TOPICS.some(([t]) => t === explore)) setTopic(explore as Topic);
       const ff = Number(params.get("f"));
       if (params.has("f") && Number.isFinite(ff)) setF(Math.min(1, Math.max(0, ff)));
     }, 0);
@@ -284,7 +302,12 @@ export function BalanceTool() {
   let board: React.ReactNode;
   let view: View = [0, 0, 16, 9];
   let label = "ترازو";
-  if (mode === "explore") {
+  if (mode === "explore" && topic !== "weights") {
+    const ex = topic === "mean" ? meanEx : exchangeEx;
+    view = ex.view;
+    label = ex.label;
+    board = ex.board;
+  } else if (mode === "explore") {
     view = [0, 0, 16, EX_PALETTE_Y + 0.85];
     label = "ترازو؛ وزنه‌ها را روی کفه‌ها بکش";
     board = (
@@ -325,7 +348,9 @@ export function BalanceTool() {
         </>
       );
     } else {
-      const fr = framesOf(q)[0];
+      // The question's first picture, without the working (columns: no totals yet).
+      const first = framesOf(q)[0];
+      const fr = first.kind === "columns" ? { ...first, caption: undefined } : first;
       view = sceneView(fr);
       board = <Scene fr={fr} />;
     }
@@ -346,7 +371,7 @@ export function BalanceTool() {
         </h1>
         <div className={styles.tabs} role="tablist" aria-label="حالت ابزار">
           <button role="tab" aria-selected={mode === "explore"} onClick={() => switchMode("explore")}>
-            کشف: وزنه بگذار
+            کشف
           </button>
           <button
             role="tab"
@@ -411,13 +436,24 @@ export function BalanceTool() {
           </>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {inTry ? "اول فکر کن، بعد جواب بده" : `${ltr(`${itemsFa(pans.left)} ${exDiff === 0 ? "=" : exDiff > 0 ? "<" : ">"} ${itemsFa(pans.right)}`)} · ${exDiff === 0 ? "ترازو متعادل است" : `کفه ${exDiff > 0 ? "راست" : "چپ"} سنگین‌تر است`}`}
+            {inTry ? "اول فکر کن، بعد جواب بده" : topic === "mean" ? meanEx.status : topic === "exchange" ? "در کفه‌ی چپ مبادله کن؛ کفه‌ی راست ثابت است" : `${ltr(`${itemsFa(pans.left)} ${exDiff === 0 ? "=" : exDiff > 0 ? "<" : ">"} ${itemsFa(pans.right)}`)} · ${exDiff === 0 ? "ترازو متعادل است" : `کفه ${exDiff > 0 ? "راست" : "چپ"} سنگین‌تر است`}`}
           </p>
         )}
       </section>
 
       <aside className={styles.side}>
         {mode === "explore" && (
+          <div className={styles.chipsRow} role="radiogroup" aria-label="موضوع کشف" style={{ marginBottom: 8 }}>
+            {TOPICS.map(([t, name]) => (
+              <button key={t} role="radio" aria-checked={topic === t} onClick={() => setTopic(t)}>
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "explore" && topic === "mean" && meanEx.panel}
+        {mode === "explore" && topic === "exchange" && exchangeEx.panel}
+        {mode === "explore" && topic === "weights" && (
           <>
             <h2>وزنه‌ها را روی کفه‌ها بگذار</h2>
             <p className={styles.note}>از ردیف زیر هر کفه، شکل یا وزنه را لمس کن یا روی کفه بکش. هر چیز روی کفه را لمس کنی برداشته می‌شود. کفه‌ی سنگین‌تر پایین می‌رود.</p>
@@ -509,7 +545,11 @@ export function BalanceTool() {
             <p className={styles.note}>
               {showType === "balance" || showType === "fill"
                 ? "هر کاری با یک کفه بکنی، با کفه‌ی دیگر هم بکن: ترازو متعادل می‌ماند. شکل‌های خط‌خورده از هر دو کفه برداشته می‌شوند؛ شکل‌های با حلقه‌ی خط‌چین جایگزین می‌شوند."
-                : showType === "coin"
+                : showType === "mean"
+                  ? "میانگین یعنی هم‌تراز کردن: مکعب‌ها از ستون‌های بلند به ستون‌های کوتاه می‌روند و جمع عوض نمی‌شود. مکعب‌های نقطه‌دار همان‌هایی‌اند که جابه‌جا شدند؛ قاب خط‌چین جایی است که ستون باید به آن برسد."
+                  : showType === "exchange"
+                    ? "هر مبادله یک ترازوی متعادل است. در ترازوی پرسش، چیزهای با حلقه‌ی خط‌چین با هم‌ارزشان عوض می‌شوند؛ ترازو همیشه متعادل می‌ماند."
+                    : showType === "coin"
                   ? "هر وزن‌کشی سه جواب دارد: چپ پایین، راست پایین یا تعادل. پس سکه‌ها را سه گروه کن."
                   : "نوارهای آبی تکه‌های برابرند؛ تکه‌های هاشورخورده چند سال‌اند. اختلاف سن هیچ‌وقت عوض نمی‌شود."}
             </p>

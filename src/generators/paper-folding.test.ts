@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
+  addCutPoint,
   area,
   centroid,
   countPieces,
+  cutAway,
+  foldPoint,
+  pointInPoly,
+  samePoly,
+  snapToShape,
+  splitConvex,
+  unfoldPolys,
+  type FreeCut,
+  type Pt,
   creaseSpots,
   creases,
   facets,
@@ -256,5 +266,121 @@ describe("makePaperQuestion", () => {
         }
       }),
     );
+  });
+});
+
+describe("free cuts", () => {
+  const half: Fold[] = [{ line: { kind: "v", c: 2 }, moving: 1 }]; // right half over the left
+  const strip = shapes(4, half).at(-1)!; // [0,2] × [0,4]
+
+  /** Draw a path corner by corner; returns the finished cut or the last step. */
+  const draw = (shape: Pt[], pts: Pt[]) => {
+    let path: Pt[] = [];
+    let step: ReturnType<typeof addCutPoint> | null = null;
+    for (const p of pts) {
+      step = addCutPoint(shape, path, p);
+      if (step.kind === "start" || step.kind === "add") path = step.path;
+    }
+    return step!;
+  };
+
+  it("a V cut from the fold edge falls away and unfolds into a diamond", () => {
+    const step = draw(strip, [
+      [2, 1],
+      [1, 2],
+      [2, 3],
+    ]);
+    if (step.kind !== "done") throw new Error(step.kind);
+    const piece = cutAway(step.cut);
+    expect(area(piece)).toBe(1);
+    expect(samePoly(piece, [[2, 1], [1, 2], [2, 3]])).toBe(true);
+    const open = unfoldPolys([piece], half);
+    expect(open).toHaveLength(2);
+    expect(samePoly(open[1], [[2, 1], [3, 2], [2, 3]])).toBe(true);
+  });
+
+  it("the two parts of an edge-to-edge cut make up the whole shape", () => {
+    const parts = splitConvex(strip, [
+      [0, 1],
+      [1, 1.5],
+      [2, 0.5],
+    ])!;
+    expect(parts).not.toBeNull();
+    expect(area(parts[0]) + area(parts[1])).toBeCloseTo(area(strip), 9);
+  });
+
+  it("a loop drawn inside comes back to its start and cuts out the loop", () => {
+    const step = draw(strip, [
+      [0.5, 0.5],
+      [1.5, 0.5],
+      [1.5, 1.5],
+      [0.5, 0.5],
+    ]);
+    if (step.kind !== "done") throw new Error(step.kind);
+    expect(area(cutAway(step.cut))).toBe(0.5);
+  });
+
+  it("refuses cuts along the edge, crossing themselves, from inside to the edge, or off the paper", () => {
+    expect(addCutPoint(strip, [[0, 0]], [0, 2])).toEqual({ kind: "bad", why: "edge" });
+    expect(addCutPoint(strip, [[0.5, 0.5]], [0, 1])).toEqual({ kind: "bad", why: "insideToEdge" });
+    expect(addCutPoint(strip, [[0.5, 0.5]], [3, 1])).toEqual({ kind: "bad", why: "outside" });
+    const zigzag: Pt[] = [
+      [0.5, 0.5],
+      [1.5, 1.5],
+      [1.5, 0.5],
+    ];
+    expect(addCutPoint(strip, zigzag, [0.5, 1.5])).toEqual({ kind: "bad", why: "crossing" });
+    // Going straight back along the last segment.
+    expect(addCutPoint(strip, zigzag.slice(0, 2), [1, 1])).toEqual({ kind: "bad", why: "crossing" });
+  });
+
+  it("snaps to the nearest half-grid point on the folded paper", () => {
+    expect(snapToShape([0.7, 1.2], strip, 4)).toEqual([0.5, 1]);
+    expect(snapToShape([3.4, 1.1], strip, 4)).toEqual([2, 1]);
+  });
+
+  it("unfolding mirrors a cut across each fold: an open point is gone exactly when its folded spot is cut", () => {
+    let made = 0;
+    const rnd = fc.tuple(fc.integer({ min: 0, max: 999 }), fc.integer({ min: 0, max: 999 })).map(([x, y]): [number, number] => [x / 125, y / 125]);
+    fc.assert(
+      fc.property(level, seed, fc.array(rnd, { minLength: 2, maxLength: 8 }), (l, s, raw) => {
+        const q = makePaperQuestion("holes", l, s);
+        const final = shapes(q.S, q.folds).at(-1)!;
+        // Start and end on the edge of the folded paper (a point on an edge, snapped), corners in between anywhere.
+        const onEdge = ([x, y]: [number, number]): Pt => {
+          const k = Math.floor(x) % final.length;
+          const a = final[k];
+          const b = final[(k + 1) % final.length];
+          const t = y / 8;
+          return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+        };
+        const corners: Pt[] = [onEdge(raw[0]), ...raw.slice(1, -1).map(([x, y]): Pt => [(x * q.S) / 8, (y * q.S) / 8]), onEdge(raw[raw.length - 1])];
+        let path: Pt[] = [];
+        let cut: FreeCut | null = null;
+        for (const c of corners) {
+          const step = addCutPoint(final, path, snapToShape(c, final, q.S));
+          if (step.kind === "start" || step.kind === "add") path = step.path;
+          if (step.kind === "done") {
+            cut = step.cut;
+            break;
+          }
+        }
+        if (!cut) return;
+        made++;
+        const piece = cutAway(cut);
+        expect(area(piece)).toBeGreaterThan(0);
+        expect(area(piece)).toBeLessThanOrEqual(area(final) + 1e-9);
+        const open = unfoldPolys([piece], q.folds);
+        expect(open).toHaveLength(2 ** q.folds.length);
+        for (let i = 0; i < 4 * q.S; i++)
+          for (let j = 0; j < 4 * q.S; j++) {
+            const p: Pt = [i / 4 + 0.0137, j / 4 + 0.0291];
+            expect(open.some((poly) => pointInPoly(p, poly))).toBe(pointInPoly(foldPoint(p, q.folds), piece));
+          }
+      }),
+      { numRuns: 150 },
+    );
+    // Most random paths make a real cut, so the check above is not empty.
+    expect(made).toBeGreaterThan(40);
   });
 });

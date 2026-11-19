@@ -3,17 +3,24 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  addCutPoint,
   cornerCut,
   creaseSpots,
   creases,
+  cutAway,
   makePaperQuestion,
+  onBoundary,
+  pointInPoly,
   punchableCells,
   reflect,
   shapes,
+  snapToShape,
   symmetryLines,
   unfoldPoints,
   unfoldPolys,
+  type CutStep,
   type Fold,
+  type FreeCut,
   type Level,
   type PaperQuestionType,
   type Pt,
@@ -30,7 +37,7 @@ import { PaperSvg } from "./Pictures";
 import { PAPER_TYPE_LABEL, PaperTryPanel, startsFolded, type PaperDisplay } from "./PaperTryPanel";
 
 type Mode = "explore" | "show" | "try";
-type Tool = "punch" | "corner";
+type Tool = "punch" | "corner" | "free";
 
 const CAMERA: [number, number, number] = [0, 6.2, 5.4];
 const TARGET: [number, number, number] = [0, 0, 0];
@@ -53,10 +60,19 @@ function foldName(f: Fold): string {
 
 const samePt = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
 
+/** Why a free-cut corner was refused, in words. */
+const CUT_REFUSED: Record<Extract<CutStep, { kind: "bad" }>["why"], string> = {
+  same: "",
+  edge: "برش روی لبه کاغذ چیزی نمی‌بُرد؛ از روی کاغذ رد شو.",
+  crossing: "برش نباید از روی خودش رد شود یا روی خودش برگردد.",
+  insideToEdge: "این برش از وسط کاغذ شروع شده؛ باید به همان نقطه شروع (حلقه خط‌چین) برگردد.",
+  outside: "بیرون کاغذ نمی‌شود برید.",
+};
+
 /** Sample for "show me" when nothing was punched in explore. */
 const SAMPLE = (() => {
   const q = makePaperQuestion("holes", 2, 2207);
-  return { S: q.S, folds: q.folds, punches: q.type === "holes" ? q.punches : [], cutVerts: [] as number[] };
+  return { S: q.S, folds: q.folds, punches: q.type === "holes" ? q.punches : [], cutVerts: [] as number[], freeCuts: [] as FreeCut[] };
 })();
 
 export function PaperTool() {
@@ -97,6 +113,11 @@ export function PaperTool() {
   const [cutVerts, setCutVerts] = useState<number[]>([]);
   const [tool, setTool] = useState<Tool>("punch");
   const [reveal, setReveal] = useState(false);
+  // Free cuts: finished ones, the one being drawn, the segment under the finger, and a note.
+  const [freeCuts, setFreeCuts] = useState<FreeCut[]>([]);
+  const [draft, setDraft] = useState<Pt[]>([]);
+  const [drag, setDrag] = useState<[Pt, Pt] | null>(null);
+  const [cutNote, setCutNote] = useState("");
 
   const animate = useCallback((from: number, to: number, k: number) => {
     setF(from);
@@ -149,8 +170,9 @@ export function PaperTool() {
   const before = shapes(S, folds);
   const final = before[before.length - 1];
   const leg = S === 8 ? 1.5 : 1;
-  const cuts = cutVerts.map((v) => cornerCut(final, v, leg));
-  const options = folds.length < MAX_FOLDS && !punches.length && !cutVerts.length ? symmetryLines(final) : [];
+  const cuts = [...cutVerts.map((v) => cornerCut(final, v, leg)), ...freeCuts.map(cutAway)];
+  const marked = punches.length > 0 || cutVerts.length > 0 || freeCuts.length > 0 || draft.length > 0;
+  const options = folds.length < MAX_FOLDS && !marked ? symmetryLines(final) : [];
 
   const addFold = (fold: Fold) => {
     const next = [...folds, fold];
@@ -159,11 +181,15 @@ export function PaperTool() {
     animate((next.length - 1) / next.length, 1, 1);
   };
   const undo = () => {
-    if (cutVerts.length || punches.length) {
-      // Take back the newest mark first.
-      if (tool === "corner" && cutVerts.length) setCutVerts(cutVerts.slice(0, -1));
+    setCutNote("");
+    if (draft.length) return setDraft(draft.slice(0, -1));
+    if (cutVerts.length || punches.length || freeCuts.length) {
+      // Take back the newest mark of the tool in hand first.
+      if (tool === "free" && freeCuts.length) setFreeCuts(freeCuts.slice(0, -1));
+      else if (tool === "corner" && cutVerts.length) setCutVerts(cutVerts.slice(0, -1));
       else if (punches.length) setPunches(punches.slice(0, -1));
-      else setCutVerts(cutVerts.slice(0, -1));
+      else if (cutVerts.length) setCutVerts(cutVerts.slice(0, -1));
+      else setFreeCuts(freeCuts.slice(0, -1));
       return;
     }
     if (!folds.length) return;
@@ -175,6 +201,10 @@ export function PaperTool() {
     setFolds([]);
     setPunches([]);
     setCutVerts([]);
+    setFreeCuts([]);
+    setDraft([]);
+    setDrag(null);
+    setCutNote("");
     setReveal(false);
     setRun(null);
     setF(0);
@@ -188,11 +218,68 @@ export function PaperTool() {
     setPunches(punches.some((q) => q[0] === p[0] && q[1] === p[1]) ? punches.filter((q) => q[0] !== p[0] || q[1] !== p[1]) : [...punches, p]);
   const tapVertex = (v: number) => setCutVerts(cutVerts.includes(v) ? cutVerts.filter((x) => x !== v) : [...cutVerts, v]);
 
+  // Free cut: press and drag a straight segment (or tap corner after corner);
+  // every corner snaps to the half-grid on the folded paper.
+  const snap = (p: Pt) => snapToShape(p, final, S);
+  const cutPad = {
+    down: (p: Pt) => {
+      const q = snap(p);
+      setDrag([draft.length ? draft[draft.length - 1] : q, q]);
+    },
+    move: (p: Pt) => setDrag((d) => (d ? [d[0], snap(p)] : d)),
+    up: (p: Pt) => {
+      const to = snap(p);
+      // Where the press began (a very quick tap may come before the drag state is drawn).
+      const from = drag?.[0] ?? draft.at(-1) ?? to;
+      setDrag(null);
+      let path = draft;
+      if (!path.length) {
+        path = [from];
+        if (samePt(to, from)) {
+          setDraft(path);
+          setCutNote(onBoundary(to, final) ? "حالا تا لبه دیگر کاغذ ببر." : "از وسط کاغذ شروع کردی؛ برش را به همین نقطه برگردان تا تکه‌ای جدا شود.");
+          return;
+        }
+      }
+      const step = addCutPoint(final, path, to);
+      if (step.kind === "add" || step.kind === "start") {
+        setDraft(step.path);
+        setCutNote(onBoundary(step.path[0], final) ? "ادامه بده تا به لبه کاغذ برسی." : "ادامه بده تا به نقطه شروع (حلقه خط‌چین) برگردی.");
+      } else if (step.kind === "done") {
+        setDraft([]);
+        setFreeCuts([...freeCuts, step.cut]);
+        setReveal(false);
+        setCutNote("تکه بریده شد و از همه لایه‌ها افتاد. حدس بزن باز که کنی چه می‌بینی.");
+      } else {
+        setDraft(path);
+        if (CUT_REFUSED[step.why]) setCutNote(CUT_REFUSED[step.why]);
+      }
+    },
+    cancel: () => setDrag(null),
+  };
+  // The 3D paper: kept the same while a cut is being drawn, so the panels are not rebuilt on every pointer move.
+  const sceneHoles = useMemo(() => unfoldPoints(punches, folds), [punches, folds]);
+  const sceneRemoved = useMemo(() => {
+    const shape = shapes(S, folds).at(-1)!;
+    return unfoldPolys([...cutVerts.map((v) => cornerCut(shape, v, S === 8 ? 1.5 : 1)), ...freeCuts.map(cutAway)], folds);
+  }, [S, folds, cutVerts, freeCuts]);
+  const lastCut = freeCuts.at(-1);
+  const swapLast = () => lastCut && setFreeCuts([...freeCuts.slice(0, -1), { ...lastCut, pick: 1 - lastCut.pick }]);
+  // Where a cut can bend: the half-grid points on the folded paper.
+  const bendDots: Pt[] = [];
+  if (tool === "free") for (let v = 0; v <= 2 * S; v++) for (let u = 0; u <= 2 * S; u++) if (pointInPoly([u / 2, v / 2], final)) bendDots.push([u / 2, v / 2]);
+  const pickTool = (t: Tool) => {
+    setTool(t);
+    setDraft([]);
+    setDrag(null);
+    setCutNote("");
+  };
+
   // Show me: the explore paper if it has a hole or a cut, otherwise the sample.
-  const ex = punches.length || cutVerts.length ? { S, folds, punches, cutVerts } : SAMPLE;
+  const ex = punches.length || cutVerts.length || freeCuts.length ? { S, folds, punches, cutVerts, freeCuts } : SAMPLE;
   const exBefore = shapes(ex.S, ex.folds);
   const exFinal = exBefore[exBefore.length - 1];
-  const exCuts = ex.cutVerts.map((v) => cornerCut(exFinal, v, ex.S === 8 ? 1.5 : 1));
+  const exCuts = [...ex.cutVerts.map((v) => cornerCut(exFinal, v, ex.S === 8 ? 1.5 : 1)), ...ex.freeCuts.map(cutAway)];
   const K = ex.folds.length;
   const s = Math.min(step, K);
   const showStep = (n: number) => {
@@ -245,7 +332,7 @@ export function PaperTool() {
 
   // What the 3D stage shows.
   let scene: React.ReactNode = null;
-  if (mode === "explore") scene = <PaperScene S={S} folds={folds} f={f} holes={unfoldPoints(punches, folds)} removed={unfoldPolys(cuts, folds)} />;
+  if (mode === "explore") scene = <PaperScene S={S} folds={folds} f={f} holes={sceneHoles} removed={sceneRemoved} />;
   else if (mode === "show") scene = <PaperScene S={ex.S} folds={ex.folds} f={f} holes={unfoldPoints(ex.punches, ex.folds)} removed={unfoldPolys(exCuts, ex.folds)} />;
   else if (display) scene = <PaperScene S={display.S} folds={display.folds} f={f} holes={display.holes} removed={display.removed} cutLines={display.cutLines} />;
 
@@ -350,18 +437,21 @@ export function PaperTool() {
               </div>
             ) : (
               <p className={styles.note}>
-                {folds.length >= MAX_FOLDS ? `حداکثر ${fa(MAX_FOLDS)} تا.` : punches.length || cutVerts.length ? "بعد از سوراخ کردن دیگر تا نمی‌کنیم؛ برای تای بیشتر، «برگرد» را بزن." : "این شکل دیگر خط تقارنی روی شبکه ندارد."}
+                {folds.length >= MAX_FOLDS ? `حداکثر ${fa(MAX_FOLDS)} تا.` : marked ? "بعد از سوراخ کردن دیگر تا نمی‌کنیم؛ برای تای بیشتر، «برگرد» را بزن." : "این شکل دیگر خط تقارنی روی شبکه ندارد."}
               </p>
             )}
 
             <div className={styles.titleRow}>
               <h2 className={styles.progress}>۲. سوراخ یا برش</h2>
               <div className={styles.chipsRow} role="radiogroup" aria-label="ابزار">
-                <button role="radio" aria-checked={tool === "punch"} onClick={() => setTool("punch")}>
+                <button role="radio" aria-checked={tool === "punch"} onClick={() => pickTool("punch")}>
                   ● سوراخ
                 </button>
-                <button role="radio" aria-checked={tool === "corner"} onClick={() => setTool("corner")}>
+                <button role="radio" aria-checked={tool === "corner"} onClick={() => pickTool("corner")}>
                   ✂ گوشه
+                </button>
+                <button role="radio" aria-checked={tool === "free"} onClick={() => pickTool("free")}>
+                  ✂ برش آزاد
                 </button>
               </div>
             </div>
@@ -370,11 +460,13 @@ export function PaperTool() {
                 ? folds.length
                   ? "روی یک خانه کاغذ تاشده بزن تا سوراخ شود. روی لبه تا هم می‌شود سوراخ زد: دایره‌های خط‌چین."
                   : "روی یک خانه کاغذ بزن تا سوراخ شود."
-                : "روی یک گوشه کاغذ تاشده بزن تا بریده شود."}
+                : tool === "corner"
+                  ? "روی یک گوشه کاغذ تاشده بزن تا بریده شود."
+                  : "روی کاغذ تاشده خط برش بکش: انگشت را بگذار و بکش؛ رها کن و از همان‌جا ادامه بده (یا نقطه به نقطه بزن). از لبه شروع کن و به لبه برس، یا از وسط شروع کن و به همان نقطه برگرد."}
             </p>
             <PaperSvg
               S={S}
-              size={220}
+              size={tool === "free" ? 260 : 220}
               shape={final}
               outline={folds.length > 0}
               holes={punches}
@@ -383,13 +475,27 @@ export function PaperTool() {
               spots={creaseSpots(S, folds)}
               onSpot={tool === "punch" ? tapSpot : undefined}
               onVertex={tool === "corner" ? tapVertex : undefined}
-              label="کاغذ تاشده"
+              pad={tool === "free" ? cutPad : undefined}
+              dots={tool === "free" ? bendDots : undefined}
+              draft={tool === "free" ? draft : undefined}
+              preview={tool === "free" && drag && !samePt(drag[0], drag[1]) ? drag : null}
+              label={tool === "free" ? "کاغذ تاشده: خط برش را بکش" : "کاغذ تاشده"}
             />
+            {tool === "free" && cutNote && (
+              <p className={styles.note} role="status" aria-live="polite">
+                {cutNote}
+              </p>
+            )}
+            {tool === "free" && lastCut?.parts.length === 2 && !draft.length && (
+              <button className={styles.clear} onClick={swapLast}>
+                تکه دیگر بیفتد
+              </button>
+            )}
             <div className={styles.row}>
-              <button className={styles.clear} onClick={undo} disabled={!folds.length && !punches.length && !cutVerts.length}>
+              <button className={styles.clear} onClick={undo} disabled={!folds.length && !marked}>
                 برگرد
               </button>
-              <button className={styles.clear} onClick={reset} disabled={!folds.length && !punches.length && !cutVerts.length}>
+              <button className={styles.clear} onClick={reset} disabled={!folds.length && !marked}>
                 از نو
               </button>
             </div>
