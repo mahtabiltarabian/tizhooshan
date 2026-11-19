@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { newSeed } from "@/generators/random";
 import { divide, itemAt, makeCycleQuestion, SYMBOLS, type CycleSet } from "@/generators/cycle";
+import { makeNthQuestion } from "@/generators/nth-term";
 import { diffsOf, makeSequenceQuestion, termsOf, type BlankChoice, type Level, type Rule } from "@/generators/sequence";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
@@ -15,12 +16,14 @@ import { SEQUENCE_GUIDE } from "./guide";
 import css from "./Sequence.module.css";
 import { CycleG, cycleBoardProps, cycleLayout, cycleView, ltr as ltrC, rowWords, SymbolIcon, symbolWord } from "./Cycle";
 import { cycleAnswerFa, CycleTryPanel } from "./CycleTryPanel";
+import { decodeNth, DEFAULT_NTH, NTH_LIMITS, NTH_PHASES, NthBuildBoard, NthExplorePanel, NthShowPanel, NthTryBoard, type NthBuild } from "./NthPanels";
+import { NthTryPanel } from "./NthTryPanel";
 import { BLANK_LABEL, SEQ_TYPE_LABEL, SequenceTryPanel, type SeqTryType } from "./SequenceTryPanel";
 import { ltr, numFa, rowsFor, rowsName, signedFa, stepFa, termFa, trainView, TrainG } from "./Train";
 
 type Mode = "explore" | "show" | "try";
-/** Explore and show me: number rules on the train, or a repeating pattern. */
-type Topic = "rule" | "cycle";
+/** Explore and show me: number rules on the train, a repeating pattern, or the nth term. */
+type Topic = "rule" | "cycle" | "nth";
 type CycleSetChoice = Exclude<CycleSet, "days">;
 interface CycleBuild {
   set: CycleSetChoice;
@@ -106,6 +109,7 @@ export function SequenceTool() {
   const [mode, setMode] = useState<Mode>("explore");
   const [topic, setTopic] = useState<Topic>("rule");
   const [cyc, setCyc] = useState<CycleBuild>(DEFAULT_CYCLE);
+  const [nth, setNth] = useState<NthBuild>(DEFAULT_NTH);
   const [classroom, setClassroom] = useClassroom();
 
   // Playback 0 … 1: wagons arriving (explore) or rows appearing (show me, after an answer).
@@ -144,17 +148,25 @@ export function SequenceTool() {
   const [big, setBig] = useState(false);
   const [seed, setSeed] = useState(909);
   const [checked, setChecked] = useState<number | null>(null);
-  const question = useMemo(() => makeSequenceQuestion(tryType === "cycle" ? "mixed" : tryType, tryLevel, seed, { blank, big }), [tryType, tryLevel, seed, blank, big]);
+  const question = useMemo(() => makeSequenceQuestion(tryType === "cycle" || tryType === "nth" ? "mixed" : tryType, tryLevel, seed, { blank, big }), [tryType, tryLevel, seed, blank, big]);
   const cycleQ = useMemo(() => makeCycleQuestion(tryLevel, seed), [tryLevel, seed]);
   const isCycle = tryType === "cycle";
+  const nthQ = useMemo(() => makeNthQuestion(tryLevel, seed), [tryLevel, seed]);
+  const isNth = tryType === "nth";
 
   const buildMs = 600 + 350 * build.n;
   const showMs = 1500 + 450 * build.n * rowsFor(rule).length;
-  const tryMs = isCycle ? 6000 : 1200 + 400 * question.terms.length * rowsFor(question.rule).length;
+  const tryMs = isCycle || isNth ? 6000 : 1200 + 400 * question.terms.length * rowsFor(question.rule).length;
   const cycleMs = 7000;
+  const nthMs = 7000;
+  const nthBuildMs = 500 + 300 * Math.min(nth.n, 6);
+  /** Show me lasts as long as the topic needs. */
+  const topicMs = (t: Topic) => (t === "cycle" ? cycleMs : t === "nth" ? nthMs : showMs);
 
   // Shareable links: #try=alternate&level=2&seed=7&blank=mid&big=1(&a=17), #try=cycle&level=3&seed=7(&a=2),
-  // #show=add&s=2&d=3&n=6, #show=cycle&set=shapes&c=0.1.2&n=100, #build=… for explore, #f=0.5, #classroom
+  // #try=nth&level=3&seed=7(&a=3004: a rule's boxes as coefficient × 1000 + constant),
+  // #show=add&s=2&d=3&n=6, #show=cycle&set=shapes&c=0.1.2&n=100, #show=nth&s=3&d=4&n=20 (or &p=squares&n=15),
+  // #build=… for explore, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -176,6 +188,11 @@ export function SequenceTool() {
           setChecked(a);
           setF(1);
         } else setF(0);
+      } else if (show === "nth") {
+        setTopic("nth");
+        setNth(decodeNth(params));
+        setMode(params.has("show") ? "show" : "explore");
+        setF(1);
       } else if (show === "cycle") {
         setTopic("cycle");
         setCyc(decodeCycle(params));
@@ -242,7 +259,9 @@ export function SequenceTool() {
   const setCycle = (c: number[]) => setCyc((b) => ({ ...b, cycle: c }));
 
   let board: React.ReactNode;
-  if (mode !== "try" && topic === "cycle") {
+  if (mode !== "try" && topic === "nth") {
+    board = <NthBuildBoard b={nth} show={mode === "show"} f={f} />;
+  } else if (mode !== "try" && topic === "cycle") {
     const show = mode === "show";
     board = (
       <Board view={cycleView(cycSlots)} imageName="cycle" label={`الگوی تکرارشونده: ${rowWords(cyc.set, cyc.cycle)}، … ؛ خانه ${fa(cyc.n)}`}>
@@ -274,6 +293,8 @@ export function SequenceTool() {
         />
       </Board>
     );
+  } else if (isNth) {
+    board = <NthTryBoard q={nthQ} checked={checked} f={checked === null ? 0 : f} />;
   } else if (isCycle) {
     const q = cycleQ;
     const done = checked !== null;
@@ -336,7 +357,7 @@ export function SequenceTool() {
             aria-selected={mode === "show"}
             onClick={() => {
               switchMode("show");
-              animate(topic === "cycle" ? cycleMs : showMs);
+              animate(topicMs(topic));
             }}
           >
             نشانم بده
@@ -359,17 +380,34 @@ export function SequenceTool() {
       </section>
 
       <section className={styles.controls}>
-        {mode === "explore" && topic === "cycle" ? (
+        {mode === "explore" && topic === "nth" ? (
+          <label className={styles.slider}>
+            <span>جمله n = {fa(nth.n)}</span>
+            <input type="range" min={NTH_LIMITS.n[0]} max={NTH_LIMITS.n[1]} step={1} value={nth.n} onChange={(e) => setNth((b) => ({ ...b, n: Number(e.target.value) }))} aria-label="شماره جمله n" />
+          </label>
+        ) : mode === "explore" && topic === "cycle" ? (
           <label className={styles.slider}>
             <span>خانه {fa(cyc.n)}</span>
             <input type="range" min={1} max={N_MAX} step={1} value={cyc.n} onChange={(e) => setCyc((b) => ({ ...b, n: Number(e.target.value) }))} aria-label="شماره خانه" />
           </label>
         ) : showSlider ? (
           <label className={styles.slider}>
-            <button className={styles.playSmall} onClick={() => play(mode === "explore" ? buildMs : inTry ? tryMs : topic === "cycle" ? cycleMs : showMs)} aria-label={run ? "توقف" : "پخش"}>
+            <button className={styles.playSmall} onClick={() => play(mode === "explore" ? buildMs : inTry ? tryMs : topicMs(topic))} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{inTry && isCycle ? "دورها و تقسیم" : mode === "explore" ? "ساختن قطار" : topic === "cycle" ? ["۱. دسته کن", "۲. تقسیم کن", "۳. بشمار"][phase] : rowsName(inTry ? question.rule : rule)}</span>
+            <span>
+              {inTry && isCycle
+                ? "دورها و تقسیم"
+                : inTry && isNth
+                  ? "جهش‌ها و ضرب"
+                  : mode === "explore"
+                    ? "ساختن قطار"
+                    : topic === "cycle"
+                      ? ["۱. دسته کن", "۲. تقسیم کن", "۳. بشمار"][phase]
+                      : topic === "nth"
+                        ? ["۱. بشمار", "۲. ضرب کن", "۳. اضافه کن"][f < NTH_PHASES[0] ? 0 : f < NTH_PHASES[1] ? 1 : 2]
+                        : rowsName(inTry ? question.rule : rule)}
+            </span>
             <input
               type="range"
               min={0}
@@ -397,6 +435,7 @@ export function SequenceTool() {
               [
                 ["rule", "قانون دنباله"],
                 ["cycle", "تکرار و باقیمانده"],
+                ["nth", "جمله nام"],
               ] as [Topic, string][]
             ).map(([t, label]) => (
               <button
@@ -406,7 +445,7 @@ export function SequenceTool() {
                 onClick={() => {
                   setTopic(t);
                   setRun(null);
-                  if (mode === "show") animate(t === "cycle" ? cycleMs : showMs);
+                  if (mode === "show") animate(topicMs(t));
                   else setF(1);
                 }}
               >
@@ -414,6 +453,33 @@ export function SequenceTool() {
               </button>
             ))}
           </div>
+        )}
+
+        {mode === "explore" && topic === "nth" && (
+          <NthExplorePanel
+            b={nth}
+            set={(b) => {
+              setRun(null);
+              setNth(b);
+              setF(1);
+            }}
+            onBuild={() => animate(nthBuildMs)}
+            onShow={() => {
+              setMode("show");
+              animate(nthMs);
+            }}
+          />
+        )}
+
+        {mode === "show" && topic === "nth" && (
+          <NthShowPanel
+            b={nth}
+            f={f}
+            pick={(b) => {
+              setNth(b);
+              animate(nthMs);
+            }}
+          />
         )}
 
         {mode === "explore" && topic === "cycle" && (
@@ -625,7 +691,23 @@ export function SequenceTool() {
           />
         )}
 
-        {mode === "try" && !isCycle && (
+        {mode === "try" && isNth && (
+          <NthTryPanel
+            key={`nth-${tryLevel}-${seed}`}
+            question={nthQ}
+            level={tryLevel}
+            checked={checked}
+            onCheck={(v) => {
+              setChecked(v);
+              animate(tryMs);
+            }}
+            onType={(t) => freshQuestion(t, tryLevel)}
+            onLevel={(l) => freshQuestion(tryType, l)}
+            onNew={() => freshQuestion()}
+          />
+        )}
+
+        {mode === "try" && !isCycle && !isNth && (
           <SequenceTryPanel
             key={`${tryType}-${tryLevel}-${seed}-${blank}-${big}`}
             question={question}

@@ -33,6 +33,10 @@ export const CODE_TYPE_LABEL: Record<CodeQuestionType, string> = {
   sentence: "رمزگشایی جمله",
 };
 
+/** Question types of «امتحان کن»: the letter codes and «کد دودویی» (see Binary.tsx). */
+export type TryType = CodeQuestionType | "binary";
+export const TRY_TYPE_LABEL: Record<TryType, string> = { ...CODE_TYPE_LABEL, binary: "کد دودویی" };
+
 /** Keeps an equation left to right inside a Persian sentence. */
 export const ltr = (s: string) => `⁦${s.replace(/ /g, " ")}⁩`;
 
@@ -218,7 +222,7 @@ interface Props {
   onAnswer: (a: (number | null)[], active: number) => void;
   checked: number[] | null;
   onCheck: (v: number[]) => void;
-  onType: (t: CodeQuestionType) => void;
+  onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
   onLength: (n: number) => void;
   onExamples: (n: 2 | 3) => void;
@@ -251,9 +255,9 @@ export function CodesTryPanel(p: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.types} role="radiogroup" aria-label="نوع رمز" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        {(Object.keys(CODE_TYPE_LABEL) as CodeQuestionType[]).map((t) => (
+        {(Object.keys(TRY_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
-            {CODE_TYPE_LABEL[t]}
+            {TRY_TYPE_LABEL[t]}
           </button>
         ))}
       </div>

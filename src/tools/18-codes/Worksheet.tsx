@@ -3,10 +3,13 @@
 // Worksheet for tool 18: the key table (level 1), the rule in words (level 2)
 // or the examples (level 3), then the given text in boxes and empty boxes for
 // the answer, one per letter. The answer key adds the working.
+// «کد دودویی» questions draw their cards (or lamp rows) instead.
 
-import { ALPHABET, encodeLetter, makeCodeQuestion, outKind, type CodeQuestion, type CodeQuestionType } from "@/generators/codes";
+import { answerKindOf, makeBinaryQuestion, type BinaryQuestion } from "@/generators/binary-code";
+import { ALPHABET, encodeLetter, makeCodeQuestion, outKind, type CodeQuestion } from "@/generators/codes";
 import { WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
-import { answerFa, CODE_TYPE_LABEL, codeHow, codePrompt, givenKind } from "./CodesTryPanel";
+import { binaryAnswerFa, binaryHow, binaryPrompt, CardRowSvg, WordLampsSvg } from "./Binary";
+import { answerFa, codeHow, codePrompt, givenKind, TRY_TYPE_LABEL, type TryType } from "./CodesTryPanel";
 import { Boxes, TokenHtml } from "./Inputs";
 import css from "./Codes.module.css";
 
@@ -37,7 +40,31 @@ function KeyTable({ q }: { q: CodeQuestion }) {
   );
 }
 
-function figures(q: CodeQuestion) {
+function binaryFigures(q: BinaryQuestion) {
+  switch (q.kind) {
+    case "read":
+      return <CardRowSvg mask={q.n} />;
+    case "show":
+      return <CardRowSvg mask={0} blank />;
+    case "next":
+      return (
+        <>
+          <CardRowSvg mask={q.n} width={180} />
+          <div className={css.boxes}>
+            <span className={css.arrow}>عدد بعدی:</span>
+          </div>
+          <CardRowSvg mask={0} blank width={180} />
+        </>
+      );
+    case "word":
+      return <WordLampsSvg q={q} />;
+    default:
+      return <p className={css.rule}>جواب: ............</p>;
+  }
+}
+
+function figures(q: SheetQuestion) {
+  if (q.type === "binary") return binaryFigures(q);
   const kind = outKind(q.rule);
   return (
     <>
@@ -62,7 +89,13 @@ function figures(q: CodeQuestion) {
   );
 }
 
-function answer(q: CodeQuestion) {
+function answer(q: SheetQuestion) {
+  if (q.type === "binary")
+    return (
+      <>
+        {answerKindOf(q.kind) === "lamps" ? <CardRowSvg mask={q.answer} width={150} /> : binaryAnswerFa(q)} · <span style={{ fontWeight: 400 }}>{binaryHow(q)}</span>
+      </>
+    );
   const kind = q.dir === "encode" ? outKind(q.rule) : "letter";
   return (
     <>
@@ -71,13 +104,15 @@ function answer(q: CodeQuestion) {
   );
 }
 
-const CONFIG: WorksheetConfig<CodeQuestionType, CodeQuestion> = {
+type SheetQuestion = CodeQuestion | BinaryQuestion;
+
+const CONFIG: WorksheetConfig<TryType, SheetQuestion> = {
   title: "کدگذاری",
   backHref: "/tools/codes",
-  typeLabels: CODE_TYPE_LABEL,
+  typeLabels: TRY_TYPE_LABEL,
   defaultTypes: ["shift", "number", "shape", "sentence"],
-  make: (type, level, seed) => makeCodeQuestion(type, level, seed),
-  prompt: (q) => codePrompt(q, true),
+  make: (type, level, seed) => (type === "binary" ? makeBinaryQuestion(level, seed) : makeCodeQuestion(type, level, seed)),
+  prompt: (q) => (q.type === "binary" ? binaryPrompt(q, true) : codePrompt(q, true)),
   figures,
   answer,
 };

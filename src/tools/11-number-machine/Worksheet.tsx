@@ -2,14 +2,17 @@
 
 // Worksheet for tool 11: the machine (steps shown, or empty boxes to fill),
 // the table of examples, and a line for the answer. Operator questions are
-// text only. The answer key adds the working.
+// text only; «مرتب‌سازی و الگوریتم» shows the row of boxes, or its choices.
+// The answer key adds the working.
 
-import { makeMachineQuestion, type Example, type MachineQuestion, type MachineQuestionType } from "@/generators/number-machine";
-import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
+import { makeMachineQuestion, type Example, type MachineQuestion } from "@/generators/number-machine";
+import { makeSortQuestion, type SortQuestion } from "@/generators/sorting";
+import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
 import { numFa } from "./format";
-import { answerFa, MACHINE_TYPE_LABEL, machineHow, machinePrompt } from "./MachineTryPanel";
+import { answerFa, machineHow, machinePrompt, TRY_TYPE_LABEL, type TryType } from "./MachineTryPanel";
 import { MachineSvg } from "./Pictures";
+import { MiniRow, programFa, sortAnswerFa, sortHow, sortPrompt } from "./Sorting";
 import styles from "@/toolkit/Worksheet.module.css";
 
 const cell: React.CSSProperties = { border: "1px solid #222", padding: "1px 10px", textAlign: "center", minWidth: "2.6em" };
@@ -53,8 +56,41 @@ function Table({ examples, query }: { examples: Example[]; query?: number[] }) {
   );
 }
 
-function figures(q: MachineQuestion) {
+type SheetQuestion = MachineQuestion | SortQuestion;
+
+function sortFigures(q: SortQuestion) {
+  if (q.variant === "pass")
+    return (
+      <Choices wide>
+        {q.options.map((o, i) => (
+          <MiniRow key={i} row={o} />
+        ))}
+      </Choices>
+    );
+  if (q.variant === "program")
+    return (
+      <Choices wide>
+        {q.options.map((o, i) => (
+          <span key={i}>{programFa(o)}</span>
+        ))}
+      </Choices>
+    );
+  return (
+    <>
+      {"row" in q && (
+        <FigureRow>
+          <MiniRow row={q.row} />
+        </FigureRow>
+      )}
+      <p className={styles.symbols}>جواب: ............</p>
+    </>
+  );
+}
+
+function figures(q: SheetQuestion) {
   switch (q.type) {
+    case "sort":
+      return sortFigures(q);
     case "run":
       return (
         <FigureRow>
@@ -94,7 +130,13 @@ function figures(q: MachineQuestion) {
   }
 }
 
-function answer(q: MachineQuestion) {
+function answer(q: SheetQuestion) {
+  if (q.type === "sort")
+    return (
+      <>
+        {sortAnswerFa(q)} · <span style={{ fontWeight: 400 }}>{sortHow(q)}</span>
+      </>
+    );
   return (
     <>
       {answerFa(q)} · <span style={{ fontWeight: 400 }}>{machineHow(q)}</span>
@@ -102,13 +144,13 @@ function answer(q: MachineQuestion) {
   );
 }
 
-const CONFIG: WorksheetConfig<MachineQuestionType, MachineQuestion> = {
+const CONFIG: WorksheetConfig<TryType, SheetQuestion> = {
   title: "ماشین اعداد",
   backHref: "/tools/number-machine",
-  typeLabels: MACHINE_TYPE_LABEL,
+  typeLabels: TRY_TYPE_LABEL,
   defaultTypes: ["run", "reverse", "guess", "operator"],
-  make: (type, level, seed) => makeMachineQuestion(type, level, seed),
-  prompt: (q) => machinePrompt(q, true),
+  make: (type, level, seed) => (type === "sort" ? makeSortQuestion(level, seed) : makeMachineQuestion(type, level, seed)),
+  prompt: (q) => (q.type === "sort" ? sortPrompt(q) : machinePrompt(q, true)),
   figures,
   answer,
 };

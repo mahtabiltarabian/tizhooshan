@@ -7,11 +7,15 @@
 
 import { makeCircleQuestion, measureMistake, type CircleQuestion, type MeasureTag } from "./circle";
 import { makeCompositeQuestion, type CompositeQuestion } from "./composite-area";
+import { makeParallelQuestion, parallelMistake, type ParallelQuestion, type ParallelTag } from "./parallel-angles";
 import { mulberry32, pick, randInt, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-/** circle and composite: generators/circle.ts and generators/composite-area.ts (π = 3.14, lengths on a figure, not the geoboard). */
-export type GeometryQuestionType = "area" | "perimeter" | "angle" | "classify" | "build" | "divide" | "circle" | "composite";
+/**
+ * circle and composite: generators/circle.ts and generators/composite-area.ts (π = 3.14, lengths on a figure, not the geoboard).
+ * parallel: generators/parallel-angles.ts (angles with parallel lines and a transversal).
+ */
+export type GeometryQuestionType = "area" | "perimeter" | "angle" | "classify" | "build" | "divide" | "circle" | "composite" | "parallel";
 export type Pt = [number, number];
 
 /** Pegs on each side of the board, by level. */
@@ -459,8 +463,8 @@ export interface DivideQuestion extends Base {
   answer: number;
 }
 
-export type GeometryQuestion = AreaQuestion | PerimeterQuestion | AngleQuestion | ClassifyQuestion | BuildQuestion | DivideQuestion | CircleQuestion | CompositeQuestion;
-export type { CircleQuestion, CompositeQuestion };
+export type GeometryQuestion = AreaQuestion | PerimeterQuestion | AngleQuestion | ClassifyQuestion | BuildQuestion | DivideQuestion | CircleQuestion | CompositeQuestion | ParallelQuestion;
+export type { CircleQuestion, CompositeQuestion, ParallelQuestion };
 
 /** What kind of answer a question wants. */
 export const answerKind = (type: GeometryQuestionType): "number" | "choice" | "shape" | "cut" =>
@@ -810,6 +814,7 @@ function divideQuestion(rng: Rng, level: Level, seed: number): DivideQuestion {
 export function makeGeometryQuestion(type: GeometryQuestionType, level: Level, seed: number): GeometryQuestion {
   if (type === "circle") return makeCircleQuestion(level, seed);
   if (type === "composite") return makeCompositeQuestion(level, seed);
+  if (type === "parallel") return makeParallelQuestion(level, seed);
   const rng = mulberry32(seed * 7 + level * 101 + type.length * 13 + (type === "build" ? 5 : 0));
   switch (type) {
     case "area":
@@ -871,6 +876,8 @@ export type GeometryTag =
   | "swap"
   // circle and composite (generators/circle.ts)
   | MeasureTag
+  // parallel lines (generators/parallel-angles.ts)
+  | ParallelTag
   | "other";
 
 /** Wrong answers with a known cause, in the order they are checked. */
@@ -963,6 +970,7 @@ export function slips(q: GeometryQuestion): [GeometryTag, number][] {
     }
     case "circle":
     case "composite":
+    case "parallel":
       return q.slips.map((s): [GeometryTag, number] => [s.tag, s.value]);
     default:
       return [];
@@ -973,6 +981,7 @@ export function slips(q: GeometryQuestion): [GeometryTag, number][] {
 export function geometryMistake(q: GeometryQuestion, value: number, known = slips(q)): GeometryTag {
   // Decimal answers are compared in hundredths.
   if (q.type === "circle" || q.type === "composite") return measureMistake(q, value);
+  if (q.type === "parallel") return parallelMistake(q, value);
   if (value === q.answer) return "right";
   for (const [tag, v] of known) if (v !== q.answer && value === v) return tag;
   return "other";

@@ -2,14 +2,16 @@
 // number of turns), movers on a straight track (meeting, catching up,
 // overtaking), turning on the spot (facing north, east, south or west) and
 // walking on a street grid; and spacing along a path (trees in a row, posts
-// round a loop, cutting a log, climbing floors). Every number in a question and its answer is
+// round a loop, cutting a log, climbing floors); and the shortest route on a
+// map of towns and roads (motion-map.ts). Every number in a question and its answer is
 // whole. Each question keeps its answer and the usual slips, so the feedback
 // can say which slip a wrong answer was.
 
+import { mapQuestion, mapSlips, type MapQuestion } from "./motion-map";
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type MotionQuestionType = "gearDir" | "gearTurns" | "trip" | "chase" | "orient" | "grid" | "spacing";
+export type MotionQuestionType = "gearDir" | "gearTurns" | "trip" | "chase" | "orient" | "grid" | "spacing" | "map";
 
 // ── Gears, pulleys and belts ─────────────────────────────────────────────
 
@@ -287,14 +289,16 @@ export interface SpacingQuestion extends Base {
   answer: number;
 }
 
-export type MotionQuestion = GearDirQuestion | GearTurnsQuestion | TripQuestion | ChaseQuestion | OrientQuestion | GridQuestion | SpacingQuestion;
+export type { MapQuestion } from "./motion-map";
+export type MotionQuestion = GearDirQuestion | GearTurnsQuestion | TripQuestion | ChaseQuestion | OrientQuestion | GridQuestion | SpacingQuestion | MapQuestion;
 
-/** What kind of answer a question wants: a turning direction, a compass direction, a labelled point or a number. */
-export type AnswerKind = "rot" | "compass" | "point" | "number";
+/** What kind of answer a question wants: a turning direction, a compass direction, a labelled point, one of four roads or a number. */
+export type AnswerKind = "rot" | "compass" | "point" | "road" | "number";
 export function answerKind(q: MotionQuestion): AnswerKind {
   if (q.type === "gearDir") return "rot";
   if (q.type === "orient") return "compass";
   if (q.type === "grid") return q.variant === "routes" ? "number" : "point";
+  if (q.type === "map" && q.variant === "close") return "road";
   return "number";
 }
 
@@ -611,6 +615,8 @@ export function makeMotionQuestion(type: MotionQuestionType, level: Level, seed:
       return gridQuestion(rng, level, seed);
     case "spacing":
       return spacingQuestion(rng, level, seed);
+    case "map":
+      return mapQuestion(rng, level, seed);
   }
 }
 
@@ -657,6 +663,15 @@ export type MotionTag =
   | "oneSide"
   | "cornersTwice"
   | "floorsAsGaps"
+  | "fewestRoads"
+  | "greedy"
+  | "forgotVia"
+  | "forgotReturn"
+  | "outAndBack"
+  | "spurOnce"
+  | "onBest"
+  | "cheapestFew"
+  | "allRoads"
   | "other";
 
 /** Facing after the turns, read with a slip. */
@@ -770,6 +785,8 @@ export function slips(q: MotionQuestion): [MotionTag, number][] {
     }
     case "spacing":
       return spacingSlips(q);
+    case "map":
+      return mapSlips(q);
   }
 }
 

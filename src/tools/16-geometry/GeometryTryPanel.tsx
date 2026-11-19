@@ -19,6 +19,7 @@ import { fa } from "@/tools/registry";
 import { approxDeg, areaHow, degFa, ltr, num, perimeterHow } from "./frames";
 import { DecimalPad } from "./MeasurePictures";
 import { measureAnswerFa, measureHow, measurePrompt, measureSlipText } from "./MeasureText";
+import { parallelHow, parallelPrompt, parallelSlipText } from "./ParallelText";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const GEOMETRY_TYPE_LABEL: Record<GeometryQuestionType, string> = {
@@ -30,6 +31,7 @@ export const GEOMETRY_TYPE_LABEL: Record<GeometryQuestionType, string> = {
   divide: "دو نیمه کردن",
   circle: "دایره",
   composite: "مساحت ترکیبی",
+  parallel: "خطوط موازی و زاویه",
 };
 
 /** What each level means, per type (the "new example" knobs). */
@@ -42,6 +44,7 @@ export const LEVEL_LABEL: Record<GeometryQuestionType, [string, string, string]>
   divide: ["مستطیل", "مثلث و ذوزنقه", "شکل کج"],
   circle: ["دایره کامل", "نیم و ربع دایره", "حلقه و از محیط"],
   composite: ["دو مستطیل", "منهای یک تکه", "با دایره"],
+  parallel: ["یک مورب", "دو قدم", "خط شکسته و مثلث"],
 };
 
 /** Questions with lengths on a figure (π = 3.14) rather than on the geoboard. */
@@ -60,6 +63,8 @@ export function geometryPrompt(q: GeometryQuestion, paper = false): string {
     case "circle":
     case "composite":
       return measurePrompt(q);
+    case "parallel":
+      return parallelPrompt(q);
     case "area":
       return "مساحت این شکل چند واحد مربع است؟ (هر مربع کوچک بین چهار میخ، یک واحد مربع است.)";
     case "perimeter":
@@ -126,6 +131,8 @@ export function geometryHow(q: GeometryQuestion): string {
     case "circle":
     case "composite":
       return measureHow(q);
+    case "parallel":
+      return parallelHow(q);
     case "area":
       return areaHow(q.poly);
     case "perimeter":
@@ -216,6 +223,8 @@ export function answerFa(q: GeometryQuestion): string {
     case "circle":
     case "composite":
       return measureAnswerFa(q);
+    case "parallel":
+      return degFa(q.answer);
     case "area":
       return `${num(q.answer)} واحد مربع`;
     case "perimeter":
@@ -244,6 +253,12 @@ function numberFeedback(q: GeometryQuestion, v: number): { tone: Tone; text: str
     if (tag === "right") return { tone: "good", text: `درست است! ${how}` };
     if (tag === "other") return { tone: "bad", text: right };
     return t(measureSlipText(q, tag as Parameters<typeof measureSlipText>[1]));
+  }
+  if (q.type === "parallel") {
+    const tag = geometryMistake(q, v);
+    if (tag === "right") return { tone: "good", text: `درست است! ${how}` };
+    if (tag === "other") return { tone: "bad", text: right };
+    return t(parallelSlipText(q, tag as Parameters<typeof parallelSlipText>[1]));
   }
   switch (geometryMistake(q, v)) {
     case "right":
@@ -469,7 +484,7 @@ export function GeometryTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && (q.type === "area" || q.type === "perimeter" || decimal) && <p className={styles.hint}>روی صفحه، {decimal ? "راه‌حل" : "شمارش"} قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && (q.type === "area" || q.type === "perimeter" || q.type === "parallel" || decimal) && <p className={styles.hint}>روی صفحه، {decimal || q.type === "parallel" ? "راه‌حل" : "شمارش"} قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
       {done && (q.type === "build" || q.type === "divide") && fb?.tone !== "good" && <p className={styles.hint}>روی صفحه، کش تو نارنجی و پررنگ است و یک جواب درست سبز و خط‌چین.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

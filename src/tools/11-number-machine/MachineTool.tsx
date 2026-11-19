@@ -15,27 +15,35 @@ import {
   trace,
   type Level,
   type MachineQuestion,
-  type MachineQuestionType,
   type Op,
   type OpDef,
   type Rule,
 } from "@/generators/number-machine";
 import { newSeed } from "@/generators/random";
+import { makeSortQuestion, passSteps } from "@/generators/sorting";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { chainFa, numFa, OP_WORD, opCalcFa, opLines, ruleFa, stepFa, SYM } from "./format";
 import { MACHINE_GUIDE } from "./guide";
-import { builtOutputs, MACHINE_TYPE_LABEL, MachineTryPanel, operatorLines, type Answer } from "./MachineTryPanel";
+import { builtOutputs, MachineTryPanel, operatorLines, TRY_TYPE_LABEL, type Answer, type TryType } from "./MachineTryPanel";
 import { ExamplesG, LinesG, MachineG, OpMachineG } from "./Pictures";
+import { compareAt, SortExploreG, SortExplorePanel, SortQuestionG, SortRowG, SortShowPanel, sortSteps, SortTryPanel, useSortExplore } from "./Sorting";
 
 type Mode = "explore" | "show" | "try";
-type Area = "machine" | "operator";
+type Area = "machine" | "operator" | "sort";
 /** Operators to explore: □a + □b, □a − □b, (a + b) × □, a × b + □. */
 type ExploreForm = "plus" | "minus" | "sumTimes" | "prod";
 
 const VIEW: [number, number, number, number] = [0, 0, 16, 9];
+/** Show me, «مرتب‌سازی»: time for one comparison. */
+const MS_COMPARE = 1100;
+/** "7.3.9.1" → [7, 3, 9, 1]: 4 … 7 different numbers 1 … 99. */
+const decodeRow = (s: string) => {
+  const r = s.split(".").map(Number);
+  return r.length >= 4 && r.length <= 7 && r.every((v) => Number.isInteger(v) && v >= 1 && v <= 99) && new Set(r).size === r.length ? r : null;
+};
 const MAX_STEPS = 4;
 const FORMS: [ExploreForm, string][] = [
   ["plus", "□a + □b"],
@@ -109,28 +117,35 @@ export function MachineTool() {
   const [opB, setOpB] = useState(5);
 
   // Try it
-  const [tryType, setTryType] = useState<MachineQuestionType>("run");
+  const [tryType, setTryType] = useState<TryType>("run");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(1111);
   const [exCount, setExCount] = useState<2 | 3 | 4>(3);
   const [division, setDivision] = useState(true);
   const [checked, setChecked] = useState<Answer | null>(null);
-  const question = useMemo(() => makeMachineQuestion(tryType, tryLevel, seed, { examples: exCount, division }), [tryType, tryLevel, seed, exCount, division]);
+  const question = useMemo(() => makeMachineQuestion(tryType === "sort" ? "run" : tryType, tryLevel, seed, { examples: exCount, division }), [tryType, tryLevel, seed, exCount, division]);
+  // «مرتب‌سازی و الگوریتم» (Sorting.tsx): its own question, explore row and show me.
+  const sortQ = useMemo(() => (tryType === "sort" ? makeSortQuestion(tryLevel, seed) : null), [tryType, tryLevel, seed]);
+  const sortEx = useSortExplore();
+  const { load: loadRow } = sortEx;
 
   const op = exploreOp(form, opP, opQ);
-  const showMs = area === "machine" ? 1300 * rule.length + 600 : 900 * opLines(op, opA, opB).length;
-  const tryMs = (q: MachineQuestion) => (q.type === "operator" ? 900 * operatorBoardLines(q).length : stepsOf(q) ? 1300 * stepsOf(q) + 600 : 2000);
+  const showMs = area === "machine" ? 1300 * rule.length + 600 : area === "sort" ? MS_COMPARE * (sortEx.row.length - 1) : 900 * opLines(op, opA, opB).length;
+  const tryMs = (q: MachineQuestion) =>
+    sortQ ? 1000 * sortSteps(sortQ) : q.type === "operator" ? 900 * operatorBoardLines(q).length : stepsOf(q) ? 1300 * stepsOf(q) + 600 : 2000;
 
-  // Shareable links: #try=guess&level=2&seed=7&ex=3&div=0(&a=19 or &a=m2.a3), #show=m-5-a3.m2 (r- backwards) or #show=o-plus-2-1-3-5, #f=0.5, #classroom
+  // Shareable links: #try=guess&level=2&seed=7&ex=3&div=0(&a=19 or &a=m2.a3), #try=sort&level=2&seed=7(&a=3),
+  // #show=m-5-a3.m2 (r- backwards) or #show=o-plus-2-1-3-5 or #show=s-7.3.9.1.5, #explore=s-7.3.9.1.5, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
     const tryParam = params.get("try");
     const show = params.get("show");
+    const explore = params.get("explore");
     const timer = setTimeout(() => {
       if (tryParam) {
         setMode("try");
-        const type = tryParam in MACHINE_TYPE_LABEL ? (tryParam as MachineQuestionType) : "run";
+        const type = tryParam in TRY_TYPE_LABEL ? (tryParam as TryType) : "run";
         setTryType(type);
         const lv = Number(params.get("level"));
         if (lv === 1 || lv === 2 || lv === 3) setTryLevel(lv);
@@ -154,6 +169,10 @@ export function MachineTool() {
           if (Number.isFinite(v)) setNum(Math.max(0, Math.min(999, Math.round(v))));
           const r = rest[1] ? decodeRule(rest[1]) : null;
           if (r) setRule(r);
+        } else if (kind === "s") {
+          setArea("sort");
+          const r = decodeRow(rest.join("-"));
+          if (r) loadRow(r);
         } else if (kind === "o") {
           setArea("operator");
           const fm = FORMS.find(([k]) => k === rest[0]);
@@ -166,12 +185,16 @@ export function MachineTool() {
         }
         setMode("show");
         setF(1);
+      } else if (explore?.startsWith("s")) {
+        setArea("sort");
+        const r = decodeRow(explore.slice(2));
+        if (r) loadRow(r);
       }
       const ff = Number(params.get("f"));
       if (params.has("f") && Number.isFinite(ff)) setF(Math.min(1, Math.max(0, ff)));
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [loadRow]);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -179,7 +202,7 @@ export function MachineTool() {
     setF(m === "try" ? 0 : 1);
   };
 
-  const freshQuestion = (o: { type?: MachineQuestionType; level?: Level; ex?: 2 | 3 | 4; div?: boolean } = {}) => {
+  const freshQuestion = (o: { type?: TryType; level?: Level; ex?: 2 | 3 | 4; div?: boolean } = {}) => {
     const level = o.level ?? tryLevel;
     setTryType(o.type ?? tryType);
     setTryLevel(level);
@@ -200,7 +223,21 @@ export function MachineTool() {
   const values = slotValues(num, rule, back);
   const n = rule.length;
   let board: React.ReactNode;
-  if (mode !== "try") {
+  if (mode !== "try" && area === "sort") {
+    const st = passSteps(sortEx.row);
+    const at = compareAt(sortEx.row, st, f * st.length);
+    board = (
+      <Board view={VIEW} imageName="sorting" label="ردیف جعبه‌های عدد">
+        {mode === "explore" ? <SortExploreG ex={sortEx} /> : <SortRowG row={at.row} cmp={at.cmp} cx={8} cy={3.6} width={14.4} />}
+      </Board>
+    );
+  } else if (mode === "try" && sortQ) {
+    board = (
+      <Board view={VIEW} imageName="sorting" label="مرتب‌سازی و الگوریتم">
+        <SortQuestionG q={sortQ} done={checked !== null} f={f} />
+      </Board>
+    );
+  } else if (mode !== "try") {
     if (area === "machine") {
       const k = mode === "show" ? Math.min(n, Math.floor(f * n + 0.5)) : n;
       const chain = back ? chainFa(num, backRule(rule).slice(0, k)) : chainFa(num, rule.slice(0, k));
@@ -323,7 +360,7 @@ export function MachineTool() {
             <button className={styles.playSmall} onClick={() => play(inTry ? tryMs(question) : showMs)} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{inTry ? (question.type === "operator" ? "قدم‌به‌قدم" : question.type === "reverse" ? "برعکس، از خروجی" : "عدد در ماشین") : area === "machine" ? (back ? "برعکس، از خروجی" : "عدد در ماشین") : "قدم‌به‌قدم"}</span>
+            <span>{inTry && sortQ ? ("row" in sortQ ? "مقایسه‌به‌مقایسه" : "دوربه‌دور") : !inTry && area === "sort" ? "مقایسه‌به‌مقایسه" : inTry ? (question.type === "operator" ? "قدم‌به‌قدم" : question.type === "reverse" ? "برعکس، از خروجی" : "عدد در ماشین") : area === "machine" ? (back ? "برعکس، از خروجی" : "عدد در ماشین") : "قدم‌به‌قدم"}</span>
             <input
               type="range"
               min={0}
@@ -339,7 +376,7 @@ export function MachineTool() {
           </label>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {inTry ? "اول فکر کن، بعد جواب بده" : area === "machine" ? (valuesClean ? `ورودی ${numFa(values[0])} · خروجی ${numFa(values[n])}` : "عدد صحیح نماند؛ عددها یا مرحله‌ها را عوض کن") : `${fa(opA)} و ${fa(opB)} ← جواب ${numFa(opValue(op, opA, opB))}`}
+            {inTry ? "اول فکر کن، بعد جواب بده" : area === "sort" ? "دو جعبه همسایه را بزن تا جایشان عوض شود" : area === "machine" ? (valuesClean ? `ورودی ${numFa(values[0])} · خروجی ${numFa(values[n])}` : "عدد صحیح نماند؛ عددها یا مرحله‌ها را عوض کن") : `${fa(opA)} و ${fa(opB)} ← جواب ${numFa(opValue(op, opA, opB))}`}
           </p>
         )}
       </section>
@@ -351,6 +388,7 @@ export function MachineTool() {
               [
                 ["machine", "ماشین"],
                 ["operator", "عملگر ★"],
+                ["sort", "مرتب‌سازی"],
               ] as [Area, string][]
             ).map(([a, label]) => (
               <button
@@ -501,6 +539,28 @@ export function MachineTool() {
           </>
         )}
 
+        {mode === "explore" && area === "sort" && (
+          <SortExplorePanel
+            ex={sortEx}
+            onShow={() => {
+              setMode("show");
+              animate(MS_COMPARE * (sortEx.row.length - 1));
+            }}
+          />
+        )}
+
+        {mode === "show" && area === "sort" && (
+          <SortShowPanel
+            row={sortEx.row}
+            t={f * (sortEx.row.length - 1)}
+            onNext={() => {
+              const st = passSteps(sortEx.row);
+              sortEx.load(st[st.length - 1].row);
+              animate(MS_COMPARE * (sortEx.row.length - 1));
+            }}
+          />
+        )}
+
         {mode === "show" && area === "machine" && (
           <>
             <h2>{back ? "ماشین برعکس" : "عدد از ماشین رد می‌شود"}</h2>
@@ -544,7 +604,23 @@ export function MachineTool() {
           </>
         )}
 
-        {mode === "try" && (
+        {mode === "try" && sortQ && (
+          <SortTryPanel
+            key={`sort-${tryLevel}-${seed}`}
+            q={sortQ}
+            level={tryLevel}
+            checked={typeof checked === "number" ? checked : null}
+            onCheck={(v) => {
+              setChecked(v);
+              animate(tryMs(question));
+            }}
+            onType={(t) => freshQuestion({ type: t })}
+            onLevel={(l) => freshQuestion({ level: l })}
+            onNew={() => freshQuestion()}
+          />
+        )}
+
+        {mode === "try" && !sortQ && (
           <MachineTryPanel
             key={`${tryType}-${tryLevel}-${seed}-${exCount}-${division}`}
             question={question}

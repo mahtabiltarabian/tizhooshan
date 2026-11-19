@@ -37,6 +37,32 @@ export const MACHINE_TYPE_LABEL: Record<MachineQuestionType, string> = {
   operator: "عملگر ★",
 };
 
+/** Every question type of the try panel: the machine's, and «مرتب‌سازی و الگوریتم» (Sorting.tsx). */
+export type TryType = MachineQuestionType | "sort";
+export const TRY_TYPE_LABEL: Record<TryType, string> = { ...MACHINE_TYPE_LABEL, sort: "مرتب‌سازی و الگوریتم" };
+
+/** The question type and level chips at the top of the try panel. */
+export function TypeLevelChips({ type, level, onType, onLevel }: { type: TryType; level: Level; onType: (t: TryType) => void; onLevel: (l: Level) => void }) {
+  return (
+    <>
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+        {(Object.keys(TRY_TYPE_LABEL) as TryType[]).map((t) => (
+          <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
+            {TRY_TYPE_LABEL[t]}
+          </button>
+        ))}
+      </div>
+      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+        {([1, 2, 3] as Level[]).map((l) => (
+          <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
+            سطح {fa(l)}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** A child's answer: a number, or a machine they built. */
 export type Answer = number | Machine;
 
@@ -217,13 +243,13 @@ interface Slot {
 
 interface Props {
   question: MachineQuestion;
-  type: MachineQuestionType;
+  type: TryType;
   level: Level;
   examples: 2 | 3 | 4;
   division: boolean;
   checked: Answer | null;
   onCheck: (a: Answer) => void;
-  onType: (t: MachineQuestionType) => void;
+  onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
   onExamples: (n: 2 | 3 | 4) => void;
   onDivision: (on: boolean) => void;
@@ -265,20 +291,7 @@ export function MachineTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
-        {(Object.keys(MACHINE_TYPE_LABEL) as MachineQuestionType[]).map((t) => (
-          <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
-            {MACHINE_TYPE_LABEL[t]}
-          </button>
-        ))}
-      </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
-        {([1, 2, 3] as Level[]).map((l) => (
-          <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
-            سطح {fa(l)}
-          </button>
-        ))}
-      </div>
+      <TypeLevelChips type={p.type} level={p.level} onType={p.onType} onLevel={p.onLevel} />
       {(usesExamples || usesSteps) && (
         <div className={styles.chips} aria-label="تنظیم نمونه تازه">
           {usesExamples &&

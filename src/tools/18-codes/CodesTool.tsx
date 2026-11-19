@@ -24,19 +24,35 @@ import {
   type Rule,
   type TokenKind,
 } from "@/generators/codes";
+import { makeBinaryQuestion, MAX as BIN_MAX } from "@/generators/binary-code";
 import { mulberry32, newSeed, shuffle } from "@/generators/random";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
-import { CodesTryPanel, givenKind, ruleFa, ruleShort, tokensFa } from "./CodesTryPanel";
+import {
+  BinaryExploreBoard,
+  BinaryExplorePanel,
+  binaryFromLink,
+  binaryKey,
+  BinaryShowBoard,
+  BinaryShowPanel,
+  BinaryTryBoard,
+  BinaryTryPanel,
+  binFa,
+  blankBinary,
+  sumFa,
+  useBinaryExplore,
+  type BinaryEntry,
+} from "./Binary";
+import { CodesTryPanel, givenKind, ruleFa, ruleShort, tokensFa, type TryType } from "./CodesTryPanel";
 import { CODES_GUIDE } from "./guide";
 import { LetterKeyboard } from "./Inputs";
 import { DownArrows, fitSize, KeyTable, keyTableHeight, RowLabel, rowWidth, TokenRow, tokenText, Wheel } from "./Pictures";
 import css from "./Codes.module.css";
 
 type Mode = "explore" | "show" | "try";
-type RuleKind = "shift" | "mirror" | "number" | "shape" | "sub";
+type RuleKind = "shift" | "mirror" | "number" | "shape" | "sub" | "binary";
 
 const RULE_LABEL: Record<RuleKind, string> = {
   shift: "جابه‌جایی",
@@ -44,6 +60,7 @@ const RULE_LABEL: Record<RuleKind, string> = {
   number: "عددی",
   shape: "شکلی",
   sub: "دلخواه",
+  binary: "دودویی",
 };
 
 const VIEW: [number, number, number, number] = [0, 0, 16, 9];
@@ -251,6 +268,9 @@ export function CodesTool() {
         return shapeKey(typed, shapeSeed);
       case "sub":
         return { kind: "sub", perm };
+      case "binary":
+        // «دودویی» is not a letter rule; its own board and panel are drawn instead.
+        return { kind: "shift", n: 0 };
     }
   }, [ruleKind, shiftN, mirrorN, numStart, numStep, numRev, shapeSeed, perm, typed]);
   const letterRule = outKind(rule) === "letter";
@@ -259,13 +279,23 @@ export function CodesTool() {
   const coded = useMemo(() => encode(rule, plain), [rule, plain]);
   const letterCount = plain.filter((x) => x !== SPACE).length;
 
+  // Binary code: explore (cards to flip, +1) and show me (the number built greedily).
+  const binEx = useBinaryExplore();
+  const [binN, setBinN] = useState(13);
+  const binary = ruleKind === "binary";
+
   // Try it
-  const [tryType, setTryType] = useState<CodeQuestionType>("shift");
+  const [tryType, setTryType] = useState<TryType>("shift");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [length, setLength] = useState(0);
   const [examples, setExamples] = useState<2 | 3>(2);
   const [seed, setSeed] = useState(1818);
-  const question = useMemo(() => makeCodeQuestion(tryType, tryLevel, seed, { length, examples }), [tryType, tryLevel, seed, length, examples]);
+  const codeType: CodeQuestionType = tryType === "binary" ? "shift" : tryType;
+  const question = useMemo(() => makeCodeQuestion(codeType, tryLevel, seed, { length, examples }), [codeType, tryLevel, seed, length, examples]);
+  const binQ = useMemo(() => makeBinaryQuestion(tryLevel, seed), [tryLevel, seed]);
+  const [binRaw, setBin] = useState<BinaryEntry | null>(null);
+  // A stale entry (another question) reads as blank.
+  const binEntry = binRaw && binRaw.key === binaryKey(binQ) ? binRaw : blankBinary(binQ);
   const [answerRaw, setAnswerRaw] = useState<(number | null)[]>([]);
   const [active, setActive] = useState(0);
   const [checked, setChecked] = useState<number[] | null>(null);
@@ -273,18 +303,31 @@ export function CodesTool() {
   const answer = answerRaw.length === question.answer.length ? answerRaw : blankFor(question);
   const activeSlot = answer[active] === SPACE || active >= answer.length ? Math.max(0, answer.indexOf(null)) : active;
 
-  const showMs = 1800 + 700 * letterCount;
+  const showMs = binary ? 5400 : 1800 + 700 * letterCount;
   const tryMs = 1800 + 600 * question.plain.filter((x) => x !== SPACE).length;
 
   // Shareable links: #try=shift&level=2&seed=7&len=4&ex=2(&a=3.1._.5), #show=shift&n=3&w=باغ(&dir=decode),
-  // #show=mirror&n=0, #show=number&start=1&step=1&rev=0, #show=shape&k=18, #explore=… (same), #f=0.5, #classroom
+  // #show=mirror&n=0, #show=number&start=1&step=1&rev=0, #show=shape&k=18, #explore=… (same), #f=0.5, #classroom.
+  // Binary: #try=binary&level=2&seed=7(&a=13 | a=01101 | a=3.1.5), #explore=binary&n=13, #show=binary&n=13
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
     const tryParam = params.get("try");
     const show = params.get("show") ?? params.get("explore");
     const timer = setTimeout(() => {
-      if (tryParam) {
+      if (tryParam === "binary") {
+        const lv = Number(params.get("level"));
+        const level: Level = lv === 2 || lv === 3 ? lv : 1;
+        const sd = Number(params.get("seed"));
+        const s = Number.isInteger(sd) && sd >= 0 ? sd : 1818;
+        setMode("try");
+        setTryType("binary");
+        setTryLevel(level);
+        setSeed(s);
+        const q = makeBinaryQuestion(level, s);
+        setBin(binaryFromLink(q, params.get("a") ?? "") ?? blankBinary(q));
+        setF(1);
+      } else if (tryParam) {
         const type = (CODE_TYPES as string[]).includes(tryParam) ? (tryParam as CodeQuestionType) : "shift";
         const lv = Number(params.get("level"));
         const level: Level = lv === 2 || lv === 3 ? lv : 1;
@@ -324,6 +367,10 @@ export function CodesTool() {
           setNumRev(params.get("rev") === "1");
         }
         if (kind === "shape") setShapeSeed(num("k", 0, 1_000_000, 18));
+        if (kind === "binary") {
+          if (params.has("show")) setBinN(num("n", 1, BIN_MAX, 13));
+          else binEx.setMask(num("n", 0, BIN_MAX, 13));
+        }
         const w = params.get("w");
         if (w) setText([...w].filter((ch) => ch === " " || ALPHABET.includes(ch)).slice(0, MAX_TEXT).join(""));
         setDecoding(params.get("dir") === "decode");
@@ -334,6 +381,8 @@ export function CodesTool() {
       if (params.has("f") && Number.isFinite(ff)) setF(Math.min(1, Math.max(0, ff)));
     }, 0);
     return () => clearTimeout(timer);
+    // Read once, on load; binEx.setMask only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const switchMode = (m: Mode) => {
@@ -342,7 +391,7 @@ export function CodesTool() {
     setF(m === "try" && checked === null ? 0 : 1);
   };
 
-  const freshQuestion = (o: { type?: CodeQuestionType; level?: Level; length?: number; examples?: 2 | 3 } = {}) => {
+  const freshQuestion = (o: { type?: TryType; level?: Level; length?: number; examples?: 2 | 3 } = {}) => {
     const type = o.type ?? tryType;
     const level = o.level ?? tryLevel;
     const len = o.length ?? length;
@@ -353,7 +402,8 @@ export function CodesTool() {
     setLength(len);
     setExamples(ex);
     setSeed(s);
-    setAnswerRaw(blankFor(makeCodeQuestion(type, level, s, { length: len, examples: ex })));
+    if (type === "binary") setBin(null);
+    else setAnswerRaw(blankFor(makeCodeQuestion(type, level, s, { length: len, examples: ex })));
     setActive(0);
     setChecked(null);
     setRun(null);
@@ -386,7 +436,19 @@ export function CodesTool() {
   const done = checked !== null;
 
   let board: React.ReactNode;
-  if (!inTry) {
+  if (!inTry && binary) {
+    board = (
+      <Board view={VIEW} imageName="binary" label={mode === "explore" ? "کارت‌های دودویی؛ روی کارت بزن تا برگردد" : "ساختن عدد با کارت‌های دودویی"}>
+        {mode === "explore" ? <BinaryExploreBoard ex={binEx} /> : <BinaryShowBoard n={binN} f={f} />}
+      </Board>
+    );
+  } else if (inTry && tryType === "binary") {
+    board = (
+      <Board view={VIEW} imageName="binary" label="پرسش کد دودویی">
+        <BinaryTryBoard q={binQ} entry={binEntry} onEntry={setBin} />
+      </Board>
+    );
+  } else if (!inTry) {
     board = (
       <Board view={VIEW} imageName="codes" label={mode === "explore" ? "چرخ رمز؛ حلقه درون را بچرخان" : "چرخ رمز"}>
         <Scene
@@ -438,7 +500,7 @@ export function CodesTool() {
     .map((x, i) => ({ x, i }))
     .filter(({ x }) => x !== SPACE)
     .map(({ x, i }) => ({ plain: x, code: coded[i] }));
-  const showSlider = mode === "show" || (inTry && done);
+  const showSlider = mode === "show" || (inTry && done && tryType !== "binary");
   const distinct = [...new Set(typed.filter((x) => x !== SPACE))];
 
   return (
@@ -487,7 +549,7 @@ export function CodesTool() {
             <button className={styles.playSmall} onClick={() => play(inTry ? tryMs : showMs)} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{f < 0.3 ? "چرخاندن چرخ" : "وصل کردن حرف‌ها"}</span>
+            <span>{binary && !inTry ? "کارت به کارت" : f < 0.3 ? "چرخاندن چرخ" : "وصل کردن حرف‌ها"}</span>
             <input
               type="range"
               min={0}
@@ -503,7 +565,11 @@ export function CodesTool() {
           </label>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {inTry ? "اول فکر کن، بعد جواب بده" : `${caption} · «${textOf(dec ? coded : plain)}» ← «${tokensFa(dec ? "letter" : codeKind, dec ? plain : coded)}»`}
+            {inTry
+              ? "اول فکر کن، بعد جواب بده"
+              : binary
+                ? `${sumFa(binEx.mask)} · کد ${binFa(binEx.mask)}`
+                : `${caption} · «${textOf(dec ? coded : plain)}» ← «${tokensFa(dec ? "letter" : codeKind, dec ? plain : coded)}»`}
           </p>
         )}
       </section>
@@ -520,101 +586,129 @@ export function CodesTool() {
               ))}
             </div>
 
-            {ruleKind === "shift" && (
+            {binary ? (
               <>
-                <Stepper label={`${fa(Math.abs(shiftN))} حرف ${shiftN >= 0 ? "جلو" : "عقب"}`} onLess={() => setShiftN(shiftN - 1 === 0 ? -1 : shiftN - 1)} onMore={() => setShiftN(shiftN + 1 === 0 ? 1 : shiftN + 1)} lessOff={shiftN <= -16} moreOff={shiftN >= 16} />
-                <p className={styles.note}>یا حلقه درون چرخ را با انگشت بچرخان.</p>
-              </>
-            )}
-            {ruleKind === "mirror" && (
-              <>
-                <p className={styles.note}>الفبا وارونه می‌شود: ا ← ی، ب ← ه، پ ← و … بعد می‌توانی جلو یا عقب هم ببری.</p>
-                <Stepper label={mirrorN === 0 ? "فقط وارونه" : `بعد ${fa(Math.abs(mirrorN))} حرف ${mirrorN > 0 ? "جلو" : "عقب"}`} onLess={() => setMirrorN(mirrorN - 1)} onMore={() => setMirrorN(mirrorN + 1)} lessOff={mirrorN <= -16} moreOff={mirrorN >= 16} />
-              </>
-            )}
-            {ruleKind === "number" && (
-              <>
-                <Stepper label={`${numRev ? "ی" : "ا"} = ${fa(numStart)}`} onLess={() => setNumStart(numStart - 1)} onMore={() => setNumStart(numStart + 1)} lessOff={numStart <= 0} moreOff={numStart >= 10} />
-                <div className={styles.row} style={{ marginTop: 6 }}>
-                  <button className={styles.toggle} aria-pressed={numRev} onClick={() => setNumRev(!numRev)}>
-                    {numRev ? "✓ " : ""}از آخر الفبا
-                  </button>
-                  <button className={styles.toggle} aria-pressed={numStep === 2} onClick={() => setNumStep(numStep === 2 ? 1 : 2)}>
-                    {numStep === 2 ? "✓ " : ""}دوتا‌دوتا
-                  </button>
-                </div>
-              </>
-            )}
-            {ruleKind === "shape" && (
-              <>
-                <p className={styles.note}>هر حرف متن یک شکل می‌گیرد؛ حرف‌های یکسان، شکل یکسان.</p>
-                <button className={styles.clear} onClick={() => setShapeSeed(newSeed())}>
-                  شکل‌های تازه
+                <BinaryExplorePanel ex={binEx} />
+                <button
+                  className={styles.clear}
+                  onClick={() => {
+                    setBinN(binEx.mask || 13);
+                    switchMode("show");
+                    animate(showMs);
+                  }}
+                >
+                  نشانم بده: ساختن {binEx.mask ? `عدد ${fa(binEx.mask)}` : "یک عدد"} از بزرگ‌ترین کارت
                 </button>
               </>
-            )}
-            {ruleKind === "sub" && (
+            ) : (
               <>
-                <p className={styles.note}>برای هر حرف متن، حرف رمزش را انتخاب کن. هر حرف رمز فقط مال یک حرف است؛ اگر تکراری باشد، دو حرف جایشان را عوض می‌کنند.</p>
-                <div className={css.pairList}>
-                  {distinct.map((l) => (
-                    <label key={l}>
-                      {ALPHABET[l]} ←
-                      <select value={perm[l]} onChange={(e) => setPair(l, Number(e.target.value))} aria-label={`رمز حرف ${ALPHABET[l]}`}>
-                        {ALPHABET.map((ch, i) => (
-                          <option key={ch} value={i}>
-                            {ch}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-                <button className={styles.clear} onClick={() => setPerm(IDENTITY)}>
-                  از نو
-                </button>
-              </>
-            )}
+                {ruleKind === "shift" && (
+                  <>
+                    <Stepper label={`${fa(Math.abs(shiftN))} حرف ${shiftN >= 0 ? "جلو" : "عقب"}`} onLess={() => setShiftN(shiftN - 1 === 0 ? -1 : shiftN - 1)} onMore={() => setShiftN(shiftN + 1 === 0 ? 1 : shiftN + 1)} lessOff={shiftN <= -16} moreOff={shiftN >= 16} />
+                    <p className={styles.note}>یا حلقه درون چرخ را با انگشت بچرخان.</p>
+                  </>
+                )}
+                {ruleKind === "mirror" && (
+                  <>
+                    <p className={styles.note}>الفبا وارونه می‌شود: ا ← ی، ب ← ه، پ ← و … بعد می‌توانی جلو یا عقب هم ببری.</p>
+                    <Stepper label={mirrorN === 0 ? "فقط وارونه" : `بعد ${fa(Math.abs(mirrorN))} حرف ${mirrorN > 0 ? "جلو" : "عقب"}`} onLess={() => setMirrorN(mirrorN - 1)} onMore={() => setMirrorN(mirrorN + 1)} lessOff={mirrorN <= -16} moreOff={mirrorN >= 16} />
+                  </>
+                )}
+                {ruleKind === "number" && (
+                  <>
+                    <Stepper label={`${numRev ? "ی" : "ا"} = ${fa(numStart)}`} onLess={() => setNumStart(numStart - 1)} onMore={() => setNumStart(numStart + 1)} lessOff={numStart <= 0} moreOff={numStart >= 10} />
+                    <div className={styles.row} style={{ marginTop: 6 }}>
+                      <button className={styles.toggle} aria-pressed={numRev} onClick={() => setNumRev(!numRev)}>
+                        {numRev ? "✓ " : ""}از آخر الفبا
+                      </button>
+                      <button className={styles.toggle} aria-pressed={numStep === 2} onClick={() => setNumStep(numStep === 2 ? 1 : 2)}>
+                        {numStep === 2 ? "✓ " : ""}دوتا‌دوتا
+                      </button>
+                    </div>
+                  </>
+                )}
+                {ruleKind === "shape" && (
+                  <>
+                    <p className={styles.note}>هر حرف متن یک شکل می‌گیرد؛ حرف‌های یکسان، شکل یکسان.</p>
+                    <button className={styles.clear} onClick={() => setShapeSeed(newSeed())}>
+                      شکل‌های تازه
+                    </button>
+                  </>
+                )}
+                {ruleKind === "sub" && (
+                  <>
+                    <p className={styles.note}>برای هر حرف متن، حرف رمزش را انتخاب کن. هر حرف رمز فقط مال یک حرف است؛ اگر تکراری باشد، دو حرف جایشان را عوض می‌کنند.</p>
+                    <div className={css.pairList}>
+                      {distinct.map((l) => (
+                        <label key={l}>
+                          {ALPHABET[l]} ←
+                          <select value={perm[l]} onChange={(e) => setPair(l, Number(e.target.value))} aria-label={`رمز حرف ${ALPHABET[l]}`}>
+                            {ALPHABET.map((ch, i) => (
+                              <option key={ch} value={i}>
+                                {ch}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <button className={styles.clear} onClick={() => setPerm(IDENTITY)}>
+                      از نو
+                    </button>
+                  </>
+                )}
 
-            <h2 className={styles.progress}>۲. {dec ? "رمز را بنویس" : "متن را بنویس"}</h2>
-            {letterRule && (
-              <div className={styles.chipsRow} role="radiogroup" aria-label="جهت">
-                <button role="radio" aria-checked={!decoding} onClick={() => setDecoding(false)}>
-                  رمز کن
+                <h2 className={styles.progress}>۲. {dec ? "رمز را بنویس" : "متن را بنویس"}</h2>
+                {letterRule && (
+                  <div className={styles.chipsRow} role="radiogroup" aria-label="جهت">
+                    <button role="radio" aria-checked={!decoding} onClick={() => setDecoding(false)}>
+                      رمز کن
+                    </button>
+                    <button role="radio" aria-checked={decoding} onClick={() => setDecoding(true)}>
+                      رمزگشایی کن
+                    </button>
+                  </div>
+                )}
+                <p className={css.word} aria-live="polite">
+                  {text || "…"}
+                </p>
+                <LetterKeyboard onKey={typeKey} onSpace={typeSpace} onBack={typeBack} />
+                <div className={styles.row} style={{ marginTop: 6 }}>
+                  <button className={styles.clear} onClick={sampleWord}>
+                    کلمه تازه
+                  </button>
+                  <button className={styles.clear} onClick={() => setText("")}>
+                    پاک کردن همه
+                  </button>
+                </div>
+                <p className={styles.status + " " + styles.info}>
+                  {ruleFa(rule)}: «{textOf(dec ? coded : plain)}» ← «{tokensFa(dec ? "letter" : codeKind, dec ? plain : coded)}»
+                </p>
+                <button
+                  className={styles.clear}
+                  onClick={() => {
+                    switchMode("show");
+                    animate(showMs);
+                  }}
+                >
+                  نشانم بده روی چرخ
                 </button>
-                <button role="radio" aria-checked={decoding} onClick={() => setDecoding(true)}>
-                  رمزگشایی کن
-                </button>
-              </div>
+              </>
             )}
-            <p className={css.word} aria-live="polite">
-              {text || "…"}
-            </p>
-            <LetterKeyboard onKey={typeKey} onSpace={typeSpace} onBack={typeBack} />
-            <div className={styles.row} style={{ marginTop: 6 }}>
-              <button className={styles.clear} onClick={sampleWord}>
-                کلمه تازه
-              </button>
-              <button className={styles.clear} onClick={() => setText("")}>
-                پاک کردن همه
-              </button>
-            </div>
-            <p className={styles.status + " " + styles.info}>
-              {ruleFa(rule)}: «{textOf(dec ? coded : plain)}» ← «{tokensFa(dec ? "letter" : codeKind, dec ? plain : coded)}»
-            </p>
-            <button
-              className={styles.clear}
-              onClick={() => {
-                switchMode("show");
-                animate(showMs);
-              }}
-            >
-              نشانم بده روی چرخ
-            </button>
           </>
         )}
 
-        {mode === "show" && (
+        {mode === "show" && binary && (
+          <BinaryShowPanel
+            n={binN}
+            f={f}
+            onN={(n) => {
+              setBinN(Math.max(1, Math.min(BIN_MAX, n)));
+              animate(showMs);
+            }}
+          />
+        )}
+        {mode === "show" && !binary && (
           <>
             <h2>چرخ رمز</h2>
             <p className={styles.note}>
@@ -645,11 +739,14 @@ export function CodesTool() {
           </>
         )}
 
-        {mode === "try" && (
+        {mode === "try" && tryType === "binary" && (
+          <BinaryTryPanel q={binQ} level={tryLevel} entry={binEntry} onEntry={setBin} onType={(t) => freshQuestion({ type: t })} onLevel={(l) => freshQuestion({ level: l })} onNew={() => freshQuestion()} />
+        )}
+        {mode === "try" && tryType !== "binary" && (
           <CodesTryPanel
             key={`${tryType}-${tryLevel}-${seed}-${length}-${examples}`}
             question={question}
-            type={tryType}
+            type={codeType}
             level={tryLevel}
             length={length}
             examples={examples}

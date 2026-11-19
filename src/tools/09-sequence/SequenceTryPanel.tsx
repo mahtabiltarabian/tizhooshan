@@ -18,8 +18,8 @@ import { fa } from "@/tools/registry";
 import { ltr, rowsHint, signedFa, stepFa, termFa } from "./Train";
 import styles from "@/toolkit/TryPanel.module.css";
 
-/** The try-it types: the rule families, plus repeating patterns (their own generator). */
-export type SeqTryType = SequenceQuestionType | "cycle";
+/** The try-it types: the rule families, plus repeating patterns and the nth term (each with its own generator). */
+export type SeqTryType = SequenceQuestionType | "cycle" | "nth";
 
 export const SEQ_TYPE_LABEL: Record<SeqTryType, string> = {
   mixed: "به ترتیب سطح",
@@ -30,6 +30,7 @@ export const SEQ_TYPE_LABEL: Record<SeqTryType, string> = {
   additive: "جمع دو قبلی",
   letters: "حرفی",
   cycle: "تکرار و باقیمانده",
+  nth: "جمله nام",
 };
 
 export const BLANK_LABEL: Record<BlankChoice, string> = { auto: "خالی هرجا", last: "خالی آخر", mid: "خالی وسط" };

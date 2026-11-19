@@ -25,6 +25,7 @@ import {
   type TripQuestion,
   type Unit,
 } from "@/generators/motion";
+import { allDistances, dijkstraSteps, exploreMap, MAP_UNIT, roadBetween, TOWN_NAMES, traceBack, type RoadMap } from "@/generators/motion-map";
 import { mulberry32, newSeed, pick, randInt } from "@/generators/random";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
@@ -33,10 +34,11 @@ import styles from "@/toolkit/ToolLayout.module.css";
 import { MOTION_GUIDE } from "./guide";
 import { MOTION_TYPE_LABEL, MotionTryPanel, turnFa } from "./MotionTryPanel";
 import { CompassG, GraphG, GridG, linkEffect, linkWord, MachineG, MiniCompass, numFa, partialPath, ROT_ICON, ROT_WORD, TrackG, WHEEL_NAMES, type TrackMover } from "./Pictures";
+import { dijkstraLabels, MapG, questionPlayback, questionTags, routeFa, routeFacts, sumFa } from "./RoadMap";
 import { countsAfter, questionSpacing, spacingEvents, SpacingG, THING_WORD, type SpacingScene } from "./Spacing";
 
 type Mode = "explore" | "show" | "try";
-type Area = "gears" | "belts" | "track" | "walk" | "spacing";
+type Area = "gears" | "belts" | "track" | "walk" | "spacing" | "map";
 /** Spacing in explore: trees in an open row, posts round a closed loop, or cuts in a log. */
 type SpShape = "row" | "loop" | "cut";
 type TrackMode = "one" | "meet" | "chase";
@@ -50,6 +52,7 @@ const AREAS: [Area, string][] = [
   ["track", "مسیر"],
   ["walk", "جهت‌یابی"],
   ["spacing", "فاصله‌ها"],
+  ["map", "نقشه"],
 ];
 /** Steps along the explore path: places 0 … 12 in a row and on a log (the log's ends are 0 and 12), 12 places round the loop. */
 const SP_STEPS = 12;
@@ -67,6 +70,14 @@ const WALK_ROWS = 6;
 const WALK_START: Pt = { x: 3, y: 2 };
 const CMD_WORD: Record<WalkCmd, string> = { F: "یک خانه جلو", R: "به راست بچرخ", L: "به چپ بچرخ", U: "عقب‌گرد کن" };
 const CMD_ICON: Record<WalkCmd, string> = { F: "↑", R: "↷", L: "↶", U: "⤾" };
+/** The explore map's first seed: six towns, nine roads. */
+const MAP_SEED = 15;
+const loadMap = (seed: number) => exploreMap(mulberry32(seed * 31 + 7));
+/** The town farthest from الف (show me goes there by default). */
+const farthest = (m: RoadMap) => {
+  const d = allDistances(m)[0];
+  return d.reduce((best, v, i) => (v > d[best] ? i : best), 0);
+};
 
 /** A value that can run from one number to another over some milliseconds (requestAnimationFrame). */
 function useTween(initial: number) {
@@ -234,6 +245,11 @@ export function MotionTool() {
   const [spShape, setSpShape] = useState<SpShape>("row");
   const [spStep, setSpStep] = useState(2);
   const [spMarks, setSpMarks] = useState<boolean[]>(() => everyK("row", 3));
+  // Explore: the road map (a route tapped town by town); show me: nearest town first, from الف to `mapGoal`
+  const [mapSeed, setMapSeed] = useState(MAP_SEED);
+  const [mapRoute, setMapRoute] = useState<number[]>([]);
+  const [mapMsg, setMapMsg] = useState<{ ok: boolean | null; text: string } | null>(null);
+  const [mapGoal, setMapGoal] = useState<number | null>(null);
 
   // Try it
   const [tryType, setTryType] = useState<MotionQuestionType>("gearDir");
@@ -250,19 +266,26 @@ export function MotionTool() {
   const states = useMemo(() => walkStates(WALK_START, startFacing, cmds), [startFacing, cmds]);
   const spSc = useMemo(() => spScene(spShape, spMarks), [spShape, spMarks]);
   const spEvents = useMemo(() => spacingEvents(spSc), [spSc]);
+  const roadMap = useMemo(() => loadMap(mapSeed), [mapSeed]);
+  const goal = mapGoal ?? farthest(roadMap);
+  const dSteps = useMemo(() => dijkstraSteps(roadMap, 0), [roadMap]);
+  const trace = useMemo(() => traceBack(roadMap, dSteps, goal), [roadMap, dSteps, goal]);
+  const mapFrames = dSteps.length + trace.roads.length;
 
-  const showMs = (a: Area) => (a === "gears" || a === "belts" ? 4000 * showTurns : a === "track" ? 7000 : a === "spacing" ? Math.max(1500, 800 * spEvents.length) : Math.max(1500, 900 * cmds.length));
+  const showMs = (a: Area) => (a === "gears" || a === "belts" ? 4000 * showTurns : a === "track" ? 7000 : a === "spacing" ? Math.max(1500, 800 * spEvents.length) : a === "map" ? 1300 * mapFrames : Math.max(1500, 900 * cmds.length));
   const tryMs = (q: MotionQuestion) => {
     if (q.type === "gearTurns") return Math.min(9000, 1600 * q.turns);
     if (q.type === "gearDir") return 4000;
     if (q.type === "orient") return 1100 * q.turns.length;
     if (q.type === "grid") return q.variant === "routes" ? 900 * (q.cols + q.rows) : 2500 + 250 * walkGrid(q.start, q.facing, q.cmds).path.length;
     if (q.type === "spacing") return Math.min(14000, Math.max(2500, 450 * spacingEvents(questionSpacing(q, true).scene).length));
+    if (q.type === "map") return q.variant === "connect" ? 1100 * q.map.roads.length : 1000 * q.map.towns.length;
     return 6000;
   };
 
   // Shareable links: #try=gearDir&level=2&seed=7(&a=1), #show=gears-24.12.18, #show=belts-30.20-x,
-  // #show=track-meet-300-60-40-0, #show=walk-0-FFRFUL, #show=spacing-row-2-1001001001001, #area=belts (explore), #f=0.5, #classroom
+  // #show=track-meet-300-60-40-0, #show=walk-0-FFRFUL, #show=spacing-row-2-1001001001001, #show=map-15-4 (map seed, goal town),
+  // #area=belts (explore), #area=map&map=15&route=0.2.3 (a tapped route), #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -317,10 +340,33 @@ export function MotionTool() {
           if (/^[01]+$/.test(bits)) setSpMarks(Array.from({ length: SP_STEPS + 1 }, (_, i) => bits[i] === "1" && i < spPlaces(sh) && (sh !== "cut" || (i > 0 && i < SP_STEPS))));
           else setSpMarks(everyK(sh, 3));
           setArea("spacing");
+        } else if (kind === "map") {
+          const sd = Number(rest[0]);
+          const m = rest[0] && Number.isInteger(sd) && sd >= 0 ? sd : MAP_SEED;
+          setMapSeed(m);
+          const g = Number(rest[1]);
+          if (Number.isInteger(g) && g > 0 && g < loadMap(m).towns.length) setMapGoal(g);
+          setArea("map");
         }
         setMode("show");
         play.set(1);
-      } else if (areaParam && AREAS.some(([a]) => a === areaParam)) setArea(areaParam as Area);
+      } else if (areaParam && AREAS.some(([a]) => a === areaParam)) {
+        setArea(areaParam as Area);
+        if (areaParam === "map") {
+          const sd = Number(params.get("map"));
+          const m = params.get("map") && Number.isInteger(sd) && sd >= 0 ? sd : MAP_SEED;
+          setMapSeed(m);
+          // A route: towns joined by roads, one after another.
+          const map = loadMap(m);
+          const route: number[] = [];
+          for (const t of (params.get("route") ?? "").split(".").filter(Boolean).map(Number)) {
+            if (!Number.isInteger(t) || t < 0 || t >= map.towns.length) break;
+            if (route.length && roadBetween(map, route[route.length - 1], t) < 0) break;
+            route.push(t);
+          }
+          setMapRoute(route.slice(0, 30));
+        }
+      }
       const ff = Number(params.get("f"));
       if (params.has("f") && Number.isFinite(ff)) play.set(Math.min(1, Math.max(0, ff)));
     }, 0);
@@ -375,6 +421,11 @@ export function MotionTool() {
       setVB(b);
       setLength(m === "meet" ? (a + b) * (2 + randInt(rng, 4)) : 60 * (3 + randInt(rng, 6)));
       setGap(m === "chase" ? (a - b) * (1 + randInt(rng, 3)) : 60);
+    } else if (area === "map") {
+      setMapSeed(newSeed());
+      setMapRoute([]);
+      setMapMsg(null);
+      setMapGoal(null);
     } else if (area === "spacing") {
       const sh = pick(rng, ["row", "loop", "cut"] as const);
       setSpShape(sh);
@@ -489,6 +540,58 @@ export function MotionTool() {
             {spShape === "cut" ? "روی چوب بزن تا برش بزنی؛ دوباره بزن تا برداری." : `روی راه بزن تا ${THING_WORD[spSc.kind]} بگذاری؛ دوباره بزن تا برداری.`}
           </p>
         );
+    } else if (area === "map") {
+      if (mode === "show") {
+        const k = Math.round(f * mapFrames);
+        const settled = Math.min(k, dSteps.length);
+        const back = Math.max(0, k - dSteps.length);
+        board = (
+          <Board view={VIEW} imageName="map" label="نقشه شهرها و جاده‌ها؛ کنار هر شهر بهترین فاصله از الف">
+            <MapG
+              map={roadMap}
+              labels={dijkstraLabels(dSteps, settled)}
+              used={trace.roads.slice(trace.roads.length - back)}
+              tags={
+                new Map([
+                  [0, "شروع"],
+                  [goal, "مقصد"],
+                ])
+              }
+              current={back ? trace.towns[trace.towns.length - 1 - back] : settled ? dSteps[settled - 1].town : null}
+            />
+          </Board>
+        );
+        controls = slider(k <= dSteps.length ? `قدم ${fa(settled)} از ${fa(dSteps.length)}: نزدیک‌ترین شهر اول` : `برگشت از ${TOWN_NAMES[goal]}: ${fa(back)} جاده`, showMs("map"));
+      } else {
+        const facts = routeFacts(roadMap, mapRoute);
+        board = (
+          <Board view={VIEW} imageName="map" label="نقشه شهرها و جاده‌ها؛ روی شهرها بزن تا مسیر بسازی">
+            <MapG
+              map={roadMap}
+              used={facts.roads}
+              current={mapRoute.length ? mapRoute[mapRoute.length - 1] : null}
+              tags={mapRoute.length ? new Map([[mapRoute[0], "شروع"]]) : undefined}
+              onTown={(i) => {
+                const last = mapRoute[mapRoute.length - 1];
+                setMapMsg(null);
+                if (!mapRoute.length) setMapRoute([i]);
+                else if (i === last) setMapRoute(mapRoute.slice(0, -1));
+                else if (roadBetween(roadMap, last, i) < 0) setMapMsg({ ok: null, text: `از ${TOWN_NAMES[last]} به ${TOWN_NAMES[i]} جاده مستقیم نیست؛ از شهری بگذر که به ${TOWN_NAMES[last]} جاده دارد.` });
+                else if (mapRoute.length < 30) setMapRoute([...mapRoute, i]);
+              }}
+            />
+          </Board>
+        );
+        controls = (
+          <p className={styles.stepText} style={{ margin: 0 }}>
+            {mapRoute.length === 0
+              ? "روی یک شهر بزن تا مسیر از آنجا شروع شود."
+              : mapRoute.length === 1
+                ? `از ${TOWN_NAMES[mapRoute[0]]} شروع کردی؛ حالا روی شهری بزن که با جاده به آن وصل است.`
+                : <>{routeFa(mapRoute)}: {sumFa(roadMap, facts.roads)} {MAP_UNIT.km}</>}
+          </p>
+        );
+      }
     } else {
       const w = walkerAt(states, mode === "show" ? f : 1);
       // The path walked so far: every place reached, then the walker.
@@ -593,6 +696,17 @@ export function MotionTool() {
         </Board>
       );
       if (done) controls = slider(`چرخش ${fa(step)} از ${fa(n)}`, tryMs(q));
+    } else if (q.type === "map") {
+      const pb = done ? questionPlayback(q, f) : null;
+      board = (
+        <Board view={VIEW} imageName="map" label="نقشه شهرها و جاده‌ها">
+          <MapG map={q.map} tags={questionTags(q)} used={pb?.used} crossed={pb?.crossed} current={pb?.current} />
+          <text x={8} y={0.5} fontSize={0.36} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170" direction="rtl">
+            {pb ? pb.caption : `عدد روی جاده‌ها: ${MAP_UNIT[q.unit]}`}
+          </text>
+        </Board>
+      );
+      if (done) controls = slider(q.variant === "connect" ? "ارزان‌ترین جاده‌ها اول" : "راه را دنبال کن", tryMs(q));
     } else if (q.type === "spacing") {
       const pic = questionSpacing(q, done);
       board = (
@@ -741,12 +855,13 @@ export function MotionTool() {
 
       <aside className={styles.side}>
         {!inTry && (
-          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش">
+          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش" style={{ flexWrap: "wrap" }}>
             {AREAS.map(([a, label]) => (
               <button
                 key={a}
                 role="radio"
                 aria-checked={area === a}
+                style={{ flex: "1 1 30%" }}
                 onClick={() => {
                   setArea(a);
                   spin.set(0);
@@ -935,6 +1050,81 @@ export function MotionTool() {
           </>
         )}
 
+        {mode === "explore" && area === "map" && (
+          <>
+            <h2 className={styles.progress}>مسیر روی نقشه</h2>
+            <p className={styles.note}>عدد روی هر جاده طولش به کیلومتر است؛ اندازه خط روی نقشه مهم نیست. روی شهرها یکی‌یکی بزن تا مسیر بسازی؛ روی آخرین شهر دوباره بزن تا برداری.</p>
+            <p className={styles.status + " " + styles.info}>
+              {mapRoute.length < 2 ? (
+                "هنوز جاده‌ای نرفته‌ای."
+              ) : (
+                <>
+                  {fa(mapRoute.length - 1)} جاده، روی هم <strong>{fa(routeFacts(roadMap, mapRoute).len)}</strong> کیلومتر، از {TOWN_NAMES[mapRoute[0]]} تا {TOWN_NAMES[mapRoute[mapRoute.length - 1]]}.
+                  {routeFacts(roadMap, mapRoute).roadTwice ? " از یک جاده دو بار رد شده‌ای." : ""}
+                </>
+              )}
+            </p>
+            <button
+              className={styles.primary}
+              style={{ width: "100%" }}
+              onClick={() => {
+                if (mapRoute.length < 2) return setMapMsg({ ok: null, text: "اول از یک شهر شروع کن و دست‌کم یک جاده برو." });
+                const s = mapRoute[0];
+                const t = mapRoute[mapRoute.length - 1];
+                if (s === t) return setMapMsg({ ok: null, text: `مسیرت به ${TOWN_NAMES[s]} برگشته. برای مقایسه، در شهر دیگری تمام کن.` });
+                const best = allDistances(roadMap)[s][t];
+                const { len, roadTwice } = routeFacts(roadMap, mapRoute);
+                if (len === best) setMapMsg({ ok: true, text: `✓ بله! کوتاه‌ترین راه از ${TOWN_NAMES[s]} تا ${TOWN_NAMES[t]} ${fa(best)} کیلومتر است و مسیر تو همین است.` });
+                else
+                  setMapMsg({
+                    ok: false,
+                    text: `✗ نه هنوز: راهی از ${TOWN_NAMES[s]} تا ${TOWN_NAMES[t]} هست که ${fa(len - best)} کیلومتر کوتاه‌تر است. پیدایش کن!${roadTwice ? " (از یک جاده دو بار رد شده‌ای؛ لازم نیست.)" : ""}`,
+                  });
+              }}
+            >
+              کوتاه‌ترین؟
+            </button>
+            {mapMsg && <p className={`${styles.status} ${mapMsg.ok ? styles.info : styles.warn}`}>{mapMsg.text}</p>}
+            <div className={styles.row} style={{ marginTop: 8 }}>
+              <button
+                className={styles.clear}
+                disabled={!mapRoute.length}
+                onClick={() => {
+                  setMapRoute(mapRoute.slice(0, -1));
+                  setMapMsg(null);
+                }}
+              >
+                ↩ برگرد
+              </button>
+              <button
+                className={styles.clear}
+                disabled={!mapRoute.length}
+                onClick={() => {
+                  setMapRoute([]);
+                  setMapMsg(null);
+                }}
+              >
+                از نو
+              </button>
+            </div>
+            <ExploreFooter onNew={randomExample} onShow={() => startShow("map")} showLabel="نشانم بده: نزدیک‌ترین شهر اول" />
+          </>
+        )}
+
+        {mode === "show" && area === "map" && (
+          <MapShowPanel
+            map={roadMap}
+            steps={dSteps}
+            trace={trace}
+            goal={goal}
+            k={Math.round(f * mapFrames)}
+            onGoal={(g) => {
+              setMapGoal(g);
+              play.animate(0, 1, 1300 * (dSteps.length + traceBack(roadMap, dSteps, g).roads.length));
+            }}
+          />
+        )}
+
         {mode === "show" && area === "spacing" && (
           <>
             <h2>{spShape === "cut" ? "برش‌ها و تکه‌ها" : `${THING_WORD[spSc.kind]}‌ها و فاصله‌ها`}</h2>
@@ -1099,6 +1289,68 @@ function spacingFacts(sh: SpShape, marks: boolean[], step: number) {
   const even = gaps.every((g) => g === gaps[0]);
   const span = (at[at.length - 1] - at[0]) * step;
   return `${fa(at.length)} درخت و ${fa(gaps.length)} فاصله: در ردیف باز فاصله‌ها یکی کمتر از درخت‌ها هستند. از اولی تا آخری ${fa(span)} متر${even && gaps.length ? ` = ${fa(gaps.length)} × ${fa(gaps[0] * step)}` : ""}.${!even ? " فاصله‌ها برابر نیستند." : ""}`;
+}
+
+/** Show me on the map: "nearest town first", step by step, then back from the goal. */
+function MapShowPanel({ map, steps, trace, goal, k, onGoal }: { map: RoadMap; steps: ReturnType<typeof dijkstraSteps>; trace: ReturnType<typeof traceBack>; goal: number; k: number; onGoal: (g: number) => void }) {
+  const settled = Math.min(k, steps.length);
+  const back = Math.max(0, k - steps.length);
+  const now = settled ? steps[settled - 1] : null;
+  let line: string;
+  if (back) line = `از ${TOWN_NAMES[goal]} عقب برو: هر شهر از جاده‌ای آمده که عددش را داده. بهترین راه: ${routeFa(trace.towns)}، ${fa(trace.len)} کیلومتر.`;
+  else if (!now) line = `اول فقط ${TOWN_NAMES[0]} عدد دارد: ${fa(0)}. بقیه هنوز عدد ندارند.`;
+  else {
+    const ups = now.updates.map((u) => `${TOWN_NAMES[u.town]}: ${fa(now.dist)} + ${fa(map.roads[u.road].len)} = ${fa(u.dist)}`);
+    line = `${settled === 1 ? "" : `از شهرهایی که عدد «؟» دارند، ${TOWN_NAMES[now.town]} نزدیک‌ترین است؛ `}عدد ${TOWN_NAMES[now.town]} (${fa(now.dist)}) قطعی شد.${ups.length ? ` از ${TOWN_NAMES[now.town]} به همسایه‌ها: ${ups.join("، ")}.` : " از آن به هیچ همسایه‌ای راه کوتاه‌تری پیدا نشد."}`;
+  }
+  const labels = dijkstraLabels(steps, settled);
+  return (
+    <>
+      <h2>نزدیک‌ترین شهر اول</h2>
+      <p className={styles.note}>
+        از الف شروع کن. هر بار، از شهرهایی که عدد «؟» دارند نزدیک‌ترین را بردار؛ عددش دیگر عوض نمی‌شود (قاب پررنگ). بعد ببین رفتن از آن، همسایه‌هایش را نزدیک‌تر می‌کند یا نه. آخر کار از مقصد عقب برو.
+      </p>
+      <p style={{ margin: "4px 0" }}>مقصد:</p>
+      <div className={styles.chipsRow} role="radiogroup" aria-label="مقصد">
+        {map.towns.map((_, i) =>
+          i === 0 ? null : (
+            <button key={i} role="radio" aria-checked={goal === i} onClick={() => onGoal(i)} style={{ minWidth: 44 }}>
+              {TOWN_NAMES[i]}
+            </button>
+          ),
+        )}
+      </div>
+      <p className={styles.status + " " + styles.info}>{line}</p>
+      <table className={styles.countTable}>
+        <thead>
+          <tr>
+            <th>شهر</th>
+            <th>فاصله از الف</th>
+            <th>آمده از</th>
+          </tr>
+        </thead>
+        <tbody>
+          {map.towns.map((_, i) => {
+            const lab = labels.get(i);
+            // The road that gave the label (updates stop once a town is settled).
+            let road = -1;
+            for (const s of steps.slice(0, settled)) {
+              if (s.town === i) road = s.road;
+              for (const u of s.updates) if (u.town === i) road = u.road;
+            }
+            return (
+              <tr key={i} aria-current={now?.town === i ? "step" : undefined}>
+                <td>{TOWN_NAMES[i]}</td>
+                <td>{lab ? (lab.final ? `${lab.text} ✓` : lab.text) : "—"}</td>
+                <td>{road >= 0 ? TOWN_NAMES[map.roads[road].a === i ? map.roads[road].b : map.roads[road].a] : "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className={styles.note}>«؟» یعنی بهترینِ تا این لحظه؛ ✓ یعنی قطعی. نقشه را در «کشف» با «نمونه تازه» عوض کن.</p>
+    </>
+  );
 }
 
 /** The walker in the middle of the big compass. */

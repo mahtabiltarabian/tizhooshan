@@ -7,6 +7,7 @@ import { COMPASS, makeMotionQuestion, type MotionQuestion, type MotionQuestionTy
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { answerFa, motionHow, motionPrompt, MOTION_TYPE_LABEL, unitOf } from "./MotionTryPanel";
 import { CompassG, GridG, MachineSvg, TrackG, WalkerG, type TrackMover } from "./Pictures";
+import { MapG, questionTags, roadFa } from "./RoadMap";
 import { questionSpacing, SpacingG } from "./Spacing";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -75,6 +76,17 @@ function figures(q: MotionQuestion) {
         </>
       );
     }
+    case "map":
+      return (
+        <>
+          <FigureRow>
+            <svg width={360} height={203} viewBox="0 0.6 16 8.4" style={{ direction: "ltr" }}>
+              <MapG map={q.map} tags={questionTags(q)} />
+            </svg>
+          </FigureRow>
+          <p className={styles.symbols}>{q.variant === "close" ? `جاده: ${q.options.map((r) => `${roadFa(q.map, r)} ☐`).join("   ")}` : `جواب: ............ ${unitOf(q)}`}</p>
+        </>
+      );
     case "grid": {
       if (q.variant === "routes") {
         const cell = 1;

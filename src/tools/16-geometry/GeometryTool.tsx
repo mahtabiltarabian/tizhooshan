@@ -21,6 +21,7 @@ import {
   type GeometryQuestion,
   type GeometryQuestionType,
   type Level,
+  type ParallelQuestion,
   type Pt,
   type ShapeKind,
 } from "@/generators/geometry";
@@ -30,7 +31,7 @@ import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { areaFrames, degFa, ltr, num, perimeterFrames, approxDeg, type Frame } from "./frames";
-import { GEOMETRY_TYPE_LABEL, GeometryTryPanel, LEVEL_LABEL } from "./GeometryTryPanel";
+import { GEOMETRY_TYPE_LABEL, geometryPrompt, GeometryTryPanel, LEVEL_LABEL } from "./GeometryTryPanel";
 import { GEOMETRY_GUIDE } from "./guide";
 import {
   CIRCLE_R,
@@ -49,25 +50,30 @@ import {
   type CompCut,
   type CompEx,
 } from "./MeasurePictures";
-import { measureFrames, measurePrompt, type MeasureQuestion } from "./MeasureText";
+import { measureFrames, type MeasureQuestion } from "./MeasureText";
+import { PAR_RELS, ParallelExploreG, ParallelFigureG, parallelView, parExText, parExView, PHI_RANGE, type ParEx, type ParRel } from "./ParallelPictures";
+import { FACT_NAME, parallelFrames } from "./ParallelText";
 import { AngleFigureG, AngleMark, BandG, boardView, CellsG, CornerAnglesG, EdgeLabelsG, EXAMPLE, MINE, OverlayG, PegsG, SHAPE, type View } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
 type ShowSource = "sample" | "mine";
-/** Explore: the geoboard, a circle, or an L shape three ways. */
-type ExArea = "geo" | "circle" | "composite";
-/** Show me: counting area on the geoboard, or a circle or composite question. */
-type ShowKind = "area" | "circle" | "composite";
+/** Explore: the geoboard, a circle, an L shape three ways, or a transversal across two lines. */
+type ExArea = "geo" | "circle" | "composite" | "parallel";
+/** Show me: counting area on the geoboard, or a circle, composite or parallel-lines question. */
+type ShowKind = "area" | "circle" | "composite" | "parallel";
 const EX_AREAS: [ExArea, string][] = [
   ["geo", "ژئوبرد"],
   ["circle", "دایره"],
   ["composite", "مساحت ترکیبی"],
+  ["parallel", "خطوط موازی"],
 ];
 const SHOW_KINDS: [ShowKind, string][] = [
   ["area", "شمردن مساحت"],
   ["circle", "دایره"],
   ["composite", "مساحت ترکیبی"],
+  ["parallel", "خطوط موازی"],
 ];
+const REL_KEYS = PAR_RELS.map(([k]) => k);
 const CUTS: [CompCut, string][] = [
   ["h", "برش افقی"],
   ["v", "برش عمودی"],
@@ -142,6 +148,7 @@ export function GeometryTool() {
   const [exWhat, setExWhat] = useState<ExArea>("geo");
   const [circ, setCirc] = useState<CircleEx>({ r: 3, view: "circ", k: 16 });
   const [comp, setComp] = useState<CompEx>({ W: 8, H: 6, a: 3, b: 2, cut: "h" });
+  const [par, setPar] = useState<ParEx>({ phi: 62, tilt: false, rel: "corresponding" });
 
   // Show me
   const [showSrc, setShowSrc] = useState<ShowSource>("sample");
@@ -152,8 +159,10 @@ export function GeometryTool() {
   const showPoly = showSrc === "mine" ? mine.poly : (sample as Extract<GeometryQuestion, { type: "area" }>).poly;
   const showN = showSrc === "mine" ? mine.n : (sample as Extract<GeometryQuestion, { type: "area" }>).n;
   const [showKind, setShowKind] = useState<ShowKind>("area");
-  const showMeasure = useMemo(() => (showKind === "area" ? null : (makeGeometryQuestion(showKind, showLevel, showSeed) as MeasureQuestion)), [showKind, showLevel, showSeed]);
-  const showFrames = () => (showMeasure ? measureFrames(showMeasure) : framesFor(showPoly));
+  const showQ = useMemo(() => (showKind === "area" ? null : (makeGeometryQuestion(showKind, showLevel, showSeed) as MeasureQuestion | ParallelQuestion)), [showKind, showLevel, showSeed]);
+  const showMeasure = showQ && showQ.type !== "parallel" ? showQ : null;
+  const showPar = showQ && showQ.type === "parallel" ? showQ : null;
+  const showFrames = () => (showPar ? parallelFrames(showPar) : showMeasure ? measureFrames(showMeasure) : framesFor(showPoly));
 
   // Try it
   const [tryType, setTryType] = useState<GeometryQuestionType>("area");
@@ -164,19 +173,21 @@ export function GeometryTool() {
   const question = useMemo(() => makeGeometryQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
 
   const frames = useMemo(() => {
-    if (mode === "show") return showMeasure ? measureFrames(showMeasure) : framesFor(showPoly);
+    if (mode === "show") return showPar ? parallelFrames(showPar) : showMeasure ? measureFrames(showMeasure) : framesFor(showPoly);
     if (mode === "try" && checked !== null && (question.type === "circle" || question.type === "composite")) return measureFrames(question);
+    if (mode === "try" && checked !== null && question.type === "parallel") return parallelFrames(question);
     if (mode === "try" && checked !== null && question.type === "area") return areaFrames(question.poly);
     if (mode === "try" && checked !== null && question.type === "perimeter") return perimeterFrames(question.poly);
     return [];
-  }, [mode, showPoly, showMeasure, question, checked]);
+  }, [mode, showPoly, showMeasure, showPar, question, checked]);
   const at = frames.length ? Math.min(frames.length - 1, Math.round(f * (frames.length - 1))) : 0;
   const frameMs = Math.max(1, frames.length - 1) * FRAME_MS;
 
   // Shareable links: #try=area&level=2&seed=7(&a=7.5 or &a=0-0_3-0_3-2), #show=sample&level=3&seed=5,
   // #show=mine&n=7&p=1-1_5-1_5-4, #n=7&p=… (explore), #f=0.5, #classroom;
   // circle and composite: #try=circle&level=2&seed=7(&a=28.26), #show=composite&level=3&seed=5,
-  // #explore=circle&r=3&view=area&k=16, #explore=composite&w=8&h=6&a=3&b=2&cut=v
+  // #explore=circle&r=3&view=area&k=16, #explore=composite&w=8&h=6&a=3&b=2&cut=v;
+  // parallel lines: #try=parallel&level=2&seed=7(&a=115), #show=parallel&level=3&seed=5, #explore=parallel&phi=62&tilt=1&rel=alternate (rel=none for no pair)
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -207,7 +218,7 @@ export function GeometryTool() {
           } else if (Number.isFinite(Number(a)) && a !== "") setChecked(Number(a));
           setF(1);
         } else setF(0);
-      } else if (show === "circle" || show === "composite") {
+      } else if (show === "circle" || show === "composite" || show === "parallel") {
         setMode("show");
         setShowKind(show);
         if (level) setShowLevel(level);
@@ -226,6 +237,15 @@ export function GeometryTool() {
         const k = Number(params.get("k"));
         setExWhat("circle");
         setCirc({ r: CIRCLE_R.includes(r) ? r : 3, view: params.get("view") === "area" ? "area" : "circ", k: SLICES.includes(k) ? k : 16 });
+      } else if (params.get("explore") === "parallel") {
+        const phi = Number(params.get("phi"));
+        const rel = params.get("rel");
+        setExWhat("parallel");
+        setPar({
+          phi: params.has("phi") && Number.isInteger(phi) && phi >= PHI_RANGE[0] && phi <= PHI_RANGE[1] ? phi : 62,
+          tilt: params.get("tilt") === "1",
+          rel: rel === "none" ? null : rel && (REL_KEYS as string[]).includes(rel) ? (rel as ParRel) : "corresponding",
+        });
       } else if (params.get("explore") === "composite") {
         const get = (key: string, lo: number, hi: number, d: number) => {
           const v = Number(params.get(key));
@@ -360,7 +380,15 @@ export function GeometryTool() {
   const exProblem = bandProblem(band);
   const fr = frames.length ? frames[at] : null;
 
-  if (mode === "explore" && exWhat === "circle") {
+  if (mode === "explore" && exWhat === "parallel") {
+    view = parExView();
+    label = "دو خط و یک خط مورب؛ دایره‌های سر مورب را بکش تا بچرخد";
+    scene = <ParallelExploreG ex={par} onPhi={(phi) => setPar((e) => ({ ...e, phi }))} />;
+  } else if (mode === "show" && showPar) {
+    view = parallelView(showPar.fig);
+    label = GEOMETRY_TYPE_LABEL.parallel;
+    scene = <ParallelFigureG fig={showPar.fig} show={fr?.show} />;
+  } else if (mode === "explore" && exWhat === "circle") {
     view = circleExView(circ);
     label = circ.view === "circ" ? "دایره و محیط باز شده آن" : "دایره و برش‌هایش کنار هم";
     scene = <CircleExploreG ex={circ} />;
@@ -400,6 +428,11 @@ export function GeometryTool() {
         view = figureView(q.fig);
         label = GEOMETRY_TYPE_LABEL[q.type];
         scene = <MeasureFigureG fig={q.fig} show={done ? fr?.show : undefined} />;
+        break;
+      case "parallel":
+        view = parallelView(q.fig);
+        label = GEOMETRY_TYPE_LABEL.parallel;
+        scene = <ParallelFigureG fig={q.fig} show={done ? fr?.show : undefined} />;
         break;
       case "area":
       case "perimeter":
@@ -589,7 +622,9 @@ export function GeometryTool() {
           <p className={styles.stepText} style={{ margin: 0 }}>
             {inTry
               ? "اول فکر کن، بعد جواب بده"
-              : exWhat === "circle"
+              : exWhat === "parallel"
+                ? `زاویه مورب با خط بالا: ${fa(par.phi)}° · ${parExText(par)[1]}`
+                : exWhat === "circle"
                 ? circleExText(circ).join(" · ")
                 : exWhat === "composite"
                   ? compExText(comp)
@@ -612,6 +647,7 @@ export function GeometryTool() {
         )}
         {mode === "explore" && exWhat === "circle" && <CirclePanel ex={circ} set={setCirc} />}
         {mode === "explore" && exWhat === "composite" && <CompositePanel ex={comp} set={(e) => setComp(fixComp(e))} />}
+        {mode === "explore" && exWhat === "parallel" && <ParallelPanel ex={par} set={setPar} />}
         {mode === "explore" && exWhat === "geo" && (
           <>
             <h2>کش را روی ژئوبرد بکش</h2>
@@ -682,17 +718,17 @@ export function GeometryTool() {
             ))}
           </div>
         )}
-        {mode === "show" && showMeasure && (
+        {mode === "show" && showQ && (
           <>
-            <h2>{GEOMETRY_TYPE_LABEL[showMeasure.type]}</h2>
+            <h2>{GEOMETRY_TYPE_LABEL[showQ.type]}</h2>
             <div className={styles.chipsRow} role="radiogroup" aria-label="سطح" style={{ flexWrap: "wrap" }}>
-              {LEVEL_LABEL[showMeasure.type].map((name, i) => (
+              {LEVEL_LABEL[showQ.type].map((name, i) => (
                 <button key={name} role="radio" aria-checked={showLevel === i + 1} onClick={() => freshShow((i + 1) as Level)} style={{ flex: "1 0 30%" }}>
                   {name}
                 </button>
               ))}
             </div>
-            <p className={styles.note}>{measurePrompt(showMeasure)}</p>
+            <p className={styles.note}>{geometryPrompt(showQ)}</p>
             <div className={styles.row} style={{ marginTop: 8 }}>
               <button className={styles.clear} onClick={() => stepTo(at - 1)} disabled={at === 0}>
                 → قدم قبل
@@ -702,7 +738,9 @@ export function GeometryTool() {
               </button>
             </div>
             <p className={styles.note}>
-              {showMeasure.type === "circle"
+              {showQ.type === "parallel"
+                ? `هر قدم نام یک دلیل را می‌گوید (${[FACT_NAME.vertical, FACT_NAME.linear, FACT_NAME.corresponding, FACT_NAME.alternate].join("، ")} …). زاویه‌هایی که آن قدم به کار می‌برد پررنگ می‌شوند و زاویه‌ای که پیدا می‌شود عددش در قاب خط‌چین است. زاویه‌های برابر شمار کمان یکسان دارند.`
+                : showQ.type === "circle"
                 ? "تکه‌ای که هر قدم درباره‌اش است خط‌چین نارنجی و پررنگ می‌شود؛ طولی که پیدا می‌شود در قاب خط‌چین نوشته می‌شود."
                 : "هر تکه خط‌چین نارنجی می‌شود و اسم و مساحتش رویش نوشته می‌شود؛ تکه‌ای که کم می‌شود «−» دارد. طولی که پیدا می‌شود در قاب خط‌چین است."}
             </p>
@@ -711,7 +749,7 @@ export function GeometryTool() {
             </button>
           </>
         )}
-        {mode === "show" && !showMeasure && (
+        {mode === "show" && !showQ && (
           <>
             <h2>شمردن مساحت</h2>
             <div className={styles.chipsRow} role="radiogroup" aria-label="نوع شکل" style={{ flexWrap: "wrap" }}>
@@ -753,6 +791,7 @@ export function GeometryTool() {
             onCheck={(v) => {
               setChecked(v);
               if (question.type === "circle" || question.type === "composite") animate(Math.max(1, measureFrames(question).length - 1) * FRAME_MS);
+              else if (question.type === "parallel") animate(Math.max(1, parallelFrames(question).length - 1) * FRAME_MS);
               else if (question.type === "area" || question.type === "perimeter") animate(Math.max(1, (question.type === "area" ? areaFrames(question.poly) : perimeterFrames(question.poly)).length - 1) * FRAME_MS);
               else setF(1);
             }}
@@ -873,6 +912,39 @@ function CompositePanel({ ex, set }: { ex: CompEx; set: (e: CompEx) => void }) {
       <p className={styles.note}>
         راه را عوض کن: تکه‌ها فرق می‌کنند ولی مساحت همان می‌ماند. در «برش افقی» و «برش عمودی» هر تکه فقط یک بار حساب می‌شود؛ در «منهای گوشه» مستطیل دور شکل را می‌گیریم و گوشه خالی را کم می‌کنیم. طول ضلع‌های داخلی را از ضلع‌های روبه‌رو پیدا کن.
       </p>
+    </>
+  );
+}
+
+/** Explore parallel lines: turn the transversal, point out a pair of angles, or make the bottom line not parallel. */
+function ParallelPanel({ ex, set }: { ex: ParEx; set: (e: ParEx) => void }) {
+  const turn = (by: number) => set({ ...ex, phi: Math.max(PHI_RANGE[0], Math.min(PHI_RANGE[1], ex.phi + by)) });
+  return (
+    <>
+      <h2>خط مورب را بچرخان</h2>
+      <p className={styles.note}>دایره‌های دو سر خط مورب (آبی) را بکش. هشت زاویه با هم عوض می‌شوند؛ زاویه‌های برابر یک‌جور کمان دارند (یک کمان، دو کمان …) و عددشان هم یکی است.</p>
+      <Stepper label={`زاویه مورب ${fa(ex.phi)}°`} onLess={() => turn(-5)} onMore={() => turn(5)} lessOff={ex.phi <= PHI_RANGE[0]} moreOff={ex.phi >= PHI_RANGE[1]} />
+      <div className={styles.chipsRow} role="radiogroup" aria-label="کدام دو زاویه" style={{ flexWrap: "wrap" }}>
+        {PAR_RELS.map(([k, name]) => (
+          <button key={k} role="radio" aria-checked={ex.rel === k} onClick={() => set({ ...ex, rel: ex.rel === k ? null : k })} style={{ flex: "1 0 28%" }}>
+            {name}
+          </button>
+        ))}
+      </div>
+      <div className={styles.row}>
+        <button className={styles.toggle} aria-pressed={ex.tilt} onClick={() => set({ ...ex, tilt: !ex.tilt })}>
+          {ex.tilt ? "✓ " : ""}خط پایین را کج کن (موازی نباشد)
+        </button>
+      </div>
+      <p className={`${styles.status} ${styles.info}`}>
+        {parExText(ex).map((line, i) => (
+          <span key={i}>
+            {i > 0 && <br />}
+            {line}
+          </span>
+        ))}
+      </p>
+      <p className={styles.note}>دو زاویه‌ای که انتخاب کردی پررنگ‌اند و عددشان در قاب خط‌چین است. «روبه‌رو» و «کنار هم» همیشه درست‌اند؛ «هم‌جا»، «Z» و «C» فقط وقتی که دو خط موازی باشند (علامت فلش).</p>
     </>
   );
 }

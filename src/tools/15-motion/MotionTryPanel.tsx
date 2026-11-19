@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MAP_UNIT } from "@/generators/motion-map";
 import {
   answerKind,
   COMPASS,
@@ -19,6 +20,7 @@ import {
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import { POINT_NAMES, ROT_ICON, ROT_WORD, WHEEL_NAMES } from "./Pictures";
+import { mapHow, mapPrompt, mapSlipText, roadFa } from "./RoadMap";
 import { THING_WORD } from "./Spacing";
 import styles from "@/toolkit/TryPanel.module.css";
 
@@ -30,6 +32,7 @@ export const MOTION_TYPE_LABEL: Record<MotionQuestionType, string> = {
   orient: "جهت‌یابی",
   grid: "مسیر در شبکه",
   spacing: "فاصله‌ها",
+  map: "کوتاه‌ترین مسیر روی نقشه",
 };
 
 /** Keeps an equation left to right inside a Persian sentence. */
@@ -113,6 +116,8 @@ export function motionPrompt(q: MotionQuestion, paper = false): string {
     }
     case "spacing":
       return spacingPrompt(q);
+    case "map":
+      return mapPrompt(q);
   }
 }
 
@@ -217,6 +222,8 @@ export function motionHow(q: MotionQuestion): string {
     }
     case "spacing":
       return spacingHow(q);
+    case "map":
+      return mapHow(q);
   }
 }
 
@@ -259,6 +266,8 @@ export function answerFa(q: MotionQuestion, v = q.answer) {
       return `${COMPASS_ICON[v]} ${COMPASS[v]}`;
     case "point":
       return `نقطه ${POINT_NAMES[v]}`;
+    case "road":
+      return q.type === "map" ? `جاده ${roadFa(q.map, q.options[v])}` : "";
     default:
       return `${fa(v)} ${unitOf(q)}`.trim();
   }
@@ -270,6 +279,7 @@ export function unitOf(q: MotionQuestion) {
   if (q.type === "trip") return q.ask === "time" ? UNIT[q.unit].time : q.ask === "dist" ? UNIT[q.unit].dist : UNIT[q.unit].speed;
   if (q.type === "chase") return UNIT[q.unit].time;
   if (q.type === "grid") return "راه";
+  if (q.type === "map") return q.variant === "connect" ? "کیلومتر" : MAP_UNIT[q.unit];
   if (q.type === "spacing") {
     if (q.ask === "length" || q.ask === "gap") return "متر";
     if (q.ask === "count") return THING_WORD[q.thing];
@@ -287,7 +297,13 @@ function feedback(q: MotionQuestion, v: number): { tone: Tone; text: string } {
   const how = motionHow(q);
   const right = `جواب ${answerFa(q)} است. ${how}`;
   const near = (s: string) => ({ tone: "turned" as Tone, text: `نزدیک بود! ${s} ${right}` });
-  switch (motionMistake(q, v)) {
+  const tag = motionMistake(q, v);
+  if (q.type === "map" && tag !== "right") {
+    const slip = mapSlipText(q, tag, v);
+    if (!slip) return { tone: "bad", text: right };
+    return slip.bad ? { tone: "bad", text: `${slip.text} ${right}` } : near(slip.text);
+  }
+  switch (tag) {
     case "right":
       return { tone: "good", text: `درست است! ${how}` };
     case "allSame":
@@ -457,6 +473,17 @@ export function MotionTryPanel(p: Props) {
         </div>
       )}
 
+      {kind === "road" && q.type === "map" && (
+        <div className={styles.types} role="radiogroup" aria-label="جاده" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+          {q.options.map((r, i) => (
+            <button key={r} role="radio" aria-checked={choice === i} onClick={() => setChoice(i)} disabled={done} style={{ minHeight: 48, fontSize: "1rem" }}>
+              {mark(i)}
+              جاده {roadFa(q.map, r)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {!done && (
         <button className={styles.secondary} disabled={kind === "number" ? !num : choice === null} onClick={() => p.onCheck(kind === "number" ? Number(num) : choice!)}>
           بررسی
@@ -489,6 +516,12 @@ function simHint(q: MotionQuestion) {
       return "روی صفحه، آدمک قدم‌به‌قدم می‌چرخد؛ فهرست چرخش‌ها کنار صفحه است.";
     case "grid":
       return q.variant === "routes" ? "روی صفحه، عددهای چهارراه‌ها از الف پر می‌شوند تا به ب برسند." : "روی صفحه، مسیر خانه‌به‌خانه کشیده می‌شود.";
+    case "map":
+      return q.variant === "connect"
+        ? "روی صفحه، جاده‌ها از ارزان به گران یکی‌یکی بررسی می‌شوند: ✓ برداشته شد (خط پررنگ و بریده)، ✗ دور می‌ساخت."
+        : q.variant === "close"
+          ? "روی صفحه، جاده بسته‌شده ✗ خورده و بهترین راه با خط پررنگ و بریده جاده‌به‌جاده کشیده می‌شود."
+          : "روی صفحه، بهترین راه با خط پررنگ و بریده جاده‌به‌جاده کشیده می‌شود و جمع بالای صفحه است.";
     case "spacing":
       return q.variant === "cut"
         ? "روی صفحه، برش‌ها یکی‌یکی زده می‌شوند و تکه‌ها شماره می‌خورند؛ بالای صفحه تعداد هر دو را می‌شمارد."

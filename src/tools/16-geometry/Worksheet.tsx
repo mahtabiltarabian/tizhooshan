@@ -1,8 +1,8 @@
 "use client";
 
 // Worksheet for tool 16: shapes on a dot grid (the geoboard on paper), angle
-// figures, blank dot grids for building, and circle and composite figures
-// with their lengths in centimetres. The answer key adds the working,
+// figures, blank dot grids for building, circle and composite figures
+// with their lengths in centimetres, and parallel lines with their angles. The answer key adds the working,
 // and for build and halving questions one answer drawn small (others count).
 
 import { makeGeometryQuestion, type GeometryQuestion, type GeometryQuestionType } from "@/generators/geometry";
@@ -11,6 +11,7 @@ import { degFa } from "./frames";
 import { answerFa, choicesOf, GEOMETRY_TYPE_LABEL, geometryHow, geometryPrompt } from "./GeometryTryPanel";
 import { MeasureSvg } from "./MeasurePictures";
 import { measureUnit } from "./MeasureText";
+import { ParallelSvg } from "./ParallelPictures";
 import { AngleFigureG, AngleMark, BandG, EXAMPLE, FigureSvg, GeoSvg } from "./Pictures";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -51,6 +52,15 @@ function figures(q: GeometryQuestion) {
             </FigureRow>
           )}
           <p className={styles.symbols}>جواب: ............ {measureUnit(q)}</p>
+        </>
+      );
+    case "parallel":
+      return (
+        <>
+          <FigureRow>
+            <ParallelSvg fig={q.fig} />
+          </FigureRow>
+          <p className={styles.symbols}>زاویه «؟»: ............ درجه</p>
         </>
       );
     case "area":

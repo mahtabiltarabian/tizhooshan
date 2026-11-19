@@ -30,6 +30,13 @@ export interface Overlay {
   lines?: number[];
   /** Hidden lengths now worked out and written. */
   reveal?: string[];
+  // Parallel lines (ParallelPictures.tsx):
+  /** Angles found so far (their values are written). */
+  known?: string[];
+  /** Angles this step talks about (drawn heavy; the one found has a dashed box). */
+  focus?: string[];
+  /** The dashed helper parallel through the bend. */
+  helper?: boolean;
 }
 
 export interface Frame {
