@@ -1,0 +1,46 @@
+/* Arrow pad for rolling the die: a plus shape, big enough for a finger. */
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    ". n ."
+    "w . e"
+    ". s .";
+  gap: 6px;
+  margin: 8px 0;
+  direction: ltr;
+}
+
+.pad button {
+  min-height: 48px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.pad button:not(:disabled):hover,
+.pad button:focus-visible {
+  border-color: var(--accent);
+}
+
+.pad button:disabled {
+  opacity: 0.4;
+}
+
+.N {
+  grid-area: n;
+}
+
+.S {
+  grid-area: s;
+}
+
+.E {
+  grid-area: e;
+}
+
+.W {
+  grid-area: w;
+}

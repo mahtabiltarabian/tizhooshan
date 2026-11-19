@@ -30,6 +30,7 @@ import {
   type VennQuestion,
 } from "@/generators/logic";
 import { newSeed } from "@/generators/random";
+import { countsAfter, countSteps, refMask, stepRegion, type CountStep, type VennCountQuestion } from "@/generators/venn-count";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
@@ -42,6 +43,7 @@ import {
   itemsOf,
   LIARS_RULE,
   liarStepText,
+  logicPrompt,
   LOGIC_TYPE_LABEL,
   LogicTryPanel,
   plural,
@@ -52,6 +54,7 @@ import {
   vennStepText,
   type TryEntry,
 } from "./LogicTryPanel";
+import { blankCount, countExploreBoard, CountExplorePanel, countNames, countStepText, countView, CountVennFigure, givenTotals, useCountExplore } from "./VennCount";
 import { BANK_Y, GridFigure, gridView, LiarsFigure, liarsView, regionAt, TokenLayer, vennBox, VennFigure, type ClueState, type Token } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
@@ -63,7 +66,48 @@ const make = (t: LogicType, l: Level, s: number, size: 3 | 4, extra: boolean) =>
 /** Empty marks and choices for a question. */
 function blankEntry(q: LogicQuestion): TryEntry {
   const n = q.type === "grid" ? q.size : 0;
-  return { marks: Array(n * n).fill(0), liar: q.type === "liars" ? q.people.map(() => null) : [], pick: null, checked: false, user: [0, 0] };
+  return { marks: Array(n * n).fill(0), liar: q.type === "liars" ? q.people.map(() => null) : [], pick: null, checked: false, user: [0, 0], count: q.type === "vennNum" ? blankCount(q) : null };
+}
+
+/** The show-me steps of any question. */
+type AnyStep = GridStep | ReturnType<typeof liarSteps>[number] | ReturnType<typeof vennSteps>[number] | CountStep;
+const stepsOf = (q: LogicQuestion): AnyStep[] => (q.type === "grid" ? gridSteps(q.size, q.clues).steps : q.type === "liars" ? liarSteps(q) : q.type === "vennNum" ? countSteps(q).steps : vennSteps(q));
+
+/** Board of a Venn-with-numbers question: show me after k steps, or try it with the child's notes. */
+function countBoard(q: VennCountQuestion, show: { steps: CountStep[]; k: number } | null, scratch: (number | null)[], solved: boolean, target: number | null, onRegion?: (r: number) => void) {
+  const { totals, total } = givenTotals(q);
+  const names = countNames(q);
+  const askMask = refMask(q.k, q.ask);
+  if (show) {
+    const last = show.steps[show.k - 1];
+    const at = last ? stepRegion(last) : null;
+    const hatch = !last ? 0 : last.kind === "inside" ? refMask(q.k, { kind: "union" }) : last.kind === "answer" ? askMask : at !== null ? 1 << at : 0;
+    return (
+      <CountVennFigure
+        names={names}
+        values={countsAfter(q.k, show.steps, show.k)}
+        totals={totals}
+        total={total}
+        hatch={hatch}
+        focus={at}
+        ask={askMask}
+        caption={!last ? "بخش ؟: همان که پرسیده شده" : last.kind === "answer" ? "بخش هاشورخورده: جواب" : last.kind === "inside" ? "بخش هاشورخورده: داخل دایره‌ها" : "بخش هاشورخورده: همین حالا نوشته شد"}
+      />
+    );
+  }
+  return (
+    <CountVennFigure
+      names={names}
+      values={solved ? countSteps(q).known : scratch}
+      totals={totals}
+      total={total}
+      hatch={solved || target === null ? askMask : 1 << target}
+      focus={target}
+      ask={askMask}
+      onRegion={onRegion}
+      caption={solved ? "بخش هاشورخورده: جواب" : target !== null ? "بخش هاشورخورده: جایی که می‌نویسی" : "بخش هاشورخورده: همان که پرسیده شده"}
+    />
+  );
 }
 
 /** Tap: empty → ✓ → ✗ → empty. */
@@ -265,7 +309,8 @@ export function LogicTool() {
   const [showSize, setShowSize] = useState<3 | 4>(4);
   const [showExtra, setShowExtra] = useState(false);
   const showQ = useMemo(() => make(showType, showLevel, showSeed, showSize, showExtra), [showType, showLevel, showSeed, showSize, showExtra]);
-  const steps = useMemo(() => (showQ.type === "grid" ? gridSteps(showQ.size, showQ.clues).steps : showQ.type === "liars" ? liarSteps(showQ) : vennSteps(showQ)), [showQ]);
+  const steps = useMemo(() => stepsOf(showQ), [showQ]);
+  const countEx = useCountExplore();
   const stepMs = 1700;
 
   // Try it: answers belong to one question, so they reset with it.
@@ -281,7 +326,7 @@ export function LogicTool() {
   const setCur = (e: TryEntry) => setEntry({ ...e, key });
 
   // Shareable links: #try=grid&level=2&seed=7&size=3&extra=1(&a=v_x…), #try=liars…&a=rd_, #try=venn…&a=2,
-  // #show=venn&level=3&seed=5&step=4, #explore=venn, #classroom
+  // #try=vennNum&level=2&seed=7(&a=15), #show=venn&level=3&seed=5&step=4, #explore=venn (or vennNum), #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -316,7 +361,8 @@ export function LogicTool() {
             const pk = Number(a) - 1;
             e.pick = Number.isInteger(pk) && pk >= 0 && pk < q.options.length ? pk : null;
           }
-          e.checked = q.type === "grid" ? e.marks.some((m) => m === 1) : q.type === "liars" ? e.liar.every((x) => x !== null) : e.pick !== null;
+          if (q.type === "vennNum" && e.count && /^[0-9]{1,3}$/.test(a)) e.count = { ...e.count, value: String(Number(a)) };
+          e.checked = q.type === "grid" ? e.marks.some((m) => m === 1) : q.type === "liars" ? e.liar.every((x) => x !== null) : q.type === "vennNum" ? !!e.count?.value : e.pick !== null;
           setEntry({ ...e, key: qKey(t, l, s, z, ex) });
         }
       } else if (show && show in LOGIC_TYPE_LABEL) {
@@ -331,10 +377,10 @@ export function LogicTool() {
         setShowExtra(ex);
         setMode("show");
         const q = make(t, l, s, z, ex);
-        const n = (q.type === "grid" ? gridSteps(q.size, q.clues).steps : q.type === "liars" ? liarSteps(q) : vennSteps(q)).length;
+        const n = stepsOf(q).length;
         const step = Number(params.get("step"));
         setF(params.has("step") && Number.isFinite(step) ? Math.min(1, Math.max(0, step / n)) : 1);
-      } else if (explore === "grid" || explore === "venn" || explore === "liars") setArea(explore);
+      } else if (explore === "grid" || explore === "venn" || explore === "liars" || explore === "vennNum") setArea(explore);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -372,9 +418,7 @@ export function LogicTool() {
     setShowSize(size);
     setShowExtra(extra);
     setMode("show");
-    const q = question;
-    const n = (q.type === "grid" ? gridSteps(q.size, q.clues).steps : q.type === "liars" ? liarSteps(q) : vennSteps(q)).length;
-    animate(stepMs * n);
+    animate(stepMs * stepsOf(question).length);
   };
 
   const play = () => {
@@ -424,6 +468,10 @@ export function LogicTool() {
           onToggle={(p) => setExKnown({ seed: exLiarSeed, known: known.map((x, i) => (i === p ? nextLiar(x) : x)) })}
         />
       );
+    } else if (area === "vennNum") {
+      view = countView(countEx.k, true);
+      boardLabel = "نمودار ون با عدد؛ روی یک بخش بزن و عددش را بنویس";
+      board = countExploreBoard(countEx);
     } else {
       const [x, y, w] = vennBox(3);
       view = [x, y, w, round2(BANK_Y + 0.62 + 0.45 - y)];
@@ -498,6 +546,17 @@ export function LogicTool() {
           />
         );
       }
+    } else if (q.type === "vennNum") {
+      view = countView(q.k, true);
+      if (mode === "show") {
+        boardLabel = "نمودار ون با عدد، قدم‌به‌قدم";
+        board = countBoard(q, { steps: steps as CountStep[], k }, [], false, null);
+      } else {
+        const c = cur.count ?? blankCount(q);
+        const solved = cur.checked && c.value !== "" && Number(c.value) === q.answer;
+        boardLabel = "نمودار ون با عدد؛ برای یادداشت، روی یک بخش بزن و عددش را بنویس";
+        board = countBoard(q, null, c.scratch, solved, c.target, !solved ? (r) => setCur({ ...cur, count: { ...c, target: r } }) : undefined);
+      }
     } else {
       view = vennView(q);
       const chain = chainOf(q);
@@ -536,6 +595,7 @@ export function LogicTool() {
     const s = steps[i];
     if (showQ.type === "grid") return gridStepText(showQ, s as GridStep);
     if (showQ.type === "liars") return liarStepText(showQ, s as ReturnType<typeof liarSteps>[number]);
+    if (showQ.type === "vennNum") return countStepText(showQ, s as CountStep, countsAfter(showQ.k, steps as CountStep[], i + 1));
     return vennStepText(showQ, s as ReturnType<typeof vennSteps>[number]);
   };
   const depthOf = (i: number) => (showQ.type === "liars" ? (steps[i] as { depth: number }).depth : 0);
@@ -611,7 +671,9 @@ export function LogicTool() {
                 ? "اول فکر کن: کدام سرنخ یک خانه را مستقیم ✗ می‌کند؟"
                 : q.type === "liars"
                   ? "اول فکر کن: اگر نفر اول راستگو باشد، چه می‌شود؟"
-                  : "اول فکر کن: هر جمله کدام بخش را خالی می‌کند؟"
+                  : q.type === "vennNum"
+                    ? "اول فکر کن: کدام بخش نمودار را مستقیم می‌دانی؟ از وسط شروع کن."
+                    : "اول فکر کن: هر جمله کدام بخش را خالی می‌کند؟"
               : area === "grid"
                 ? exCheck.tag === "right"
                   ? "✓ جدول کامل است و تناقضی ندارد."
@@ -620,7 +682,9 @@ export function LogicTool() {
                   ? exStatus.every((s, p) => s === "fits" || !exLiars.says[p]) && known.every((x) => x !== null)
                     ? "✓ همه حرف‌ها جور است!"
                     : "برای هر نفر حدس بزن و ببین کدام حرف جور نیست"
-                  : `${fa(placed.length)} از ${fa(tokens.length)} نام روی نمودار`}
+                  : area === "vennNum"
+                    ? "جمع هر دایره = همه بخش‌های داخل آن دایره"
+                    : `${fa(placed.length)} از ${fa(tokens.length)} نام روی نمودار`}
           </p>
         )}
       </section>
@@ -690,6 +754,8 @@ export function LogicTool() {
                 </div>
               </>
             )}
+
+            {area === "vennNum" && <CountExplorePanel ex={countEx} />}
 
             {area === "venn" && (
               <>
@@ -765,15 +831,18 @@ export function LogicTool() {
               </div>
             )}
             <h2 className={styles.progress} style={{ marginTop: 10 }}>
-              {showType === "grid" ? "سرنخ‌به‌سرنخ" : showType === "liars" ? "حالت‌به‌حالت" : "جمله‌به‌جمله"}
+              {showType === "grid" ? "سرنخ‌به‌سرنخ" : showType === "liars" ? "حالت‌به‌حالت" : showType === "vennNum" ? "بخش‌به‌بخش" : "جمله‌به‌جمله"}
             </h2>
             <p className={styles.note}>
               {showType === "grid"
                 ? "هر سرنخ یکی‌یکی اعمال می‌شود و نتیجه‌اش در جدول می‌آید. خانه‌های تازه قاب پررنگ دارند."
                 : showType === "liars"
                   ? `${LIARS_RULE} یک نفر را راستگو فرض می‌کنیم و ادامه می‌دهیم؛ اگر به تناقض رسیدیم، آن حالت نمی‌شود.`
-                  : "هر جمله روی نمودار کشیده می‌شود: بخش خالی هاشور، «بعضی» ×. بعد هر گزینه امتحان می‌شود؛ نقطه‌ها یک نمونه‌اند."}
+                  : showType === "vennNum"
+                    ? "اول بخش وسط پر می‌شود، بعد «فقط»ها با تفریق، آخر بیرون دایره‌ها. بخشی که همین حالا نوشته می‌شود هاشور و قاب دارد."
+                    : "هر جمله روی نمودار کشیده می‌شود: بخش خالی هاشور، «بعضی» ×. بعد هر گزینه امتحان می‌شود؛ نقطه‌ها یک نمونه‌اند."}
             </p>
+            {showQ.type === "vennNum" && <p className={styles.stepText}>{logicPrompt(showQ)}</p>}
             {showQ.type === "venn" && <p className={styles.stepText}>{showQ.premises.map((s) => `«${stmtText(vennNames(showQ), s)}»`).join("، ")}</p>}
             <ol className={styles.note} style={{ listStyle: "none", padding: 0 }}>
               {k === 0 ? (
@@ -826,6 +895,7 @@ export function LogicTool() {
             entry={cur}
             onLiar={(p, l) => setCur({ ...cur, checked: false, liar: cur.liar.map((x, i) => (i === p ? l : x)) })}
             onPick={(i) => setCur({ ...cur, pick: i })}
+            onCount={(c, answerChanged) => setCur({ ...cur, count: c, checked: answerChanged ? false : cur.checked })}
             onCheck={() => setCur({ ...cur, checked: true })}
             onClear={() => setCur(blankEntry(question))}
             onType={(t) => freshQuestion(t, tryLevel)}

@@ -7,6 +7,7 @@ import { COMPASS, makeMotionQuestion, type MotionQuestion, type MotionQuestionTy
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { answerFa, motionHow, motionPrompt, MOTION_TYPE_LABEL, unitOf } from "./MotionTryPanel";
 import { CompassG, GridG, MachineSvg, TrackG, WalkerG, type TrackMover } from "./Pictures";
+import { questionSpacing, SpacingG } from "./Spacing";
 import styles from "@/toolkit/Worksheet.module.css";
 
 function TrackSvg({ q }: { q: Extract<MotionQuestion, { type: "trip" | "chase" }> }) {
@@ -61,6 +62,19 @@ function figures(q: MotionQuestion) {
           <p className={styles.symbols}>رو به: {COMPASS.join(" ☐   ")} ☐</p>
         </>
       );
+    case "spacing": {
+      const pic = questionSpacing(q, false);
+      return (
+        <>
+          <FigureRow>
+            <svg width={320} height={180} viewBox="0 0 16 9" style={{ direction: "ltr" }}>
+              <SpacingG scene={pic.scene} gapText={pic.gapText} total={pic.total} sideA={pic.sideA} sideB={pic.sideB} crossed={pic.crossed} floorNotes={pic.floorNotes} thingsOnly={pic.thingsOnly} />
+            </svg>
+          </FigureRow>
+          <p className={styles.symbols}>جواب: ............ {unitOf(q)}</p>
+        </>
+      );
+    }
     case "grid": {
       if (q.variant === "routes") {
         const cell = 1;

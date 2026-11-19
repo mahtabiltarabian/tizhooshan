@@ -4,6 +4,8 @@
 // the same list gives the answer, the step-by-step showing and the check of
 // the child's taps.
 
+import { makeHiddenQuestion, type HiddenQuestion } from "./hidden-figure";
+import { makeStrokeQuestion, type StrokeQuestion } from "./one-stroke";
 import { mulberry32, pick, type Rng } from "./random";
 
 export type Pt = [number, number];
@@ -405,4 +407,17 @@ export function countMistake(q: CountQuestion, n: number): CountMistake {
   }
   if (n < q.answer && q.answer - n <= Math.max(2, Math.round(q.answer / 8))) return "fewMissed";
   return n < q.answer ? "under" : "over";
+}
+
+// --- All question types of the tool, with the hidden-figure and one-stroke ones ---
+
+export type ShapeQuestionType = CountQuestionType | "hidden" | "stroke";
+export type ShapeQuestion = CountQuestion | HiddenQuestion | StrokeQuestion;
+
+export const isCountQuestion = (q: ShapeQuestion): q is CountQuestion => q.type !== "hidden" && q.type !== "stroke";
+
+export function makeShapeQuestion(type: ShapeQuestionType, level: Level, seed: number): ShapeQuestion {
+  if (type === "hidden") return makeHiddenQuestion(level, seed);
+  if (type === "stroke") return makeStrokeQuestion(level, seed);
+  return makeCountQuestion(type, level, seed);
 }

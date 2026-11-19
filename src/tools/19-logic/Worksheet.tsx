@@ -1,8 +1,9 @@
 "use client";
 
 // Worksheet for tool 19: an empty grid with its clues listed, the liars'
-// statements, or the premises with numbered conclusions and blank circles to
-// draw on. The answer key adds the solved grid (or the answer) and how.
+// statements, the premises with numbered conclusions and blank circles to
+// draw on, or a counting question with an empty Venn diagram to write
+// numbers in. The answer key adds the solved grid (or the answer) and how.
 
 import { makeLogicQuestion, type LogicQuestion, type LogicType } from "@/generators/logic";
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
@@ -10,11 +11,18 @@ import { fa } from "@/tools/registry";
 import styles from "@/toolkit/Worksheet.module.css";
 import { clueText, itemsOf, LOGIC_TYPE_LABEL, logicAnswerFa, logicHow, logicPrompt, optionText, saysText, vennNames } from "./LogicTryPanel";
 import { GridSvg, solvedMarks, VennSvg } from "./Pictures";
+import { countNames, CountVennSvg } from "./VennCount";
 
 const list = { margin: "4px 0", paddingInlineStart: 20, lineHeight: 1.8, fontSize: "0.9rem" } as const;
 
 function figures(q: LogicQuestion) {
   switch (q.type) {
+    case "vennNum":
+      return (
+        <FigureRow>
+          <CountVennSvg names={countNames(q)} width={q.k === 2 ? 170 : 150} />
+        </FigureRow>
+      );
     case "grid":
       return (
         <>
@@ -79,7 +87,7 @@ const CONFIG: WorksheetConfig<LogicType, LogicQuestion> = {
   title: "تخته استدلال",
   backHref: "/tools/logic",
   typeLabels: LOGIC_TYPE_LABEL,
-  defaultTypes: ["grid", "liars", "venn"],
+  defaultTypes: ["grid", "liars", "venn", "vennNum"],
   make: (type, level, seed) => makeLogicQuestion(type, level, seed),
   prompt: (q) => (q.type === "venn" ? logicPrompt(q, true) : `${logicPrompt(q, true)}${q.type === "grid" ? ` (${fa(q.clues.length)} سرنخ)` : ""}`),
   figures,

@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { countMistake, countOf, GROW, type CountQuestion, type CountQuestionType, type Kind, type Level, type Shape, TAPS } from "@/generators/shape-count";
+import { countMistake, countOf, GROW, type CountQuestion, type Kind, type Level, type Shape, type ShapeQuestionType, TAPS } from "@/generators/shape-count";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
 
-export const COUNT_TYPE_LABEL: Record<CountQuestionType, string> = {
+export const COUNT_TYPE_LABEL: Record<ShapeQuestionType, string> = {
   triangle: "شمارش مثلث",
   square: "شمارش مربع",
   rectangle: "شمارش مستطیل",
   segment: "شمارش پاره‌خط",
   angle: "شمارش زاویه",
   growing: "الگوی رشدکننده",
+  hidden: "شکل پنهان",
+  stroke: "رسم با یک خط",
 };
 
 export const KIND_NAME: Record<Kind, string> = { triangle: "مثلث", square: "مربع", rectangle: "مستطیل", segment: "پاره‌خط", angle: "زاویه" };
@@ -87,14 +89,14 @@ function feedback(q: CountQuestion, n: number, shapes: Shape[]): { tone: Tone; t
 
 interface Props {
   question: CountQuestion;
-  type: CountQuestionType;
+  type: ShapeQuestionType;
   level: Level;
   /** Every shape in the figure, in showing order. */
   shapes: Shape[];
   /** Shapes the child marked on the board. */
   marked: Shape[];
   initialAnswer?: number;
-  onType: (t: CountQuestionType) => void;
+  onType: (t: ShapeQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
   onAnswered: () => void;
@@ -111,7 +113,7 @@ export function CounterTryPanel(p: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
-        {(Object.keys(COUNT_TYPE_LABEL) as CountQuestionType[]).map((t) => (
+        {(Object.keys(COUNT_TYPE_LABEL) as ShapeQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {COUNT_TYPE_LABEL[t]}
           </button>

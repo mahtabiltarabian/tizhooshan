@@ -9,6 +9,7 @@ import {
   digitsOf,
   digitSum,
   extremes,
+  isMore,
   makeDigitsQuestion,
   meets,
   placeCounts,
@@ -20,6 +21,7 @@ import {
   type Level,
   type MatchQuestion,
 } from "@/generators/digits";
+import { isMoreType, type CryptQuestion, type MoreQuestion, type MoreType } from "@/generators/digits-more";
 import { mulberry32, newSeed, shuffle } from "@/generators/random";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
@@ -27,11 +29,42 @@ import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { COND_FA, COND_RULE, DIGITS_TYPE_LABEL, DigitsTryPanel, equationFa, ltr, numFa } from "./DigitsTryPanel";
 import { DIGITS_GUIDE } from "./guide";
+import { CryptBoard, cryptCheckFa, MoreBoard, stepOf } from "./MoreBoards";
+import { LetterPad, StepList } from "./MoreInputs";
+import { CRYPT_RULE, moreSteps } from "./MoreText";
 import { CardsG, ChartKeyG, CHART_CELL, HundredChartG, MatchG, matchView, moveFrame, RowG, SLOT_H, type Spot } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
-/** Explore: cards or matchsticks. Show me: counting or matchsticks. */
-type Area = "cards" | "count" | "match";
+/** Explore: cards, matchsticks or a cryptarithm. Show me: counting, matchsticks or one of the later topics. */
+type Area = "cards" | "count" | "match" | MoreType;
+
+const EXPLORE_AREAS: [Area, string][] = [
+  ["cards", "کارت رقم"],
+  ["match", "چوب‌کبریت"],
+  ["crypt", "جمع رمزی"],
+];
+const SHOW_AREAS: [Area, string][] = [
+  ["count", "شمارش رقم"],
+  ["pages", "رقم‌های صفحه"],
+  ["lcm", "ک.م.م و ب.م.م"],
+  ["units", "رقم یکان"],
+  ["match", "چوب‌کبریت"],
+  ["crypt", "جمع رمزی"],
+  ["signs", "گذاشتن علامت"],
+];
+const SHOW_INTRO: Record<MoreType, string> = {
+  lcm: "«دوباره با هم» یعنی کوچک‌ترین مضرب مشترک (ک.م.م): پرش‌های هر عدد روی محور خودش، اولین بار در ک.م.م به هم می‌رسند. «تکه‌های برابرِ بلندترین» یعنی بزرگ‌ترین شمارنده مشترک (ب.م.م).",
+  crypt: "ستون به ستون، از یکان، با ده‌بر. هر ستونی که فقط یک حرفِ ناشناخته دارد، آن حرف را معلوم می‌کند.",
+  signs: "علامت‌ها گذاشته می‌شوند و حاصل به ترتیب درست حساب می‌شود؛ خط زیر هر سطر نشان می‌دهد کدام بخش اول حساب می‌شود.",
+  pages: "صفحه‌ها را دسته کن: یک‌رقمی (۱ تا ۹)، دورقمی (۱۰ تا ۹۹)، سه‌رقمی (از ۱۰۰). هر دسته: تعداد صفحه × تعداد رقم.",
+  units: "فقط رقم یکان مهم است. توان‌های پشت‌سرهم رقم یکانِ چرخه‌دار دارند؛ باقی‌مانده تقسیم توان بر طول چرخه، خانه چرخه را می‌گوید (باقی‌مانده ۰ = خانه آخر).",
+};
+
+const moreOf = (a: MoreType, level: Level, seed: number) => makeDigitsQuestion(a, level, seed) as MoreQuestion;
+/** Playback length of a worked solution: about 1.6 s a step. */
+const stepsMs = (q: MoreQuestion) => (moreSteps(q).length + 1) * 1600;
+/** Empty letters or gaps of a question. */
+const blankEntry = (q: DigitsQuestion): (number | null)[] => (q.type === "crypt" ? q.letters.map(() => null) : q.type === "signs" ? q.ops.map(() => null) : []);
 
 const VIEW: [number, number, number, number] = [0, 0, 16, 9];
 const sameSpot = (a: Spot | null, b: Spot) => !!a && a[0] === b[0] && a[1] === b[1];
@@ -99,6 +132,10 @@ export function DigitsTool() {
   const [exSticks, setExSticks] = useState<number[] | null>(null);
   const sticksNow = exSticks ?? puzzle.start;
 
+  // Explore: cryptarithm digits
+  const [exAssign, setExAssign] = useState<(number | null)[]>([]);
+  const [exActive, setExActive] = useState(0);
+
   // Show me: counting
   const [countD, setCountD] = useState(1);
   const [countN, setCountN] = useState(100);
@@ -115,10 +152,18 @@ export function DigitsTool() {
   const [built, setBuilt] = useState<number[]>([]);
   const [trySticks, setTrySticks] = useState<number[] | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
+  const [entry, setEntry] = useState<(number | null)[]>([]);
+  const [active, setActive] = useState(0);
   const question = useMemo(() => makeDigitsQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+  const tryEntry = entry.length ? entry : blankEntry(question);
 
-  const showMs = area === "match" ? 2600 * puzzle.moves : 7000;
-  const tryMs = (q: DigitsQuestion) => (q.type === "match" ? 2600 * q.moves : 6000);
+  // Show me and explore: a question of a later topic.
+  const moreQ = useMemo(() => (isMoreType(area) ? moreOf(area, exLevel, exSeed) : null), [area, exLevel, exSeed]);
+  const exVals = moreQ?.type === "crypt" ? (exAssign.length === moreQ.letters.length ? exAssign : moreQ.letters.map(() => null)) : [];
+
+  const msFor = (a: Area, level = exLevel, sd = exSeed) => (isMoreType(a) ? stepsMs(moreOf(a, level, sd)) : a === "match" ? 2600 * (level === 3 ? 2 : 1) : 7000);
+  const showMs = msFor(area);
+  const tryMs = (q: DigitsQuestion) => (q.type === "match" ? 2600 * q.moves : isMore(q) ? stepsMs(q) : 6000);
 
   // Shareable links: #try=match&level=2&seed=7(&a=…), #show=count-3-235(-1) or #show=match-1-13,
   // #explore=cards-3071 or #explore=match-1-13, #f=0.5, #classroom
@@ -147,6 +192,8 @@ export function DigitsTool() {
             if (ix.every((i) => i >= 0)) setBuilt(ix);
           }
           if (kind === "match") setTrySticks(a.split(".").map(Number));
+          if (kind === "letters" && a.length === blankEntry(q).length) setEntry(a.split("").map(Number));
+          if (kind === "ops" && /^[1-4]+$/.test(a) && a.length === blankEntry(q).length) setEntry(a.split("").map((d) => Number(d) - 1));
           setChecked(a);
           setF(1);
         } else setF(0);
@@ -158,8 +205,8 @@ export function DigitsTool() {
           if (nums[0] >= 0 && nums[0] <= 9) setCountD(nums[0]);
           if (nums[1] >= 1 && nums[1] <= 1000) setCountN(nums[1]);
           if (nums[2] >= 0 && nums[2] <= 10) setBlock(nums[2]);
-        } else if (kind === "match") {
-          setArea("match");
+        } else if (kind === "match" || (isMoreType(kind) && (show || kind === "crypt"))) {
+          setArea(kind as Area);
           if (lvl(nums[0])) setExLevel(nums[0]);
           if (Number.isInteger(nums[1]) && nums[1] >= 0) setExSeed(nums[1]);
         } else if (kind === "cards" && /^\d{2,5}$/.test(rest[0] ?? "")) {
@@ -181,7 +228,7 @@ export function DigitsTool() {
     setF(m === "try" ? 0 : 1);
     setLifted(null);
     if (m === "show" && area === "cards") setArea("count");
-    if (m === "explore" && area === "count") setArea("cards");
+    if (m === "explore" && !EXPLORE_AREAS.some(([a]) => a === area)) setArea("cards");
   };
 
   const freshQuestion = (type = tryType, level = tryLevel) => {
@@ -193,6 +240,8 @@ export function DigitsTool() {
     setLifted(null);
     setStickMsg(null);
     setChecked(null);
+    setEntry([]);
+    setActive(0);
     setRun(null);
     setF(0);
   };
@@ -201,6 +250,8 @@ export function DigitsTool() {
     setExLevel(level);
     setExSeed(newSeed());
     setExSticks(null);
+    setExAssign([]);
+    setExActive(0);
     setLifted(null);
     setStickMsg(null);
     setRun(null);
@@ -274,7 +325,14 @@ export function DigitsTool() {
           </text>
         </Board>
       );
-    else if (area === "count") {
+    else if (moreQ) {
+      board =
+        mode === "explore" && moreQ.type === "crypt" ? (
+          <CryptBoard q={moreQ} vals={exVals} check caption={exVals.every((v) => v !== null) ? "زیر هر ستون: ✓ درست، ✗ نادرست" : "به هر حرف یک رقم بده"} />
+        ) : (
+          <MoreBoard q={moreQ} step={stepOf(f, moreSteps(moreQ).length)} />
+        );
+    } else if (area === "count") {
       const phase = Math.min(3, Math.floor(f * 4));
       board = <CountBoard digit={countD} n={countN} block={block} phase={phase} />;
     } else {
@@ -303,10 +361,22 @@ export function DigitsTool() {
         </Board>
       );
     }
-  } else board = <TryBoard q={question} built={built} sticks={trySticks ?? (question.type === "match" ? question.start : [])} checked={checked} f={f} lifted={lifted} onBuilt={setBuilt} onTapStick={tapStick} onTapSpot={(s) => question.type === "match" && tapSpot(s, question.start, trySticks ?? question.start, setTrySticks, question.moves)} />;
+  } else if (isMore(question))
+    board = (
+      <MoreBoard
+        q={question}
+        step={checked !== null ? stepOf(f, moreSteps(question).length) : 0}
+        entry={tryEntry}
+        active={checked === null ? active : null}
+        onSlot={checked === null && question.type === "signs" ? setActive : undefined}
+      />
+    );
+  else board = <TryBoard q={question} built={built} sticks={trySticks ?? (question.type === "match" ? question.start : [])} checked={checked} f={f} lifted={lifted} onBuilt={setBuilt} onTapStick={tapStick} onTapSpot={(s) => question.type === "match" && tapSpot(s, question.start, trySticks ?? question.start, setTrySticks, question.moves)} />;
 
   const inTry = mode === "try";
-  const animated = (inTry && checked !== null && (question.type === "match" || question.type === "count")) || mode === "show";
+  const animated = (inTry && checked !== null && (question.type === "match" || question.type === "count" || isMore(question))) || mode === "show";
+  const stepQ = inTry ? (isMore(question) ? question : null) : moreQ;
+  const stepCount = stepQ ? moreSteps(stepQ).length : 0;
   const counts = placeCounts(countD, countN);
   const countPhase = Math.min(3, Math.floor(f * 4));
 
@@ -328,7 +398,7 @@ export function DigitsTool() {
             aria-selected={mode === "show"}
             onClick={() => {
               switchMode("show");
-              animate(area === "match" ? 2600 * puzzle.moves : 7000);
+              animate(msFor(area === "cards" ? "count" : area));
             }}
           >
             نشانم بده
@@ -356,7 +426,7 @@ export function DigitsTool() {
             <button className={styles.playSmall} onClick={() => play(inTry ? tryMs(question) : showMs)} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{(inTry ? question.type === "count" : area === "count") ? `شمارش: ${COUNT_PHASES[countPhase] || "آماده"}` : "جابه‌جایی چوب"}</span>
+            <span>{stepQ ? `گام ${fa(stepOf(f, stepCount))} از ${fa(stepCount)}` : (inTry ? question.type === "count" : area === "count") ? `شمارش: ${COUNT_PHASES[countPhase] || "آماده"}` : "جابه‌جایی چوب"}</span>
             <input
               type="range"
               min={0}
@@ -379,18 +449,8 @@ export function DigitsTool() {
 
       <aside className={styles.side}>
         {mode !== "try" && (
-          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش">
-            {(
-              (mode === "explore"
-                ? [
-                    ["cards", "کارت رقم"],
-                    ["match", "چوب‌کبریت"],
-                  ]
-                : [
-                    ["count", "شمارش رقم"],
-                    ["match", "چوب‌کبریت"],
-                  ]) as [Area, string][]
-            ).map(([a, label]) => (
+          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش" style={{ flexWrap: "wrap" }}>
+            {(mode === "explore" ? EXPLORE_AREAS : SHOW_AREAS).map(([a, label]) => (
               <button
                 key={a}
                 role="radio"
@@ -398,7 +458,7 @@ export function DigitsTool() {
                 onClick={() => {
                   setArea(a);
                   setLifted(null);
-                  if (mode === "show") animate(a === "match" ? 2600 * puzzle.moves : 7000);
+                  if (mode === "show") animate(msFor(a));
                   else {
                     setRun(null);
                     setF(1);
@@ -409,6 +469,31 @@ export function DigitsTool() {
               </button>
             ))}
           </div>
+        )}
+
+        {mode === "explore" && area === "crypt" && moreQ?.type === "crypt" && (
+          <CryptExplore q={moreQ} vals={exVals} active={exActive} onActive={setExActive} onVals={setExAssign} level={exLevel} onLevel={(l) => freshPuzzle(l)} onNew={() => freshPuzzle()} />
+        )}
+
+        {mode === "show" && moreQ && (
+          <>
+            <h2>{SHOW_AREAS.find(([a]) => a === area)?.[1]}</h2>
+            <p className={styles.note}>{SHOW_INTRO[moreQ.type]}</p>
+            <MoreKnobs
+              level={exLevel}
+              onLevel={(l) => {
+                freshPuzzle(l);
+                animate(msFor(area, l));
+              }}
+              onNew={() => {
+                const sd = newSeed();
+                freshPuzzle();
+                setExSeed(sd);
+                animate(msFor(area, exLevel, sd));
+              }}
+            />
+            <StepList steps={moreSteps(moreQ)} shown={stepOf(f, moreSteps(moreQ).length)} />
+          </>
         )}
 
         {mode === "explore" && area === "cards" && (
@@ -566,6 +651,10 @@ export function DigitsTool() {
             level={tryLevel}
             built={built.map((i) => ("cards" in question ? question.cards[i] : "")).join("")}
             sticks={trySticks ?? (question.type === "match" ? question.start : [])}
+            entry={tryEntry}
+            onEntry={setEntry}
+            active={active}
+            onActive={setActive}
             onClear={() => {
               setBuilt([]);
               setTrySticks(null);
@@ -576,7 +665,7 @@ export function DigitsTool() {
             onCheck={(v) => {
               setChecked(v);
               setLifted(null);
-              if (question.type === "match" || question.type === "count") animate(tryMs(question));
+              if (question.type === "match" || question.type === "count" || isMore(question)) animate(tryMs(question));
               else setF(1);
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
@@ -587,6 +676,67 @@ export function DigitsTool() {
         {mode === "try" && stickMsg && <p className={`${styles.status} ${styles.warn}`}>{stickMsg}</p>}
       </aside>
     </main>
+  );
+}
+
+function MoreKnobs({ level, onLevel, onNew }: { level: Level; onLevel: (l: Level) => void; onNew: () => void }) {
+  return (
+    <>
+      <div className={styles.chipsRow} role="radiogroup" aria-label="سطح">
+        {([1, 2, 3] as Level[]).map((l) => (
+          <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
+            سطح {fa(l)}
+          </button>
+        ))}
+      </div>
+      <button className={styles.clear} style={{ marginTop: 6 }} onClick={onNew}>
+        نمونه تازه
+      </button>
+    </>
+  );
+}
+
+interface CryptExploreProps {
+  q: CryptQuestion;
+  vals: (number | null)[];
+  active: number;
+  onActive: (i: number) => void;
+  onVals: (v: (number | null)[]) => void;
+  level: Level;
+  onLevel: (l: Level) => void;
+  onNew: () => void;
+}
+
+/** Explore a cryptarithm: give each letter a digit and watch each column. */
+function CryptExplore(p: CryptExploreProps) {
+  const c = cryptCheckFa(p.q, p.vals);
+  const used = p.vals.filter((v) => v !== null);
+  const repeated = new Set(used).size < used.length;
+  const lead = !!c && [p.q.top, p.q.bottom, p.q.sum].some((r) => r.length > 1 && c.digit(r[0]) === 0);
+  const solved = !!c && c.holds && !repeated && !lead;
+  return (
+    <>
+      <h2>به هر حرف یک رقم بده</h2>
+      <p className={styles.note}>{CRYPT_RULE} حاصل با رقم‌های تو کنار جمع نوشته می‌شود و زیر هر ستون ✓ یا ✗ می‌آید.</p>
+      <LetterPad letters={p.q.letters} value={p.vals} active={p.active} onActive={p.onActive} onChange={p.onVals} />
+      <button className={styles.clear} style={{ marginTop: 6 }} onClick={() => p.onVals(p.q.letters.map(() => null))} disabled={!used.length}>
+        پاک کردن رقم‌ها
+      </button>
+      {repeated && <p className={`${styles.status} ${styles.warn}`}>⚠ دو حرف رقم یکسان گرفته‌اند؛ حرف‌های متفاوت رقم‌های متفاوت دارند.</p>}
+      {lead && <p className={`${styles.status} ${styles.warn}`}>⚠ یک عدد با صفر شروع شده است.</p>}
+      {c && (
+        <p className={`${styles.status} ${solved ? styles.good : styles.info}`}>
+          {solved ? "✓ درست است! " : "✗ هنوز نه. "}
+          <bdi dir="ltr">
+            {fa(c.t)} + {fa(c.b)} = {fa(c.t + c.b)}
+          </bdi>
+          {c.holds ? "" : `، اما حاصل نوشته‌شده ${fa(c.s)} می‌شود${c.firstWrong >= 0 ? ` (اولین ستون نادرست: ${["یکان", "دهگان", "صدگان", "هزارگان"][c.firstWrong]})` : ""}.`}
+        </p>
+      )}
+      <h2 className={styles.progress}>معمای دیگر</h2>
+      <MoreKnobs level={p.level} onLevel={p.onLevel} onNew={p.onNew} />
+      <p className={styles.note}>راه‌حل ستون به ستون را در «نشانم بده» ببین.</p>
+    </>
   );
 }
 

@@ -76,7 +76,7 @@ describe("cubeRange", () => {
 });
 
 describe("makeTowerQuestion", () => {
-  const types: TowerQuestionType[] = ["count", "top", "front", "side", "build", "complete", "paint"];
+  const types: TowerQuestionType[] = ["count", "top", "front", "side", "build", "complete", "paint", "solid"];
 
   it("is deterministic for a seed", () => {
     for (const t of types) expect(makeTowerQuestion(t, 2, 99)).toEqual(makeTowerQuestion(t, 2, 99));

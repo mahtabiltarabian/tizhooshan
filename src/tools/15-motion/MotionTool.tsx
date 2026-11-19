@@ -33,9 +33,12 @@ import styles from "@/toolkit/ToolLayout.module.css";
 import { MOTION_GUIDE } from "./guide";
 import { MOTION_TYPE_LABEL, MotionTryPanel, turnFa } from "./MotionTryPanel";
 import { CompassG, GraphG, GridG, linkEffect, linkWord, MachineG, MiniCompass, numFa, partialPath, ROT_ICON, ROT_WORD, TrackG, WHEEL_NAMES, type TrackMover } from "./Pictures";
+import { countsAfter, questionSpacing, spacingEvents, SpacingG, THING_WORD, type SpacingScene } from "./Spacing";
 
 type Mode = "explore" | "show" | "try";
-type Area = "gears" | "belts" | "track" | "walk";
+type Area = "gears" | "belts" | "track" | "walk" | "spacing";
+/** Spacing in explore: trees in an open row, posts round a closed loop, or cuts in a log. */
+type SpShape = "row" | "loop" | "cut";
 type TrackMode = "one" | "meet" | "chase";
 /** Walker commands in explore: one step forward, turn right, turn left, turn around. */
 type WalkCmd = "F" | "R" | "L" | "U";
@@ -46,7 +49,19 @@ const AREAS: [Area, string][] = [
   ["belts", "تسمه"],
   ["track", "مسیر"],
   ["walk", "جهت‌یابی"],
+  ["spacing", "فاصله‌ها"],
 ];
+/** Steps along the explore path: places 0 … 12 in a row and on a log (the log's ends are 0 and 12), 12 places round the loop. */
+const SP_STEPS = 12;
+const SP_SHAPES: [SpShape, string][] = [
+  ["row", "ردیف باز"],
+  ["loop", "دور بسته"],
+  ["cut", "بریدن چوب"],
+];
+const spPlaces = (sh: SpShape) => (sh === "loop" ? SP_STEPS : SP_STEPS + 1);
+/** Every k-th place marked (on a log, only the places inside it). */
+const everyK = (sh: SpShape, k: number) => Array.from({ length: SP_STEPS + 1 }, (_, i) => i % k === 0 && i < spPlaces(sh) && (sh !== "cut" || (i > 0 && i < SP_STEPS)));
+const spScene = (sh: SpShape, marks: boolean[]): SpacingScene => ({ shape: sh === "cut" ? "log" : sh, kind: sh === "row" ? "tree" : sh === "loop" ? "post" : "cut", gaps: SP_STEPS, marks });
 const WALK_COLS = 8;
 const WALK_ROWS = 6;
 const WALK_START: Pt = { x: 3, y: 2 };
@@ -215,6 +230,10 @@ export function MotionTool() {
   // Explore: walking
   const [startFacing, setStartFacing] = useState<Compass>(0);
   const [cmds, setCmds] = useState<WalkCmd[]>(["F", "F", "R", "F", "U", "L", "F"]);
+  // Explore: spacing (metres per step, places marked)
+  const [spShape, setSpShape] = useState<SpShape>("row");
+  const [spStep, setSpStep] = useState(2);
+  const [spMarks, setSpMarks] = useState<boolean[]>(() => everyK("row", 3));
 
   // Try it
   const [tryType, setTryType] = useState<MotionQuestionType>("gearDir");
@@ -229,18 +248,21 @@ export function MotionTool() {
   const showTurns = wholeTurns(machine);
   const scene = useMemo(() => exploreScene(trackMode, length, vA, vB, gap), [trackMode, length, vA, vB, gap]);
   const states = useMemo(() => walkStates(WALK_START, startFacing, cmds), [startFacing, cmds]);
+  const spSc = useMemo(() => spScene(spShape, spMarks), [spShape, spMarks]);
+  const spEvents = useMemo(() => spacingEvents(spSc), [spSc]);
 
-  const showMs = (a: Area) => (a === "gears" || a === "belts" ? 4000 * showTurns : a === "track" ? 7000 : Math.max(1500, 900 * cmds.length));
+  const showMs = (a: Area) => (a === "gears" || a === "belts" ? 4000 * showTurns : a === "track" ? 7000 : a === "spacing" ? Math.max(1500, 800 * spEvents.length) : Math.max(1500, 900 * cmds.length));
   const tryMs = (q: MotionQuestion) => {
     if (q.type === "gearTurns") return Math.min(9000, 1600 * q.turns);
     if (q.type === "gearDir") return 4000;
     if (q.type === "orient") return 1100 * q.turns.length;
     if (q.type === "grid") return q.variant === "routes" ? 900 * (q.cols + q.rows) : 2500 + 250 * walkGrid(q.start, q.facing, q.cmds).path.length;
+    if (q.type === "spacing") return Math.min(14000, Math.max(2500, 450 * spacingEvents(questionSpacing(q, true).scene).length));
     return 6000;
   };
 
   // Shareable links: #try=gearDir&level=2&seed=7(&a=1), #show=gears-24.12.18, #show=belts-30.20-x,
-  // #show=track-meet-300-60-40-0, #show=walk-0-FFRFUL, #area=belts (explore), #f=0.5, #classroom
+  // #show=track-meet-300-60-40-0, #show=walk-0-FFRFUL, #show=spacing-row-2-1001001001001, #area=belts (explore), #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -286,6 +308,15 @@ export function MotionTool() {
           if (fc >= 0 && fc < 4) setStartFacing(fc as Compass);
           setCmds(((rest[1] ?? "").match(/[FRLU]/g) ?? []).slice(0, 20) as WalkCmd[]);
           setArea("walk");
+        } else if (kind === "spacing") {
+          const sh = SP_SHAPES.some(([k]) => k === rest[0]) ? (rest[0] as SpShape) : "row";
+          setSpShape(sh);
+          const st = Number(rest[1]);
+          if (Number.isInteger(st) && st >= 1 && st <= 10) setSpStep(st);
+          const bits = rest[2] ?? "";
+          if (/^[01]+$/.test(bits)) setSpMarks(Array.from({ length: SP_STEPS + 1 }, (_, i) => bits[i] === "1" && i < spPlaces(sh) && (sh !== "cut" || (i > 0 && i < SP_STEPS))));
+          else setSpMarks(everyK(sh, 3));
+          setArea("spacing");
         }
         setMode("show");
         play.set(1);
@@ -344,6 +375,11 @@ export function MotionTool() {
       setVB(b);
       setLength(m === "meet" ? (a + b) * (2 + randInt(rng, 4)) : 60 * (3 + randInt(rng, 6)));
       setGap(m === "chase" ? (a - b) * (1 + randInt(rng, 3)) : 60);
+    } else if (area === "spacing") {
+      const sh = pick(rng, ["row", "loop", "cut"] as const);
+      setSpShape(sh);
+      setSpStep(1 + randInt(rng, 5));
+      setSpMarks(everyK(sh, pick(rng, [1, 2, 3, 4, 6])));
     } else {
       const list: WalkCmd[] = [];
       for (let i = 0; i < 6; i++) list.push(i % 2 ? pick(rng, ["R", "L", "R", "L", "U"] as WalkCmd[]) : "F");
@@ -429,6 +465,30 @@ export function MotionTool() {
         </Board>
       );
       controls = slider(`زمان: ${numFa(t)} ساعت`, mode === "show" ? showMs("track") : 6000);
+    } else if (area === "spacing") {
+      const k = mode === "show" ? Math.round(f * spEvents.length) : spEvents.length;
+      const c = countsAfter(spEvents, k);
+      board = (
+        <Board view={VIEW} imageName="spacing" label={spShape === "cut" ? "چوب و برش‌ها؛ روی چوب بزن تا برش بزنی یا برداری" : "مسیر و درخت‌ها؛ روی هر جا بزن تا بگذاری یا برداری"}>
+          <SpacingG
+            scene={spSc}
+            reveal={mode === "show" ? f : 1}
+            counters
+            ghosts={mode === "explore"}
+            onPlace={mode === "explore" ? (i) => setSpMarks(spMarks.map((v, j) => (j === i ? !v : v))) : undefined}
+            gapText={(e) => `${fa((e.to - e.from) * spStep)} م`}
+            total={spShape === "loop" ? `دور کامل: ${fa(SP_STEPS * spStep)} متر` : `${spShape === "cut" ? "طول چوب" : "طول راه"}: ${fa(SP_STEPS * spStep)} متر · هر خانه ${fa(spStep)} متر`}
+          />
+        </Board>
+      );
+      controls =
+        mode === "show" ? (
+          slider(spShape === "cut" ? `برش: ${fa(c.things)} · تکه: ${fa(c.gaps)}` : `${THING_WORD[spSc.kind]}: ${fa(c.things)} · فاصله: ${fa(c.gaps)}`, showMs("spacing"))
+        ) : (
+          <p className={styles.stepText} style={{ margin: 0 }}>
+            {spShape === "cut" ? "روی چوب بزن تا برش بزنی؛ دوباره بزن تا برداری." : `روی راه بزن تا ${THING_WORD[spSc.kind]} بگذاری؛ دوباره بزن تا برداری.`}
+          </p>
+        );
     } else {
       const w = walkerAt(states, mode === "show" ? f : 1);
       // The path walked so far: every place reached, then the walker.
@@ -533,6 +593,30 @@ export function MotionTool() {
         </Board>
       );
       if (done) controls = slider(`چرخش ${fa(step)} از ${fa(n)}`, tryMs(q));
+    } else if (q.type === "spacing") {
+      const pic = questionSpacing(q, done);
+      board = (
+        <Board view={VIEW} imageName="spacing" label="شکل مسئله فاصله‌ها">
+          <SpacingG
+            scene={pic.scene}
+            reveal={done ? f : 1}
+            counters={done}
+            gapText={pic.gapText}
+            total={pic.total}
+            sideA={pic.sideA}
+            sideB={pic.sideB}
+            crossed={pic.crossed}
+            floorNotes={pic.floorNotes}
+            thingsOnly={pic.thingsOnly}
+          />
+          {pic.note && (
+            <text x={8} y={0.55} fontSize={0.34} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170" direction="rtl">
+              {done ? "" : pic.note}
+            </text>
+          )}
+        </Board>
+      );
+      if (done) controls = slider("یکی‌یکی بشمار", tryMs(q));
     } else {
       if (q.variant === "routes") {
         const cell = Math.min(12 / q.cols, 6.6 / q.rows, 1.9);
@@ -806,6 +890,101 @@ export function MotionTool() {
           </>
         )}
 
+        {mode === "explore" && area === "spacing" && (
+          <>
+            <h2 className={styles.progress}>{spShape === "cut" ? "چوب را ببر" : spShape === "loop" ? "دور استخر تیرک بزن" : "درخت بکار"}</h2>
+            <div className={styles.choiceGrid} role="radiogroup" aria-label="نوع مسیر">
+              {SP_SHAPES.map(([k, label]) => (
+                <button
+                  key={k}
+                  role="radio"
+                  aria-checked={spShape === k}
+                  onClick={() => {
+                    setSpShape(k);
+                    setSpMarks(everyK(k, 3));
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Stepper label={`هر خانه ${fa(spStep)} متر`} onLess={() => setSpStep(spStep - 1)} onMore={() => setSpStep(spStep + 1)} lessOff={spStep <= 1} moreOff={spStep >= 10} />
+            <p style={{ margin: "10px 0 4px" }}>{spShape === "cut" ? "جای برش‌ها (متر از سر چوب):" : `جای ${THING_WORD[spSc.kind]}‌ها (متر از ${spShape === "loop" ? "تیرک بالایی، در جهت عقربه‌های ساعت" : "سر راه"}):`}</p>
+            <div className={styles.choiceGrid} style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
+              {spMarks.map((v, i) =>
+                i >= spPlaces(spShape) || (spShape === "cut" && (i === 0 || i === SP_STEPS)) ? null : (
+                  <button key={i} aria-pressed={v} aria-label={`${fa(i * spStep)} متر`} onClick={() => setSpMarks(spMarks.map((x, j) => (j === i ? !x : x)))} style={{ minHeight: 40 }}>
+                    {v ? "✓ " : ""}
+                    {fa(i * spStep)}
+                  </button>
+                ),
+              )}
+            </div>
+            <div className={styles.row} style={{ marginTop: 8, flexWrap: "wrap" }}>
+              {[1, 2, 3, 4].map((k) => (
+                <button key={k} className={styles.clear} style={{ flex: "1 1 30%" }} onClick={() => setSpMarks(everyK(spShape, k))}>
+                  {k === 1 ? "همه خانه‌ها" : `هر ${fa(k)} خانه`}
+                </button>
+              ))}
+              <button className={styles.clear} style={{ flex: "1 1 30%" }} onClick={() => setSpMarks(spMarks.map(() => false))}>
+                پاک کن
+              </button>
+            </div>
+            <p className={styles.status + " " + styles.info}>{spacingFacts(spShape, spMarks, spStep)}</p>
+            <ExploreFooter onNew={randomExample} onShow={() => startShow("spacing")} showLabel="نشانم بده: یکی‌یکی بشمار" />
+          </>
+        )}
+
+        {mode === "show" && area === "spacing" && (
+          <>
+            <h2>{spShape === "cut" ? "برش‌ها و تکه‌ها" : `${THING_WORD[spSc.kind]}‌ها و فاصله‌ها`}</h2>
+            <div className={styles.choiceGrid} role="radiogroup" aria-label="نوع مسیر">
+              {SP_SHAPES.map(([k, label]) => (
+                <button
+                  key={k}
+                  role="radio"
+                  aria-checked={spShape === k}
+                  onClick={() => {
+                    setSpShape(k);
+                    setSpMarks(everyK(k, 2));
+                    play.animate(0, 1, Math.max(1500, 800 * spacingEvents(spScene(k, everyK(k, 2))).length));
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className={styles.note}>
+              {spShape === "row"
+                ? "یک درخت، یک فاصله، یک درخت، … ردیف با درخت تمام می‌شود؛ پس درخت‌ها یکی بیشتر از فاصله‌ها هستند."
+                : spShape === "loop"
+                  ? "یک تیرک، یک فاصله، … آخرین فاصله دوباره به تیرک اول می‌رسد؛ پس در دور بسته تیرک‌ها و فاصله‌ها برابرند."
+                  : "هر برش یک تکه اضافه می‌کند. تکه آخر برش نمی‌خواهد؛ پس برش‌ها یکی کمتر از تکه‌ها هستند."}
+            </p>
+            {(() => {
+              const c = countsAfter(spEvents, Math.round(f * spEvents.length));
+              return (
+                <table className={styles.countTable}>
+                  <thead>
+                    <tr>
+                      <th>{spShape === "cut" ? "برش" : THING_WORD[spSc.kind]}</th>
+                      <th>{spShape === "cut" ? "تکه" : "فاصله"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{fa(c.things)}</td>
+                      <td>{fa(c.gaps)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
+            <p className={styles.status + " " + styles.info}>{spacingFacts(spShape, spMarks, spStep)}</p>
+            <p className={styles.note}>جای {spShape === "cut" ? "برش‌ها" : "درخت‌ها و تیرک‌ها"} را در «کشف» عوض کن.</p>
+          </>
+        )}
+
         {mode === "show" && (area === "gears" || area === "belts") && (
           <>
             <h2>جهت و تعداد دور</h2>
@@ -899,6 +1078,27 @@ export function MotionTool() {
       </aside>
     </main>
   );
+}
+
+/** What the pupil has built, in one sentence. */
+function spacingFacts(sh: SpShape, marks: boolean[], step: number) {
+  const at = marks.flatMap((m, i) => (m ? [i] : []));
+  if (sh === "cut") {
+    if (!at.length) return `هنوز برشی نزده‌ای: یک تکه چوب ${fa(SP_STEPS * step)} متری.`;
+    const cuts = [0, ...at, SP_STEPS];
+    const even = cuts.slice(1).every((v, i) => v - cuts[i] === cuts[1] - cuts[0]);
+    return `${fa(at.length)} برش، ${fa(at.length + 1)} تکه: تکه‌ها یکی بیشتر از برش‌ها هستند.${even ? ` هر تکه ${fa(cuts[1] * step)} متر.` : ""}`;
+  }
+  if (!at.length) return "هنوز چیزی نگذاشته‌ای.";
+  const gaps = at.slice(1).map((v, i) => v - at[i]);
+  if (sh === "loop") {
+    const all = [...gaps, at[0] + SP_STEPS - at[at.length - 1]];
+    const even = all.every((g) => g === all[0]);
+    return `${fa(at.length)} تیرک و ${fa(at.length)} فاصله: دور بسته است و آخرین فاصله به تیرک اول برمی‌گردد.${even ? ` هر فاصله ${fa(all[0] * step)} متر؛ ${fa(at.length)} × ${fa(all[0] * step)} = ${fa(SP_STEPS * step)} متر، یعنی کل دور.` : " فاصله‌ها برابر نیستند."}`;
+  }
+  const even = gaps.every((g) => g === gaps[0]);
+  const span = (at[at.length - 1] - at[0]) * step;
+  return `${fa(at.length)} درخت و ${fa(gaps.length)} فاصله: در ردیف باز فاصله‌ها یکی کمتر از درخت‌ها هستند. از اولی تا آخری ${fa(span)} متر${even && gaps.length ? ` = ${fa(gaps.length)} × ${fa(gaps[0] * step)}` : ""}.${!even ? " فاصله‌ها برابر نیستند." : ""}`;
 }
 
 /** The walker in the middle of the big compass. */

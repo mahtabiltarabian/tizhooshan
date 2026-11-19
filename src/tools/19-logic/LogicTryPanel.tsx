@@ -29,11 +29,13 @@ import {
 } from "@/generators/logic";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
+import { CountAnswer, countFeedback, countHow, countPrompt, type CountEntry } from "./VennCount";
 
 export const LOGIC_TYPE_LABEL: Record<LogicType, string> = {
   grid: "جدول منطقی",
   liars: "راستگو و دروغگو",
   venn: "همه و بعضی",
+  vennNum: "ون با عدد",
 };
 
 /** Keeps a formula left to right inside a Persian sentence, on one line (no-break spaces). */
@@ -246,6 +248,8 @@ export function logicPrompt(q: LogicQuestion, paper = false): string {
       const silent = q.says.map((s, p) => (s ? null : q.people[p])).filter(Boolean);
       return `${LIARS_RULE}${silent.length ? ` ${silent.join("، ")} چیزی نگفته.` : ""} چه کسی راستگو و چه کسی دروغگو است؟`;
     }
+    case "vennNum":
+      return countPrompt(q);
     case "venn":
       return `در سرزمین خیال: ${q.premises.map((s) => `«${stmtText(vennNames(q), s)}»`).join("، ")}. هر گروه دست‌کم یک عضو دارد. کدام نتیجه حتماً درست است؟`;
   }
@@ -260,6 +264,8 @@ export function logicAnswerFa(q: LogicQuestion): string {
       return liarsAnswerFa(q);
     case "venn":
       return `گزینه ${fa(q.answer + 1)}: «${optionText(q, q.answer)}»`;
+    case "vennNum":
+      return fa(q.answer);
   }
 }
 
@@ -277,6 +283,8 @@ export function logicHow(q: LogicQuestion): string {
       if (q.middle) return `قدم اول: «${stmtText(names, q.middle)}»؛ قدم دوم با «${stmtText(names, chainOf(q)[2])}».`;
       return q.options[q.answer] === null ? "از جمله‌ها چیزی درباره دو گروه کناری حتماً درنمی‌آید." : TAG_WHY.right;
     }
+    case "vennNum":
+      return countHow(q);
   }
 }
 
@@ -344,6 +352,8 @@ export interface TryEntry {
   checked: boolean;
   /** Venn: the child's own hatching, per picture. */
   user: number[];
+  /** Venn with numbers: the typed answer and the child's numbers on the diagram. */
+  count: CountEntry | null;
 }
 
 interface Props {
@@ -355,6 +365,8 @@ interface Props {
   entry: TryEntry;
   onLiar: (p: number, liar: boolean) => void;
   onPick: (i: number) => void;
+  /** Venn with numbers: the pad changed (answerChanged: the answer itself, not a note on the diagram). */
+  onCount: (e: CountEntry, answerChanged: boolean) => void;
   onCheck: () => void;
   onClear: () => void;
   onType: (t: LogicType) => void;
@@ -376,9 +388,13 @@ export function LogicTryPanel(p: Props) {
         ? entry.liar.every((l) => l !== null)
           ? liarsFeedback(q, entry.liar as boolean[])
           : null
-        : entry.pick !== null
-          ? vennFeedback(q, entry.pick)
-          : null;
+        : q.type === "vennNum"
+          ? entry.count && entry.count.value !== ""
+            ? countFeedback(q, Number(entry.count.value))
+            : null
+          : entry.pick !== null
+            ? vennFeedback(q, entry.pick)
+            : null;
   const right = fb?.tone === "good";
   const ticks = entry.marks.filter((m) => m === 1).length;
   const done = kind === "choice" ? entry.pick !== null && entry.checked : right;
@@ -463,10 +479,12 @@ export function LogicTryPanel(p: Props) {
         </ul>
       )}
 
+      {q.type === "vennNum" && entry.count && <CountAnswer q={q} entry={entry.count} right={right} onChange={p.onCount} />}
+
       {!done && (
         <button
           className={styles.secondary}
-          disabled={kind === "grid" ? ticks === 0 : kind === "people" ? entry.liar.some((l) => l === null) : entry.pick === null}
+          disabled={kind === "grid" ? ticks === 0 : kind === "people" ? entry.liar.some((l) => l === null) : kind === "number" ? !entry.count?.value : entry.pick === null}
           onClick={p.onCheck}
         >
           بررسی

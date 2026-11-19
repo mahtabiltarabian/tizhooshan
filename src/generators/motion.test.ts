@@ -22,7 +22,7 @@ import {
   type Pt,
 } from "./motion";
 
-const TYPES: MotionQuestionType[] = ["gearDir", "gearTurns", "trip", "chase", "orient", "grid"];
+const TYPES: MotionQuestionType[] = ["gearDir", "gearTurns", "trip", "chase", "orient", "grid", "spacing"];
 const LEVELS: Level[] = [1, 2, 3];
 const gears = (...teeth: number[]): Machine => ({ wheels: teeth.map((size) => ({ kind: "gear", size })), links: teeth.slice(1).map(() => "mesh") });
 
@@ -115,6 +115,42 @@ describe("motion, facing and grid arithmetic", () => {
   });
 });
 
+/**
+ * Plants every thing of a spacing question one by one (metre marks along the
+ * path) and counts; independent of the formulas the generator uses.
+ */
+function plant(q: Extract<MotionQuestion, { type: "spacing" }>) {
+  const marks = (from: number, to: number, step: number) => {
+    const out: number[] = [];
+    for (let x = from; x <= to; x += step) out.push(x);
+    return out;
+  };
+  switch (q.variant) {
+    case "row":
+      return marks(0, q.length, q.gap).length;
+    case "ends":
+      return marks(q.gap, q.length - q.gap, q.gap).length;
+    case "sides":
+      return 2 * marks(0, q.length, q.gap).length;
+    case "loop":
+      // Round the loop the last mark would land on the first again.
+      return marks(0, q.length, q.gap).filter((x) => x < q.length).length;
+    case "rect": {
+      // Walk round the field and collect the corner points hit, without repeats.
+      const pts = new Set<string>();
+      const [w, h] = [q.length, q.width];
+      for (let x = 0; x <= w; x += q.gap) pts.add(`${x},0`).add(`${x},${h}`);
+      for (let y = 0; y <= h; y += q.gap) pts.add(`0,${y}`).add(`${w},${y}`);
+      return pts.size;
+    }
+    case "cut":
+      // Cuts at every piece length inside the log.
+      return marks(q.gap, q.length - q.gap, q.gap).length;
+    case "floors":
+      return q.width - 1;
+  }
+}
+
 /** A cheap check for the big sweep: `expect` is too slow for millions of calls. */
 function ok(cond: boolean, what: string) {
   if (!cond) throw new Error(what);
@@ -177,6 +213,42 @@ function check(q: MotionQuestion) {
       else ok(q.turns.some((t) => t.quarter === 2), "an about-turn");
       if (q.level === 3) ok(q.turns.some((t) => t.quarter === 3), "a three-quarter turn");
       ok(q.turns[q.turns.length - 1].quarter !== 2, "about-turn not last");
+      break;
+    }
+    case "spacing": {
+      ok(whole(q.count, q.gap, q.length, q.width, q.per) && q.gap > 0, "whole numbers");
+      const n = plant(q);
+      switch (q.variant) {
+        case "row":
+          ok(n === q.count, "trees in the row");
+          ok(q.answer === (q.ask === "length" ? q.length : q.ask === "count" ? q.count : q.gap), "row answer");
+          ok(q.level === 1 ? q.ask !== "gap" : q.level === 3 && q.ask === "gap", "reverse row only at level 3");
+          break;
+        case "loop":
+          ok(n === q.count && q.level === 2, "posts round the loop");
+          ok(q.answer === (q.ask === "count" ? q.count : q.length), "loop answer");
+          break;
+        case "rect":
+        case "ends":
+        case "sides":
+          ok(n === q.answer && q.ask === "count" && q.level === 3, "things counted one by one");
+          if (q.variant === "rect") ok(q.length !== q.width && q.length % q.gap === 0 && q.width % q.gap === 0, "a post at each corner");
+          break;
+        case "cut":
+          ok(n === q.count - 1, "cuts inside the log");
+          if (q.ask === "cuts") ok(q.answer === n, "cuts");
+          if (q.ask === "time") ok(q.answer === n * q.per, "time for the cuts");
+          if (q.ask === "pieces") ok(q.per === n && q.answer === q.count, "pieces from cuts");
+          if (q.ask === "length") ok(q.per === n && q.answer === q.length && q.level === 3, "log length from cuts, level 3");
+          else ok(q.level === 2, "cutting at level 2");
+          break;
+        case "floors":
+          ok(q.level === 3 && q.per === q.gap * (q.count - 1) && q.answer === q.gap * n && q.width > q.count, "flights, not floors");
+          break;
+      }
+      // Each slip must be its own answer, so the feedback names it.
+      const vals = slips(q).map(([, v]) => v);
+      ok(vals.every((v) => v !== q.answer), "no slip is the right answer");
       break;
     }
     case "grid": {
@@ -277,6 +349,26 @@ describe("motion questions", () => {
     // Facing west and turning 270° right is facing south; reading it as 90° right gives north.
     const big: MotionQuestion = { type: "orient", level: 3, seed: 0, start: 3, turns: [{ side: "R", quarter: 3 }], answer: 2 };
     expect(motionMistake(big, 0)).toBe("threeQuarter");
+
+    // 10 trees 3 m apart: 9 gaps, 27 m; 10 × 3 = 30 counts the trees as gaps.
+    const row: MotionQuestion = { type: "spacing", level: 1, seed: 0, variant: "row", ask: "length", thing: "tree", count: 10, gap: 3, length: 27, width: 0, per: 0, answer: 27 };
+    expect(motionMistake(row, 30)).toBe("postsAsGaps");
+    // 60 m round a pond, a post every 5 m: 12 posts, not 13.
+    const loop: MotionQuestion = { type: "spacing", level: 2, seed: 0, variant: "loop", ask: "count", thing: "post", count: 12, gap: 5, length: 60, width: 0, per: 0, answer: 12 };
+    expect(motionMistake(loop, 13)).toBe("loopOpen");
+    // A 12 m log in 3 m pieces: 4 pieces, 3 cuts.
+    const cut: MotionQuestion = { type: "spacing", level: 2, seed: 0, variant: "cut", ask: "cuts", thing: "tree", count: 4, gap: 3, length: 12, width: 0, per: 0, answer: 3 };
+    expect(motionMistake(cut, 4)).toBe("cutsAsPieces");
+    // A 40 m road, trees every 10 m on both sides: 5 + 5.
+    const sides: MotionQuestion = { type: "spacing", level: 3, seed: 0, variant: "sides", ask: "count", thing: "tree", count: 10, gap: 10, length: 40, width: 0, per: 0, answer: 10 };
+    expect(motionMistake(sides, 5)).toBe("oneSide");
+    expect(motionMistake(sides, 8)).toBe("postsAsGaps");
+    // A 6 m × 4 m field, a post every 2 m: 10 posts; four sides of 4 and 3 posts each make 14.
+    const rect: MotionQuestion = { type: "spacing", level: 3, seed: 0, variant: "rect", ask: "count", thing: "post", count: 10, gap: 2, length: 6, width: 4, per: 0, answer: 10 };
+    expect(motionMistake(rect, 14)).toBe("cornersTwice");
+    // Floor 1 to 4 in 30 s (3 flights, 10 s each); to floor 7: 60 s, not 30 ÷ 4 × 7.
+    const floors: MotionQuestion = { type: "spacing", level: 3, seed: 0, variant: "floors", ask: "time", thing: "tree", count: 4, gap: 10, length: 0, width: 7, per: 30, answer: 60 };
+    expect(motionMistake(floors, 70)).toBe("floorsAsGaps");
 
     const grid = makeMotionQuestion("grid", 3, 5);
     expect(motionMistake(grid, 2)).toBe("edgesOnly");

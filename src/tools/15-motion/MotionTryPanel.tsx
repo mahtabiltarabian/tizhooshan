@@ -13,11 +13,13 @@ import {
   type Machine,
   type MotionQuestion,
   type MotionQuestionType,
+  type SpacingQuestion,
   type TurnCmd,
 } from "@/generators/motion";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import { POINT_NAMES, ROT_ICON, ROT_WORD, WHEEL_NAMES } from "./Pictures";
+import { THING_WORD } from "./Spacing";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const MOTION_TYPE_LABEL: Record<MotionQuestionType, string> = {
@@ -27,6 +29,7 @@ export const MOTION_TYPE_LABEL: Record<MotionQuestionType, string> = {
   chase: "رسیدن و سبقت",
   orient: "جهت‌یابی",
   grid: "مسیر در شبکه",
+  spacing: "فاصله‌ها",
 };
 
 /** Keeps an equation left to right inside a Persian sentence. */
@@ -108,6 +111,35 @@ export function motionPrompt(q: MotionQuestion, paper = false): string {
       if (q.variant === "walk") return `از «شروع» به ترتیب برو: ${moves}. به کدام نقطه می‌رسی؟`;
       return `در «شروع» رو به ${COMPASS[q.facing]} ایستاده‌ای. به ترتیب: ${moves}. به کدام نقطه می‌رسی؟`;
     }
+    case "spacing":
+      return spacingPrompt(q);
+  }
+}
+
+function spacingPrompt(q: SpacingQuestion): string {
+  const t = THING_WORD[q.thing];
+  const m = (v: number) => `${fa(v)} متر`;
+  switch (q.variant) {
+    case "row":
+      if (q.ask === "length") return `در یک ردیف ${fa(q.count)} ${t} هست و فاصله هر دو ${t} کنار هم ${m(q.gap)} است. از ${t} اول تا ${t} آخر چند متر است؟`;
+      if (q.ask === "count") return `کنار راهی به طول ${m(q.length)}، از سر تا ته راه، هر ${m(q.gap)} یک ${t} می‌گذاریم (یکی درست در اول راه و یکی درست در آخر). چند ${t} لازم است؟`;
+      return `${fa(q.count)} ${t} در یک ردیف با فاصله‌های برابر هست. از ${t} اول تا ${t} آخر ${m(q.length)} است. فاصله هر دو ${t} کنار هم چند متر است؟`;
+    case "loop":
+      if (q.ask === "count") return `دور یک استخر گرد به محیط ${m(q.length)}، هر ${m(q.gap)} یک ${t} می‌زنیم. چند ${t} لازم است؟`;
+      return `دور یک استخر گرد ${fa(q.count)} ${t} هست و فاصله هر دو ${t} کنار هم ${m(q.gap)} است. محیط استخر چند متر است؟`;
+    case "rect":
+      return `دور یک باغچه مستطیل‌شکل به طول ${m(q.length)} و عرض ${m(q.width)} نرده می‌کشیم: هر ${m(q.gap)} یک تیرک، و در هر گوشه هم یک تیرک. چند تیرک لازم است؟`;
+    case "ends":
+      return `روی دیواری به طول ${m(q.length)}، هر ${m(q.gap)} یک ${t} می‌گذاریم، ولی دو سر دیوار ${t} نمی‌گذاریم. چند ${t} لازم است؟`;
+    case "sides":
+      return `دو طرف خیابانی به طول ${m(q.length)}، از سر تا ته خیابان، هر ${m(q.gap)} یک ${t} می‌گذاریم. روی هم چند ${t} لازم است؟`;
+    case "cut":
+      if (q.ask === "cuts") return `چوبی به طول ${m(q.length)} را به تکه‌های ${fa(q.gap)} متری می‌بریم. چند بار باید ببریم؟`;
+      if (q.ask === "time") return `نجار چوبی را به ${fa(q.count)} تکه می‌بُرد. هر برش ${fa(q.per)} دقیقه طول می‌کشد. بریدن چوب روی هم چند دقیقه طول می‌کشد؟`;
+      if (q.ask === "pieces") return `چوب درازی را ${fa(q.per)} بار می‌بریم (هر بار یک برش). چند تکه می‌شود؟`;
+      return `چوبی را ${fa(q.per)} بار بریده‌ایم و همه تکه‌ها ${fa(q.gap)} متری شده‌اند. طول چوب چند متر بوده است؟`;
+    case "floors":
+      return `بالا رفتن از طبقه ${fa(1)} تا طبقه ${fa(q.count)} یک ساختمان ${fa(q.per)} ثانیه طول می‌کشد. با همان سرعت، از طبقه ${fa(1)} تا طبقه ${fa(q.width)} چند ثانیه طول می‌کشد؟`;
   }
 }
 
@@ -183,6 +215,38 @@ export function motionHow(q: MotionQuestion): string {
       });
       return `رو به ${COMPASS[q.facing]}: ${steps.join("، ")}. روی هم ${parts}ِ شروع: نقطه ${POINT_NAMES[q.answer]}.`;
     }
+    case "spacing":
+      return spacingHow(q);
+  }
+}
+
+function spacingHow(q: SpacingQuestion): string {
+  const t = THING_WORD[q.thing];
+  const g = q.length / q.gap;
+  const eq = (s: string) => ltr(s);
+  switch (q.variant) {
+    case "row":
+      if (q.ask === "length") return `${fa(q.count)} ${t} در ردیف باز یعنی ${fa(q.count - 1)} فاصله (فاصله‌ها یکی کمتر از ${t}‌ها): ${eq(`${fa(q.count - 1)} × ${fa(q.gap)} = ${fa(q.answer)}`)} متر.`;
+      if (q.ask === "count") return `${eq(`${fa(q.length)} ÷ ${fa(q.gap)} = ${fa(g)}`)} فاصله؛ در ردیف باز که دو سرش ${t} هست، ${t}‌ها یکی بیشتر از فاصله‌ها هستند: ${eq(`${fa(g)} + ۱ = ${fa(q.answer)}`)}.`;
+      return `${fa(q.count)} ${t} یعنی ${fa(q.count - 1)} فاصله: ${eq(`${fa(q.length)} ÷ ${fa(q.count - 1)} = ${fa(q.answer)}`)} متر.`;
+    case "loop":
+      if (q.ask === "count") return `مسیر بسته است: فاصله آخر به ${t} اول برمی‌گردد، پس ${t}‌ها درست به تعداد فاصله‌ها هستند: ${eq(`${fa(q.length)} ÷ ${fa(q.gap)} = ${fa(q.answer)}`)}.`;
+      return `دور بسته: ${fa(q.count)} ${t} و ${fa(q.count)} فاصله (بین آخری و اولی هم یک فاصله هست): ${eq(`${fa(q.count)} × ${fa(q.gap)} = ${fa(q.answer)}`)} متر.`;
+    case "rect": {
+      const p = 2 * (q.length + q.width);
+      return `محیط باغچه ${eq(`۲ × (${fa(q.length)} + ${fa(q.width)}) = ${fa(p)}`)} متر است. دور بسته است، پس تیرک‌ها به تعداد فاصله‌ها هستند و هر گوشه یک بار شمرده می‌شود: ${eq(`${fa(p)} ÷ ${fa(q.gap)} = ${fa(q.answer)}`)}.`;
+    }
+    case "ends":
+      return `${eq(`${fa(q.length)} ÷ ${fa(q.gap)} = ${fa(g)}`)} فاصله. اگر دو سر هم ${t} داشت، ${fa(g + 1)} ${t} می‌شد؛ دو سر خالی است: ${eq(`${fa(g + 1)} − ۲ = ${fa(q.answer)}`)} (یکی کمتر از فاصله‌ها).`;
+    case "sides":
+      return `یک طرف: ${eq(`${fa(q.length)} ÷ ${fa(q.gap)} = ${fa(g)}`)} فاصله، پس ${fa(g + 1)} ${t}. دو طرف خیابان: ${eq(`۲ × ${fa(g + 1)} = ${fa(q.answer)}`)}.`;
+    case "cut":
+      if (q.ask === "cuts") return `${eq(`${fa(q.length)} ÷ ${fa(q.gap)} = ${fa(q.count)}`)} تکه. برش‌ها یکی کمتر از تکه‌ها هستند (تکه آخر برش نمی‌خواهد): ${eq(`${fa(q.count)} − ۱ = ${fa(q.answer)}`)}.`;
+      if (q.ask === "time") return `${fa(q.count)} تکه یعنی ${fa(q.count - 1)} برش: ${eq(`${fa(q.count - 1)} × ${fa(q.per)} = ${fa(q.answer)}`)} دقیقه.`;
+      if (q.ask === "pieces") return `از اول یک تکه داریم و هر برش یک تکه اضافه می‌کند: ${eq(`${fa(q.per)} + ۱ = ${fa(q.answer)}`)} تکه.`;
+      return `${fa(q.per)} برش یعنی ${fa(q.per + 1)} تکه: ${eq(`${fa(q.per + 1)} × ${fa(q.gap)} = ${fa(q.answer)}`)} متر.`;
+    case "floors":
+      return `از طبقه ۱ تا طبقه ${fa(q.count)}، ${fa(q.count - 1)} راه‌پله است: ${eq(`${fa(q.per)} ÷ ${fa(q.count - 1)} = ${fa(q.gap)}`)} ثانیه برای هر راه‌پله. تا طبقه ${fa(q.width)}، ${fa(q.width - 1)} راه‌پله: ${eq(`${fa(q.width - 1)} × ${fa(q.gap)} = ${fa(q.answer)}`)} ثانیه.`;
   }
 }
 
@@ -206,6 +270,13 @@ export function unitOf(q: MotionQuestion) {
   if (q.type === "trip") return q.ask === "time" ? UNIT[q.unit].time : q.ask === "dist" ? UNIT[q.unit].dist : UNIT[q.unit].speed;
   if (q.type === "chase") return UNIT[q.unit].time;
   if (q.type === "grid") return "راه";
+  if (q.type === "spacing") {
+    if (q.ask === "length" || q.ask === "gap") return "متر";
+    if (q.ask === "count") return THING_WORD[q.thing];
+    if (q.ask === "cuts") return "برش";
+    if (q.ask === "pieces") return "تکه";
+    return q.variant === "cut" ? "دقیقه" : "ثانیه";
+  }
   return "";
 }
 
@@ -278,6 +349,29 @@ function feedback(q: MotionQuestion, v: number): { tone: Tone; text: string } {
     case "plusRoutes":
     case "timesRoutes":
       return { tone: "bad", text: `تعداد راه‌ها با جمع یا ضرب طول و عرض به دست نمی‌آید. ${right}` };
+    case "postsAsGaps":
+      if (q.type !== "spacing") return { tone: "bad", text: right };
+      if (q.variant === "ends") return near(`این تعداد فاصله‌هاست. وقتی دو سر خالی است، ${THING_WORD[q.thing]}‌ها یکی کمتر از فاصله‌ها هستند.`);
+      if (q.variant === "sides") return near(`در هر طرف خیابان ${THING_WORD[q.thing]}‌ها یکی بیشتر از فاصله‌ها هستند؛ تو فاصله‌ها را شمردی.`);
+      if (q.ask === "length") return near(`${THING_WORD[q.thing]}‌ها و فاصله‌ها را یکی گرفتی. در ردیفی که دو سرش ${THING_WORD[q.thing]} هست، فاصله‌ها یکی کمتر از ${THING_WORD[q.thing]}‌ها هستند.`);
+      if (q.ask === "gap") return near(`بر تعداد ${THING_WORD[q.thing]}‌ها تقسیم کردی؛ ولی ${fa(q.count)} ${THING_WORD[q.thing]} فقط ${fa(q.count - 1)} فاصله دارند.`);
+      return near(`این تعداد فاصله‌هاست. در ردیف باز که دو سرش ${THING_WORD[q.thing]} هست، ${THING_WORD[q.thing]}‌ها یکی بیشتر از فاصله‌ها هستند.`);
+    case "minusOne":
+      return near(`یکی کم کردی، ولی باید یکی اضافه کنی: وقتی دو سر ردیف ${q.type === "spacing" ? THING_WORD[q.thing] : ""} هست، تعدادشان یکی بیشتر از فاصله‌هاست.`);
+    case "loopOpen":
+      if (q.type === "spacing" && q.ask === "length") return near("دور بسته است: بین آخری و اولی هم یک فاصله هست. پس تعداد فاصله‌ها برابر تعداد تیرک‌هاست، نه یکی کمتر.");
+      return near("مسیر بسته است: فاصله آخر دوباره به اولی می‌رسد، پس یکی اضافه لازم نیست. در دور بسته تعداد تیرک‌ها برابر تعداد فاصله‌هاست.");
+    case "cornersTwice":
+      return near("تیرک‌های گوشه را دو بار شمردی؛ هر تیرک گوشه هم مال یک ضلع است و هم مال ضلع کناری.");
+    case "cutsAsPieces":
+      if (q.type === "spacing" && (q.ask === "pieces" || q.ask === "length")) return near("برش‌ها و تکه‌ها را یکی گرفتی. از اول یک تکه داریم و هر برش یکی اضافه می‌کند، پس تکه‌ها یکی بیشتر از برش‌ها هستند.");
+      return near("برش‌ها و تکه‌ها را یکی گرفتی. برش‌ها یکی کمتر از تکه‌ها هستند: تکه آخر برش نمی‌خواهد.");
+    case "endsFilled":
+      return near("دو سر دیوار خالی است؛ آن دو جا را نشمار.");
+    case "oneSide":
+      return near("فقط یک طرف خیابان را شمردی؛ طرف دیگر هم همین‌قدر دارد.");
+    case "floorsAsGaps":
+      return near(`زمان مال راه‌پله‌هاست، نه طبقه‌ها: از طبقه ۱ تا طبقه ${q.type === "spacing" ? fa(q.count) : ""}، ${q.type === "spacing" ? fa(q.count - 1) : ""} راه‌پله است.`);
     default:
       return { tone: "bad", text: right };
   }
@@ -395,5 +489,11 @@ function simHint(q: MotionQuestion) {
       return "روی صفحه، آدمک قدم‌به‌قدم می‌چرخد؛ فهرست چرخش‌ها کنار صفحه است.";
     case "grid":
       return q.variant === "routes" ? "روی صفحه، عددهای چهارراه‌ها از الف پر می‌شوند تا به ب برسند." : "روی صفحه، مسیر خانه‌به‌خانه کشیده می‌شود.";
+    case "spacing":
+      return q.variant === "cut"
+        ? "روی صفحه، برش‌ها یکی‌یکی زده می‌شوند و تکه‌ها شماره می‌خورند؛ بالای صفحه تعداد هر دو را می‌شمارد."
+        : q.variant === "floors"
+          ? "روی صفحه، راه‌پله‌ها یکی‌یکی شماره می‌خورند."
+          : "روی صفحه، یکی‌یکی کاشته (یا زده) می‌شوند و هر فاصله شماره می‌خورد؛ بالای صفحه تعداد هر دو را می‌شمارد.";
   }
 }

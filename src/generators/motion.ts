@@ -1,14 +1,15 @@
 // Tool 15: motion and gears. Gear trains with belts and pulleys (direction and
 // number of turns), movers on a straight track (meeting, catching up,
 // overtaking), turning on the spot (facing north, east, south or west) and
-// walking on a street grid. Every number in a question and its answer is
+// walking on a street grid; and spacing along a path (trees in a row, posts
+// round a loop, cutting a log, climbing floors). Every number in a question and its answer is
 // whole. Each question keeps its answer and the usual slips, so the feedback
 // can say which slip a wrong answer was.
 
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type MotionQuestionType = "gearDir" | "gearTurns" | "trip" | "chase" | "orient" | "grid";
+export type MotionQuestionType = "gearDir" | "gearTurns" | "trip" | "chase" | "orient" | "grid" | "spacing";
 
 // ── Gears, pulleys and belts ─────────────────────────────────────────────
 
@@ -257,7 +258,36 @@ export interface GridQuestion extends Base {
   answer: number;
 }
 
-export type MotionQuestion = GearDirQuestion | GearTurnsQuestion | TripQuestion | ChaseQuestion | OrientQuestion | GridQuestion;
+/**
+ * Things spaced along a path, `gap` metres apart (all numbers whole).
+ * row: a straight row with one at each end; `count` things, `length` from the first to the last.
+ * loop: round a closed path of perimeter `length`; as many gaps as things.
+ * rect: round a `length` × `width` field, one at each corner.
+ * ends: along a wall of `length`, every `gap` metres, none at the two ends.
+ * sides: a row along a road of `length`, one at each end, on both sides of the road.
+ * cut: a log of `length` cut into `count` pieces of `gap` metres; each cut takes `per`
+ *   minutes (ask "time"), or `per` is the number of cuts (ask "pieces" and "length").
+ * floors: climbing from floor 1 to floor `count` takes `per` seconds, `gap` seconds a
+ *   flight; how long to floor `width`?
+ * `ask` names the unknown.
+ */
+export type SpacingVariant = "row" | "loop" | "rect" | "ends" | "sides" | "cut" | "floors";
+export type SpacingAsk = "length" | "count" | "gap" | "cuts" | "pieces" | "time";
+export type SpacingThing = "tree" | "post" | "lamp" | "flag";
+export interface SpacingQuestion extends Base {
+  type: "spacing";
+  variant: SpacingVariant;
+  ask: SpacingAsk;
+  thing: SpacingThing;
+  count: number;
+  gap: number;
+  length: number;
+  width: number;
+  per: number;
+  answer: number;
+}
+
+export type MotionQuestion = GearDirQuestion | GearTurnsQuestion | TripQuestion | ChaseQuestion | OrientQuestion | GridQuestion | SpacingQuestion;
 
 /** What kind of answer a question wants: a turning direction, a compass direction, a labelled point or a number. */
 export type AnswerKind = "rot" | "compass" | "point" | "number";
@@ -494,6 +524,76 @@ function gridQuestion(rng: Rng, level: Level, seed: number): GridQuestion {
   }
 }
 
+const between = (rng: Rng, lo: number, hi: number) => lo + randInt(rng, hi - lo + 1);
+
+/** Gaps between neighbours along the path (a whole row, a whole loop, or the whole log in pieces). */
+export const spacingGaps = (q: Pick<SpacingQuestion, "variant" | "length" | "width" | "gap">) => (q.variant === "rect" ? (2 * (q.length + q.width)) / q.gap : q.length / q.gap);
+
+function spacingQuestion(rng: Rng, level: Level, seed: number): SpacingQuestion {
+  const base = { type: "spacing" as const, level, seed, thing: "tree" as SpacingThing, count: 0, gap: 0, length: 0, width: 0, per: 0, answer: 0 };
+  if (level === 1) {
+    const gap = between(rng, 2, 10);
+    const thing = pick(rng, ["tree", "flag", "post"] as const);
+    if (rng() < 0.5) {
+      const count = between(rng, 4, 15);
+      return { ...base, variant: "row", ask: "length", thing, count, gap, length: (count - 1) * gap, answer: (count - 1) * gap };
+    }
+    const g = between(rng, 3, 14);
+    return { ...base, variant: "row", ask: "count", thing, count: g + 1, gap, length: g * gap, answer: g + 1 };
+  }
+  if (level === 2) {
+    const r = randInt(rng, 5);
+    const gap = between(rng, 2, 9);
+    if (r === 0) {
+      const g = between(rng, 6, 30);
+      return { ...base, variant: "loop", ask: "count", thing: "post", count: g, gap, length: g * gap, answer: g };
+    }
+    if (r === 1) {
+      const count = between(rng, 6, 30);
+      return { ...base, variant: "loop", ask: "length", thing: pick(rng, ["post", "tree", "flag"] as const), count, gap, length: count * gap, answer: count * gap };
+    }
+    const pieces = between(rng, 3, 12);
+    if (r === 2) return { ...base, variant: "cut", ask: "cuts", count: pieces, gap, length: pieces * gap, answer: pieces - 1 };
+    if (r === 3) {
+      const per = between(rng, 2, 9);
+      return { ...base, variant: "cut", ask: "time", count: pieces, gap, length: pieces * gap, per, answer: (pieces - 1) * per };
+    }
+    return { ...base, variant: "cut", ask: "pieces", count: pieces, gap, length: pieces * gap, per: pieces - 1, answer: pieces };
+  }
+  for (;;) {
+    const r = randInt(rng, 6);
+    const gap = between(rng, 2, 9);
+    if (r === 0) {
+      const g = between(rng, 4, 20);
+      return { ...base, variant: "ends", ask: "count", thing: pick(rng, ["lamp", "post", "flag"] as const), gap, length: g * gap, count: g - 1, answer: g - 1 };
+    }
+    if (r === 1) {
+      const g = between(rng, 4, 20);
+      return { ...base, variant: "sides", ask: "count", thing: pick(rng, ["tree", "lamp"] as const), gap, length: g * gap, count: 2 * (g + 1), answer: 2 * (g + 1) };
+    }
+    if (r === 2) {
+      // Both sides whole numbers of gaps, so a post stands at every corner.
+      const a = between(rng, 2, 8);
+      const b = between(rng, 2, 8);
+      if (a === b) continue;
+      const g = 2 * (a + b);
+      return { ...base, variant: "rect", ask: "count", thing: "post", gap, length: a * gap, width: b * gap, count: g, answer: g };
+    }
+    if (r === 3) {
+      const from = between(rng, 3, 6);
+      const to = between(rng, from + 2, 12);
+      const flight = between(rng, 2, 6) * 5;
+      return { ...base, variant: "floors", ask: "time", count: from, width: to, gap: flight, per: flight * (from - 1), answer: flight * (to - 1) };
+    }
+    if (r === 4) {
+      const count = between(rng, 5, 16);
+      return { ...base, variant: "row", ask: "gap", thing: "tree", count, gap, length: (count - 1) * gap, answer: gap };
+    }
+    const cuts = between(rng, 3, 11);
+    return { ...base, variant: "cut", ask: "length", count: cuts + 1, gap, length: (cuts + 1) * gap, per: cuts, answer: (cuts + 1) * gap };
+  }
+}
+
 export function makeMotionQuestion(type: MotionQuestionType, level: Level, seed: number): MotionQuestion {
   const rng = mulberry32(seed * 7 + level * 101 + type.length * 13 + type.charCodeAt(0));
   switch (type) {
@@ -509,6 +609,8 @@ export function makeMotionQuestion(type: MotionQuestionType, level: Level, seed:
       return orientQuestion(rng, level, seed);
     case "grid":
       return gridQuestion(rng, level, seed);
+    case "spacing":
+      return spacingQuestion(rng, level, seed);
   }
 }
 
@@ -547,6 +649,14 @@ export type MotionTag =
   | "edgesOnly"
   | "plusRoutes"
   | "timesRoutes"
+  | "postsAsGaps"
+  | "minusOne"
+  | "loopOpen"
+  | "cutsAsPieces"
+  | "endsFilled"
+  | "oneSide"
+  | "cornersTwice"
+  | "floorsAsGaps"
   | "other";
 
 /** Facing after the turns, read with a slip. */
@@ -658,6 +768,51 @@ export function slips(q: MotionQuestion): [MotionTag, number][] {
       }
       return out;
     }
+    case "spacing":
+      return spacingSlips(q);
+  }
+}
+
+/** Spacing slips: things taken for gaps (or the other way), the loop left open, cuts taken for pieces, one side of the road only. */
+function spacingSlips(q: SpacingQuestion): [MotionTag, number][] {
+  const g = spacingGaps(q);
+  switch (q.variant) {
+    case "row":
+      if (q.ask === "length") return [["postsAsGaps", q.count * q.gap]];
+      if (q.ask === "count")
+        return [
+          ["postsAsGaps", g],
+          ["minusOne", g - 1],
+        ];
+      return [["postsAsGaps", q.length / q.count]];
+    case "loop":
+      return [["loopOpen", q.ask === "count" ? g + 1 : (q.count - 1) * q.gap]];
+    case "rect":
+      return [
+        ["cornersTwice", g + 4],
+        ["loopOpen", g + 1],
+      ];
+    case "ends":
+      return [
+        ["postsAsGaps", g],
+        ["endsFilled", g + 1],
+      ];
+    case "sides":
+      return [
+        ["oneSide", g + 1],
+        ["postsAsGaps", 2 * g],
+        ["oneSide", g],
+      ];
+    case "cut":
+      if (q.ask === "cuts") return [["cutsAsPieces", q.count]];
+      if (q.ask === "time") return [["cutsAsPieces", q.count * q.per]];
+      if (q.ask === "pieces") return [["cutsAsPieces", q.per]];
+      return [["cutsAsPieces", q.per * q.gap]];
+    case "floors":
+      return [
+        ["floorsAsGaps", (q.per / q.count) * q.width],
+        ["floorsAsGaps", q.gap * q.width],
+      ];
   }
 }
 

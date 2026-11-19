@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyzeShape, CUBE_NETS, oppositePairs, pairReason, shapeKey, type Cell } from "@/generators/cube-nets";
 import { makeQuestion, type Level, type QuestionType } from "@/generators/cube-questions";
+import { DIR_STEP, makeDiceQuestion, rollAll, STANDARD, type DiceQuestion, type DieState, type Dir } from "@/generators/dice";
 import { newSeed } from "@/generators/random";
-import { TYPE_LABEL, TryPanel, type Display } from "./TryPanel";
+import { isDiceType, TYPE_LABEL, TryPanel, type Display, type NetsType } from "./TryPanel";
+import { DiceTryPanel, type DieDisplay } from "./DiceTryPanel";
+import { DiceExplorePanel, DiceShowPanel } from "./DicePanels";
+import { DieScene } from "./DieScene";
+import { useRollPlayer } from "./useRollPlayer";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { CUBE_NETS_GUIDE } from "./guide";
@@ -23,6 +28,16 @@ const PAIR_COLORS = ["#4d96ff", "#ff9f45", "#4cc38a"];
 const STEP_SECONDS = { normal: 0.9, slow: 2.2 };
 
 type Mode = "explore" | "show" | "try";
+type Part = "net" | "dice";
+/** Explore board for the die. */
+const DIE_BOARD = 5;
+const DIE_HOME: Cell = [2, 2];
+/** After this many rolls in explore, the trail restarts from where the die stands. */
+const TRAIL = 12;
+const NO_CELLS: Cell[] = [];
+const NO_LABELS: string[] = [];
+type RollQuestion = Extract<DiceQuestion, { type: "roll" }>;
+const rollExample = (seed: number) => makeDiceQuestion("roll", 2, seed) as RollQuestion;
 const PALE = Array(6).fill("#fffaf0");
 
 /** "x,y;x,y;..." from a link into up to 6 distinct cells on the grid, or null. */
@@ -87,11 +102,61 @@ export function CubeNetsTool() {
   const [slow, setSlow] = useState(false);
 
   // Try-it mode. Answers are never stored or scored.
-  const [tryType, setTryType] = useState<QuestionType>("makes");
+  const [tryType, setTryType] = useState<NetsType>("makes");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(1405);
   const [initialPick, setInitialPick] = useState<number | undefined>(undefined);
-  const question = useMemo(() => makeQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+  const dice = isDiceType(tryType);
+  // Net questions and dice questions come from two generators; only one is shown.
+  const netType: QuestionType = isDiceType(tryType) ? "opposite" : tryType;
+  const question = useMemo(() => makeQuestion(netType, tryLevel, seed), [netType, tryLevel, seed]);
+  const diceQuestion = useMemo(() => (isDiceType(tryType) ? makeDiceQuestion(tryType, tryLevel, seed) : null), [tryType, tryLevel, seed]);
+  const [dieDisplay, setDieDisplay] = useState<DieDisplay | null>(null);
+
+  // The die: explore (arrow buttons), show-me (a path rolled step by step), try-it.
+  const [explorePart, setExplorePart] = useState<Part>("net");
+  const [showPart, setShowPart] = useState<Part>("net");
+  const roller = useRollPlayer();
+  const { jump: rollJump, setTarget: rollTo } = roller;
+  const [exStart, setExStart] = useState<DieState>(STANDARD);
+  const [exFrom, setExFrom] = useState<Cell>(DIE_HOME);
+  const [exPath, setExPath] = useState<Dir[]>([]);
+  const exEnd = useMemo(() => {
+    let [x, y] = exFrom;
+    for (const d of exPath) [x, y] = [x + DIR_STEP[d][0], y + DIR_STEP[d][1]];
+    return { cell: [x, y] as Cell, die: rollAll(exStart, exPath) };
+  }, [exStart, exFrom, exPath]);
+  const exNext = (d: Dir): Cell => [exEnd.cell[0] + DIR_STEP[d][0], exEnd.cell[1] + DIR_STEP[d][1]];
+  const onBoard = ([x, y]: Cell) => x >= 0 && y >= 0 && x < DIE_BOARD && y < DIE_BOARD;
+  const rollExplore = (d: Dir) => {
+    if (!onBoard(exNext(d))) return;
+    if (exPath.length >= TRAIL) {
+      setExStart(exEnd.die);
+      setExFrom(exEnd.cell);
+      setExPath([d]);
+      rollJump(0);
+      rollTo(1);
+    } else {
+      setExPath([...exPath, d]);
+      rollTo(exPath.length + 1);
+    }
+  };
+  const resetExplore = () => {
+    setExStart(STANDARD);
+    setExFrom(DIE_HOME);
+    setExPath([]);
+    rollJump(0);
+  };
+  const [rollSeed, setRollSeed] = useState(1405);
+  const showRoll = useMemo(() => rollExample(rollSeed), [rollSeed]);
+  const onDieDisplay = useCallback(
+    (d: DieDisplay | null) => {
+      setDieDisplay(d);
+      if (d?.play) rollTo(d.path.length);
+      else rollJump(0);
+    },
+    [rollTo, rollJump],
+  );
   // What the try-it panel wants the 3D net to show (a blank face, the child's own placement…).
   const [tryDisplay, setTryDisplay] = useState<Display | null>(null);
 
@@ -107,12 +172,12 @@ export function CubeNetsTool() {
   }, [pairs]);
   const showKey = shapeKey(showCells);
 
-  const cells = mode === "show" ? showCells : mode === "try" ? (tryDisplay?.cells ?? question.net.cells) : drawn;
+  const cells = mode === "show" ? showCells : mode === "try" ? (tryDisplay?.cells ?? (dice ? NO_CELLS : question.net.cells)) : drawn;
   const pairView = mode === "show" && pairsOn;
   const labels = useMemo(() => {
-    if (mode === "try") return tryDisplay?.symbols ?? question.net.symbols;
+    if (mode === "try") return tryDisplay?.symbols ?? (dice ? NO_LABELS : question.net.symbols);
     return pairView ? cells.map((_, i) => PAIR_DIGITS[pairOf[i]]) : DIGITS.slice(0, cells.length);
-  }, [mode, question, tryDisplay, pairView, cells, pairOf]);
+  }, [mode, question, tryDisplay, pairView, cells, pairOf, dice]);
   const colors = useMemo(() => {
     if (mode === "try") return PALE;
     return pairView ? cells.map((_, i) => PAIR_COLORS[pairOf[i]]) : undefined;
@@ -143,7 +208,9 @@ export function CubeNetsTool() {
   //   #shape=1,0;0,1;1,1&fold   explore with that shape drawn, optionally folded
   //   #show=10&pairs=0&t=0.4     show-me on net 10, pairs off, 40% folded
   //   #folded                    show-me, cube closed
-  //   #try=makes&level=2&seed=7  try-it: that exact example (pick=n shows answer n)
+  //   #try=makes&level=2&seed=7  try-it: that exact example (pick=n shows answer n); also try=die, try=roll
+  //   #dice                      explore: roll a die with arrow buttons
+  //   #show=roll&seed=7          show-me: that rolling path, step by step
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     // #classroom: board shortcut. Full screen still needs a tap (browser rule).
@@ -151,11 +218,22 @@ export function CubeNetsTool() {
     const shape = parseShape(params.get("shape"));
     const show = Number(params.get("show"));
     const tryParam = params.get("try");
-    if (!shape && !params.has("show") && !params.has("folded") && !tryParam) return;
+    if (!shape && !params.has("show") && !params.has("folded") && !tryParam && !params.has("dice")) return;
     const timer = setTimeout(() => {
+      if (params.has("dice") && !tryParam && !params.has("show")) {
+        setExplorePart("dice");
+        return;
+      }
+      if (params.get("show") === "roll") {
+        setMode("show");
+        setShowPart("dice");
+        const sd = Number(params.get("seed"));
+        if (Number.isInteger(sd) && sd >= 0) setRollSeed(sd);
+        return;
+      }
       if (tryParam) {
         setMode("try");
-        if (tryParam in TYPE_LABEL) setTryType(tryParam as QuestionType);
+        if (tryParam in TYPE_LABEL) setTryType(tryParam as NetsType);
         const lv = Number(params.get("level"));
         if (lv === 1 || lv === 2 || lv === 3) setTryLevel(lv);
         const sd = Number(params.get("seed"));
@@ -201,6 +279,8 @@ export function CubeNetsTool() {
     setMode(m);
     setPlaying(false);
     setT(0);
+    rollJump(0);
+    if (m === "explore") resetExplore();
   };
 
   const openInShow = (net: readonly Cell[]) => {
@@ -229,6 +309,8 @@ export function CubeNetsTool() {
     setSeed(newSeed());
     setInitialPick(undefined);
     setTryDisplay(null);
+    setDieDisplay(null);
+    rollJump(0);
     setPlaying(false);
     setT(0);
   };
@@ -244,6 +326,23 @@ export function CubeNetsTool() {
   }, []);
 
   const canFold = mode !== "explore" || info.canFold;
+
+  // When the stage shows the die instead of a net, and which path it rolls.
+  const diePath: { start: DieState; path: Dir[]; from: Cell; w: number; d: number; showPath: boolean } | null =
+    mode === "explore" && explorePart === "dice"
+      ? { start: exStart, path: exPath, from: exFrom, w: DIE_BOARD, d: DIE_BOARD, showPath: exPath.length > 0 }
+      : mode === "show" && showPart === "dice"
+        ? { start: showRoll.start, path: showRoll.path, from: showRoll.from, w: showRoll.w, d: showRoll.d, showPath: true }
+        : mode === "try" && dice && dieDisplay
+          ? dieDisplay
+          : null;
+  const rollLen = diePath?.path.length ?? 0;
+  const rollDone = Math.min(rollLen, Math.floor(roller.p + 1e-6));
+  const rollPlay = () => {
+    if (roller.playing) return rollTo(Math.ceil(roller.p - 1e-6));
+    if (roller.p >= rollLen) rollJump(0);
+    rollTo(rollLen);
+  };
 
   return (
     <main className={styles.layout}>
@@ -276,6 +375,9 @@ export function CubeNetsTool() {
 
       <section className={styles.stageWrap} aria-label="صحنه سه‌بعدی">
         <Stage imageName="cube-net">
+          {diePath ? (
+            <DieScene start={diePath.start} path={diePath.path} from={diePath.from} w={diePath.w} d={diePath.d} progress={roller.p} showPath={diePath.showPath} />
+          ) : (
           <FoldingNet
             cells={cells}
             t={t}
@@ -286,11 +388,31 @@ export function CubeNetsTool() {
             turns={mode === "try" ? (tryDisplay?.turns ?? question.net.turns) : undefined}
             ink={mode === "try" ? "dark" : "light"}
           />
+          )}
         </Stage>
       </section>
 
       <section className={styles.controls}>
-        {mode !== "explore" && (
+        {diePath && mode !== "explore" && (
+          <div className={styles.player} dir="ltr" role="group" aria-label="غلتاندن گام‌به‌گام">
+            <button onClick={() => rollTo(Math.max(0, Math.ceil(roller.p - 1e-6) - 1))} disabled={roller.p <= 0} aria-label="غلت قبل">
+              ⏮
+            </button>
+            <button className={styles.playButton} onClick={rollPlay} aria-label={roller.playing ? "توقف" : "پخش"}>
+              {roller.playing ? "⏸" : "▶"}
+            </button>
+            <button onClick={() => rollTo(Math.min(rollLen, rollDone + 1))} disabled={roller.p >= rollLen} aria-label="غلت بعد">
+              ⏭
+            </button>
+            <span className={styles.stepText} aria-live="polite">
+              غلت {fa(rollDone)} از {fa(rollLen)}
+            </span>
+          </div>
+        )}
+        {diePath && mode === "explore" && (
+          <p className={styles.note}>تاس را با دکمه‌های کنار صفحه بغلتان؛ صحنه را هم می‌توانی بچرخانی.</p>
+        )}
+        {!diePath && mode !== "explore" && (
           // Media controls keep the usual left-to-right order, as in Persian video players.
           <div className={styles.player} dir="ltr" role="group" aria-label="پخش گام‌به‌گام">
             <button onClick={() => stepTo(-1)} disabled={t <= 0} aria-label="گام قبل">
@@ -310,6 +432,7 @@ export function CubeNetsTool() {
             </button>
           </div>
         )}
+        {!diePath && (
         <label className={styles.slider}>
           <span>تا کردن</span>
           <input
@@ -327,7 +450,8 @@ export function CubeNetsTool() {
           />
           <span className={styles.percent}>{fa(Math.round(t * 100))}٪</span>
         </label>
-        {mode === "explore" && (
+        )}
+        {!diePath && mode === "explore" && (
           <div className={styles.buttons}>
             <button onClick={() => setT(1)} disabled={!canFold}>
               تا کن
@@ -338,11 +462,65 @@ export function CubeNetsTool() {
       </section>
 
       <aside className={styles.side}>
-        {mode === "try" ? (
+        {mode !== "try" && (
+          <div className={styles.row} role="group" aria-label="گسترده یا تاس">
+            {(["net", "dice"] as Part[]).map((pt) => {
+              const on = (mode === "explore" ? explorePart : showPart) === pt;
+              return (
+                <button
+                  key={pt}
+                  className={on ? styles.primary : styles.clear}
+                  aria-pressed={on}
+                  onClick={() => {
+                    if (mode === "explore") setExplorePart(pt);
+                    else setShowPart(pt);
+                    rollJump(0);
+                    setPlaying(false);
+                  }}
+                >
+                  {pt === "net" ? "گسترده" : mode === "explore" ? "تاس" : "غلتاندن تاس"}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {mode === "try" && dice && diceQuestion ? (
+          <DiceTryPanel
+            key={`${tryType}-${tryLevel}-${seed}`}
+            question={diceQuestion}
+            type={tryType}
+            level={tryLevel}
+            initialPick={initialPick}
+            onType={(t) => freshQuestion(t, tryLevel)}
+            onLevel={(l) => freshQuestion(tryType, l)}
+            onNew={() => freshQuestion()}
+            onAnswered={onAnswered}
+            onNetDisplay={setTryDisplay}
+            onDieDisplay={onDieDisplay}
+          />
+        ) : mode === "explore" && explorePart === "dice" ? (
+          <DiceExplorePanel
+            die={exEnd.die}
+            canRoll={{ E: onBoard(exNext("E")), W: onBoard(exNext("W")), N: onBoard(exNext("N")), S: onBoard(exNext("S")) }}
+            onRoll={rollExplore}
+            onReset={resetExplore}
+            rolls={exPath.length}
+          />
+        ) : mode === "show" && showPart === "dice" ? (
+          <DiceShowPanel
+            start={showRoll.start}
+            path={showRoll.path}
+            p={roller.p}
+            onNew={() => {
+              setRollSeed(newSeed());
+              rollJump(0);
+            }}
+          />
+        ) : mode === "try" ? (
           <TryPanel
             key={`${tryType}-${tryLevel}-${seed}`}
             question={question}
-            type={tryType}
+            type={netType}
             level={tryLevel}
             initialPick={initialPick}
             onType={(t) => freshQuestion(t, tryLevel)}

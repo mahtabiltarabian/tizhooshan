@@ -18,21 +18,21 @@ import { fa } from "@/tools/registry";
 
 export const INK = "#1f2430";
 export const PEN = "#2f6fdb";
-const GOOD = "#1d7a46";
-const BAD = "#c0392b";
-const SOFT = "#5b6170";
-const ACCENT = "#d9480f";
-const PAPER = "#ffffff";
+export const GOOD = "#1d7a46";
+export const BAD = "#c0392b";
+export const SOFT = "#5b6170";
+export const ACCENT = "#d9480f";
+export const PAPER = "#ffffff";
 
 type Pt = [number, number];
 const round = (v: number) => Math.round(v * 10000) / 10000;
 
 /** A safe, unique id prefix for patterns, clip paths and masks. */
-function useSvgId(prefix: string) {
+export function useSvgId(prefix: string) {
   return `${prefix}${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 }
 
-function Hatch({ id, color = BAD, gap = 0.16 }: { id: string; color?: string; gap?: number }) {
+export function Hatch({ id, color = BAD, gap = 0.16 }: { id: string; color?: string; gap?: number }) {
   return (
     <pattern id={id} width={gap} height={gap} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <line x1={0} y1={0} x2={0} y2={gap} stroke={color} strokeWidth={0.045} />
@@ -278,7 +278,7 @@ export function LiarsFigure({ people, texts, known, onToggle, status = [], focus
 // ───────────── Venn ─────────────
 
 export const VENN_R = 1.6;
-const CENTERS: Record<2 | 3, Pt[]> = {
+export const CENTERS: Record<2 | 3, Pt[]> = {
   2: [
     [0.95, 0],
     [-0.95, 0],
@@ -289,7 +289,7 @@ const CENTERS: Record<2 | 3, Pt[]> = {
     [0, 1.1],
   ],
 };
-const TINTS = ["#ffd8a8", "#a5d8ff", "#b2f2bb"];
+export const TINTS = ["#ffd8a8", "#a5d8ff", "#b2f2bb"];
 
 /** Which region (bit t: inside circle t) a point is in. */
 export function regionAt(k: 2 | 3, x: number, y: number): number {
@@ -308,7 +308,7 @@ function regionPoints(k: 2 | 3): Pt[] {
     }
   return best.map((b) => b.pt);
 }
-const REGION_PT: Record<2 | 3, Pt[]> = { 2: regionPoints(2), 3: regionPoints(3) };
+export const REGION_PT: Record<2 | 3, Pt[]> = { 2: regionPoints(2), 3: regionPoints(3) };
 
 /** Board size of one diagram: [x, y, w, h] around its centre. */
 export const vennBox = (k: 2 | 3): [number, number, number, number] => (k === 2 ? [-2.8, -2.4, 5.6, 4.2] : [-2.8, -2.85, 5.6, 6.35]);

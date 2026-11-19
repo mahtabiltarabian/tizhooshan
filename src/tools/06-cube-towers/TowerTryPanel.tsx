@@ -14,10 +14,13 @@ import {
   type TowerQuestion,
   type TowerQuestionType,
 } from "@/generators/cube-towers";
+import type { Part, Solid } from "@/generators/solids";
 import type { Look } from "@/engine-3d/Stage";
 import { fa } from "@/tools/registry";
 import { HeightGrid, ViewSvg } from "./Pictures";
 import { paintWhy } from "./paintText";
+import { SolidPictureSvg } from "./SolidPicture";
+import { solidFeedback, solidPrompt } from "./solidText";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const TOWER_TYPE_LABEL: Record<TowerQuestionType, string> = {
@@ -28,6 +31,7 @@ export const TOWER_TYPE_LABEL: Record<TowerQuestionType, string> = {
   build: "ساخت از نما",
   complete: "تکمیل مکعب",
   paint: "رنگ کن و ببر",
+  solid: "وجه، یال و رأس",
 };
 
 const VIEW_NAME = { top: "بالا", front: "روبرو", side: "کنار" } as const;
@@ -47,7 +51,9 @@ export type TowerDisplay =
       /** Pull layers apart with the playback value once answered. */
       explode?: boolean;
     }
-  | { scene: "paint"; n: number; focus: number | null; explode?: boolean };
+  | { scene: "paint"; n: number; focus: number | null; explode?: boolean }
+  /** Solids side by side; `part` is numbered on them (after answering). */
+  | { scene: "solid"; solids: Solid[]; part: Part | null; captions?: boolean };
 
 /** The question text; `paper` words it for a printed worksheet. */
 export function towerPrompt(q: TowerQuestion, paper = false): string {
@@ -74,11 +80,14 @@ export function towerPrompt(q: TowerQuestion, paper = false): string {
       const what = q.k === 0 ? "هیچ وجه رنگی ندارند" : `دقیقاً ${fa(q.k)} وجه رنگی دارند`;
       return `یک مکعب ${fa(q.n)}×${fa(q.n)}×${fa(q.n)} را از بیرون رنگ کرده و به مکعب‌های کوچک بریده‌ایم. چند مکعب کوچک ${what}؟`;
     }
+    case "solid":
+      return solidPrompt(q, paper);
   }
 }
 
 function feedback(q: TowerQuestion, picked: number): { tone: Tone; text: string } {
   if (q.type === "build") return { tone: "bad", text: "" };
+  if (q.type === "solid") return solidFeedback(q, q.options[picked]);
   const right = picked === q.answer;
   const mistake = q.mistakes[picked];
   switch (q.type) {
@@ -159,6 +168,11 @@ export function TowerTryPanel(p: Props) {
         return { scene: "tower", tower: q.tower, frame: q.n, ghosts: answered ? missingCubes(q.tower, q.n) : [] };
       case "paint":
         return { scene: "paint", n: q.n, focus: answered ? q.k : null, explode: answered };
+      case "solid":
+        // A pictured solid can be turned before answering; named or hidden ones appear once answered.
+        if (q.kind === "count") return { scene: "solid", solids: [q.solid], part: answered ? q.part : null };
+        if (!answered) return { scene: "solid", solids: [], part: null };
+        return { scene: "solid", solids: q.kind === "combine" ? q.solids : [q.solid], part: q.part, captions: true };
     }
   }, [q, build, answered]);
 
@@ -191,7 +205,10 @@ export function TowerTryPanel(p: Props) {
   const mark = (i: number): Tone | null => {
     if (picked === null || q.type === "build") return null;
     if (i === q.answer) return "good";
-    if (i === picked) return q.mistakes[i] === "visibleOnly" || q.mistakes[i] === "mirrored" ? "turned" : "bad";
+    if (i === picked) {
+      if (q.type === "solid") return solidFeedback(q, q.options[i]).tone === "turned" ? "turned" : "bad";
+      return q.mistakes[i] === "visibleOnly" || q.mistakes[i] === "mirrored" ? "turned" : "bad";
+    }
     return null;
   };
 
@@ -214,8 +231,14 @@ export function TowerTryPanel(p: Props) {
 
       <p className={styles.prompt}>{towerPrompt(q)}</p>
 
+      {q.type === "solid" && q.kind === "count" && (
+        <div className={styles.cube}>
+          <SolidPictureSvg solid={q.solid} size={160} />
+        </div>
+      )}
+
       {/* Number answers */}
-      {(q.type === "count" || q.type === "complete" || q.type === "paint") && (
+      {(q.type === "count" || q.type === "complete" || q.type === "paint" || q.type === "solid") && (
         <ul className={styles.tiles}>
           {q.options.map((v, i) => {
             const m = mark(i);

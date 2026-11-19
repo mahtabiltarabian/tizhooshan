@@ -15,12 +15,17 @@ import {
   type Slot,
 } from "@/generators/cube-questions";
 import type { Cell } from "@/generators/cube-nets";
+import type { DiceQuestionType } from "@/generators/dice";
 import { fa } from "@/tools/registry";
 import { IsoCube } from "./IsoCube";
 import { SymbolNet, TurnTile, type CellMark } from "./SymbolNet";
 import styles from "@/toolkit/TryPanel.module.css";
 
-export const TYPE_LABEL: Record<QuestionType, string> = {
+/** Net questions (cube-questions.ts) and dice questions (dice.ts) share one list of types. */
+export type NetsType = QuestionType | DiceQuestionType;
+export const isDiceType = (t: NetsType): t is DiceQuestionType => t === "die" || t === "roll";
+
+export const TYPE_LABEL: Record<NetsType, string> = {
   opposite: "وجه روبرو",
   touch: "وجه‌های مجاور",
   hidden: "وجه پنهان",
@@ -30,7 +35,31 @@ export const TYPE_LABEL: Record<QuestionType, string> = {
   netMakes: "کدام گسترده",
   netCannot: "کدام گسترده نمی‌شود",
   place: "نمادگذاری",
+  die: "تاس استاندارد",
+  roll: "غلتاندن تاس",
 };
+
+/** Question type and level pickers, shared by the net and dice panels. */
+export function TypeLevelPicker({ type, level, onType, onLevel }: { type: NetsType; level: Level; onType: (t: NetsType) => void; onLevel: (l: Level) => void }) {
+  return (
+    <>
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+        {(Object.keys(TYPE_LABEL) as NetsType[]).map((t) => (
+          <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
+            {TYPE_LABEL[t]}
+          </button>
+        ))}
+      </div>
+      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+        {([1, 2, 3] as Level[]).map((l) => (
+          <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
+            سطح {fa(l)}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
 
 const SLOT_LABEL: Record<Slot, string> = { top: "بالا", right: "راست", left: "چپ" };
 
@@ -156,7 +185,7 @@ interface TryPanelProps {
   level: Level;
   /** From a shared link: answer this option straight away (1-based in links, 0-based here). */
   initialPick?: number;
-  onType: (t: QuestionType) => void;
+  onType: (t: NetsType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
   /** An answer was given: fold the net to show why. */
@@ -318,20 +347,7 @@ export function TryPanel(props: TryPanelProps) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
-        {(Object.keys(TYPE_LABEL) as QuestionType[]).map((t) => (
-          <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
-            {TYPE_LABEL[t]}
-          </button>
-        ))}
-      </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
-        {([1, 2, 3] as Level[]).map((l) => (
-          <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
-            سطح {fa(l)}
-          </button>
-        ))}
-      </div>
+      <TypeLevelPicker type={type} level={level} onType={onType} onLevel={onLevel} />
 
       <p className={styles.prompt}>{prompt(q)}</p>
 

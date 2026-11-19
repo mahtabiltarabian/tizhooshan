@@ -6,6 +6,7 @@ import {
   digitsMistake,
   digitsOf,
   extremes,
+  isMore,
   placeCounts,
   readEquation,
   RULES,
@@ -16,9 +17,13 @@ import {
   type Level,
   type MatchQuestion,
 } from "@/generators/digits";
+import { moreSlips } from "@/generators/digits-more";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
+import own from "./Digits.module.css";
+import { LetterPad, OpsPad } from "./MoreInputs";
+import { moreAnswerFa, moreFeedback, morePrompt, moreSteps, typedTimeFa } from "./MoreText";
 
 export const DIGITS_TYPE_LABEL: Record<DigitsQuestionType, string> = {
   extreme: "بزرگ‌ترین و کوچک‌ترین",
@@ -27,7 +32,21 @@ export const DIGITS_TYPE_LABEL: Record<DigitsQuestionType, string> = {
   digitSum: "مجموع ارقام",
   divisible: "رقم گمشده",
   match: "چوب‌کبریت",
+  lcm: "ک.م.م و ب.م.م",
+  crypt: "جمع رمزی",
+  signs: "گذاشتن علامت",
+  pages: "رقم‌های صفحه",
+  units: "رقم یکان",
 };
+
+/** Question types in four groups, so the picker fits a phone: a group, then its types. */
+export const DIGITS_TYPE_GROUPS: { label: string; types: DigitsQuestionType[] }[] = [
+  { label: "ساختن عدد", types: ["extreme", "condition", "digitSum"] },
+  { label: "بخش‌پذیری", types: ["divisible", "lcm", "units"] },
+  { label: "شمارش رقم", types: ["count", "pages"] },
+  { label: "معما", types: ["match", "crypt", "signs"] },
+];
+const groupOf = (t: DigitsQuestionType) => DIGITS_TYPE_GROUPS.findIndex((g) => g.types.includes(t));
 
 /** Keeps a number or an equation left to right inside a Persian sentence. */
 export const ltr = (s: string) => `⁦${s}⁩`;
@@ -78,6 +97,7 @@ export function equationFa(q: Pick<MatchQuestion, "lens">, masks: number[]) {
 }
 
 export function digitsPrompt(q: DigitsQuestion, paper = false): string {
+  if (isMore(q)) return morePrompt(q, paper);
   switch (q.type) {
     case "extreme":
       if (q.want === "diff") return `با کارت‌های ${cardsFa(q.cards)}، بزرگ‌ترین و کوچک‌ترین عدد ${lenFa(q.cards.length)}رقمی را بساز. تفاضل آن‌ها چند است؟`;
@@ -108,6 +128,7 @@ export function digitsPrompt(q: DigitsQuestion, paper = false): string {
 
 /** The working, in one or two sentences. */
 export function digitsHow(q: DigitsQuestion): string {
+  if (isMore(q)) return moreSteps(q).join(" ");
   switch (q.type) {
     case "extreme": {
       const e = extremes(q.cards);
@@ -157,6 +178,7 @@ export function digitsHow(q: DigitsQuestion): string {
 
 /** The answer in words. */
 export function answerFa(q: DigitsQuestion) {
+  if (isMore(q)) return moreAnswerFa(q);
   return q.type === "match" ? (equationFa(q, q.answer) ?? "") : numFa(q.answer);
 }
 
@@ -164,6 +186,7 @@ type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
 function feedback(q: DigitsQuestion, v: string): { tone: Tone; text: string } {
+  if (isMore(q)) return moreFeedback(q, v);
   const how = digitsHow(q);
   const right = `جواب ${answerFa(q)} است. ${how}`;
   switch (digitsMistake(q, v)) {
@@ -234,6 +257,12 @@ interface Props {
   built: string;
   /** Matchsticks: sticks at the moment. */
   sticks: number[];
+  /** Letters (a digit each) or gaps (a sign each), for cryptarithms and signs. */
+  entry: (number | null)[];
+  onEntry: (e: (number | null)[]) => void;
+  /** The letter or gap being filled. */
+  active: number;
+  onActive: (i: number) => void;
   onClear: () => void;
   checked: string | null;
   onCheck: (v: string) => void;
@@ -242,7 +271,12 @@ interface Props {
   onNew: () => void;
 }
 
-const padDigits = (q: DigitsQuestion) => (q.type === "divisible" ? 1 : String(q.answer).length + 1);
+function padDigits(q: DigitsQuestion) {
+  if (q.type === "divisible") return 1;
+  if (q.type === "units") return 1;
+  if (isMore(q)) return Math.max(String(q.type === "lcm" || q.type === "pages" ? q.answer : 0).length, ...moreSlips(q).map(([, v]) => String(v).length)) + 1;
+  return String((q as { answer: number }).answer).length + 1;
+}
 
 export function DigitsTryPanel(p: Props) {
   const { question: q, checked } = p;
@@ -253,13 +287,24 @@ export function DigitsTryPanel(p: Props) {
   const moved = q.type === "match" ? stickDiff(q.start, p.sticks) : null;
   const need = kind === "cards" ? (q.type === "condition" ? q.use : (q as { cards: number[] }).cards.length) : 0;
 
-  const value = kind === "number" ? num : kind === "cards" ? p.built : p.sticks.join(".");
-  const ready = kind === "number" ? !!num : kind === "cards" ? p.built.length === need : moved !== null && moved.removed === moved.added && moved.removed === (q as MatchQuestion).moves;
+  const filled = p.entry.every((x) => x !== null);
+  const value = kind === "number" ? num : kind === "cards" ? p.built : kind === "match" ? p.sticks.join(".") : kind === "letters" ? p.entry.join("") : p.entry.map((o) => (o ?? 0) + 1).join("");
+  const ready =
+    kind === "number" ? !!num : kind === "cards" ? p.built.length === need : kind === "letters" || kind === "ops" ? filled && p.entry.length > 0 : moved !== null && moved.removed === moved.added && moved.removed === (q as MatchQuestion).moves;
+  const clock = q.type === "lcm" && q.ask === "clock";
+  const group = groupOf(p.type);
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
-        {(Object.keys(DIGITS_TYPE_LABEL) as DigitsQuestionType[]).map((t) => (
+      <div className={own.groups} role="radiogroup" aria-label="دسته پرسش">
+        {DIGITS_TYPE_GROUPS.map((g, i) => (
+          <button key={g.label} role="radio" aria-checked={group === i} onClick={() => group !== i && p.onType(g.types[0])}>
+            {g.label}
+          </button>
+        ))}
+      </div>
+      <div className={own.subtypes} role="radiogroup" aria-label={`نوع پرسش در «${DIGITS_TYPE_GROUPS[group].label}»`}>
+        {DIGITS_TYPE_GROUPS[group].types.map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {DIGITS_TYPE_LABEL[t]}
           </button>
@@ -276,6 +321,20 @@ export function DigitsTryPanel(p: Props) {
       <p className={styles.prompt}>{digitsPrompt(q)}</p>
 
       {kind === "number" && <NumberPad value={num} onChange={setNum} disabled={done} maxDigits={padDigits(q)} />}
+      {clock && num && <p className={styles.hint}>{typedTimeFa(num) ? `یعنی ساعت ${typedTimeFa(num)}` : `${fa(num)} — برای ساعت، ساعت و دقیقه را با هم بزن (مثلاً ۸۰۵).`}</p>}
+
+      {kind === "letters" && q.type === "crypt" && (
+        <>
+          <LetterPad letters={q.letters} value={p.entry} active={p.active} onActive={p.onActive} onChange={p.onEntry} disabled={done} />
+          {!done && <p className={styles.hint}>اول حرف را انتخاب کن، بعد رقمش را بزن. رقم هر حرف روی صفحه زیر همان حرف نوشته می‌شود.</p>}
+        </>
+      )}
+      {kind === "ops" && (
+        <>
+          <OpsPad value={p.entry} active={p.active} onActive={p.onActive} onChange={p.onEntry} disabled={done} />
+          {!done && <p className={styles.hint}>یک جای خالی را انتخاب کن (این‌جا یا روی صفحه)، بعد علامتش را بزن.</p>}
+        </>
+      )}
 
       {kind === "cards" && (
         <>
@@ -323,6 +382,7 @@ export function DigitsTryPanel(p: Props) {
         </p>
       )}
       {done && q.type === "count" && <p className={styles.hint}>روی صفحه: یکان با مربع، دهگان با خط زیر، صدگان با دایره. با نوار پایین، دسته‌ها یکی‌یکی نشان داده می‌شوند.</p>}
+      {done && isMore(q) && <p className={styles.hint}>راه‌حل گام به گام روی صفحه است؛ با نوار پایین جلو و عقب ببر.</p>}
       {done && q.type === "match" && <p className={styles.hint}>روی صفحه، {q.moves === 1 ? "چوب" : "چوب‌ها"} از جای قبلی به جای درست می‌روند؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { newSeed } from "@/generators/random";
-import { diffsOf, makeSequenceQuestion, termsOf, type BlankChoice, type Level, type Rule, type SequenceQuestionType } from "@/generators/sequence";
+import { divide, itemAt, makeCycleQuestion, SYMBOLS, type CycleSet } from "@/generators/cycle";
+import { diffsOf, makeSequenceQuestion, termsOf, type BlankChoice, type Level, type Rule } from "@/generators/sequence";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
@@ -12,10 +13,43 @@ import styles from "@/toolkit/ToolLayout.module.css";
 import { decodeBuild, DEFAULT_BUILD, LIMITS, PRESETS, ruleOf, TOO_BIG, type Build, type BuildKind } from "./build";
 import { SEQUENCE_GUIDE } from "./guide";
 import css from "./Sequence.module.css";
-import { BLANK_LABEL, SEQ_TYPE_LABEL, SequenceTryPanel } from "./SequenceTryPanel";
+import { CycleG, cycleBoardProps, cycleLayout, cycleView, ltr as ltrC, rowWords, SymbolIcon, symbolWord } from "./Cycle";
+import { cycleAnswerFa, CycleTryPanel } from "./CycleTryPanel";
+import { BLANK_LABEL, SEQ_TYPE_LABEL, SequenceTryPanel, type SeqTryType } from "./SequenceTryPanel";
 import { ltr, numFa, rowsFor, rowsName, signedFa, stepFa, termFa, trainView, TrainG } from "./Train";
 
 type Mode = "explore" | "show" | "try";
+/** Explore and show me: number rules on the train, or a repeating pattern. */
+type Topic = "rule" | "cycle";
+type CycleSetChoice = Exclude<CycleSet, "days">;
+interface CycleBuild {
+  set: CycleSetChoice;
+  cycle: number[];
+  n: number;
+}
+const DEFAULT_CYCLE: CycleBuild = { set: "shapes", cycle: [0, 1, 2], n: 100 };
+const CYCLE_SETS: [CycleSetChoice, string][] = [
+  ["shapes", "شکل"],
+  ["letters", "حرف"],
+  ["beads", "مهره رنگی"],
+];
+const N_MAX = 300;
+/** Show me for a cycle: boxes, then the division, then the walk to N. */
+const PHASES = [0.4, 0.7];
+/** The step under way: marked by "◀" and a frame, not by colour alone. */
+const CURRENT = { outline: "2px solid var(--accent)", borderRadius: 6, background: "var(--surface)" };
+
+/** #show=cycle&set=shapes&c=0.1.1.2&n=100 */
+function decodeCycle(params: URLSearchParams): CycleBuild {
+  const set = CYCLE_SETS.some(([k]) => k === params.get("set")) ? (params.get("set") as CycleSetChoice) : DEFAULT_CYCLE.set;
+  const ids = (params.get("c") ?? "")
+    .split(".")
+    .map(Number)
+    .filter((v) => Number.isInteger(v) && v >= 0 && v < SYMBOLS[set].length)
+    .slice(0, 6);
+  const n = Number(params.get("n"));
+  return { set, cycle: ids.length >= 2 ? ids : DEFAULT_CYCLE.cycle, n: Number.isInteger(n) && n >= 1 && n <= N_MAX ? n : DEFAULT_CYCLE.n };
+}
 
 const CARDS: [BuildKind, string, string][] = [
   ["add", "+", "هر بار جمع کن"],
@@ -70,6 +104,8 @@ function ruleSentence(b: Build) {
 
 export function SequenceTool() {
   const [mode, setMode] = useState<Mode>("explore");
+  const [topic, setTopic] = useState<Topic>("rule");
+  const [cyc, setCyc] = useState<CycleBuild>(DEFAULT_CYCLE);
   const [classroom, setClassroom] = useClassroom();
 
   // Playback 0 … 1: wagons arriving (explore) or rows appearing (show me, after an answer).
@@ -102,19 +138,23 @@ export function SequenceTool() {
   const upTo = drawable(terms);
 
   // Try it
-  const [tryType, setTryType] = useState<SequenceQuestionType>("mixed");
+  const [tryType, setTryType] = useState<SeqTryType>("mixed");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [blank, setBlank] = useState<BlankChoice>("auto");
   const [big, setBig] = useState(false);
   const [seed, setSeed] = useState(909);
   const [checked, setChecked] = useState<number | null>(null);
-  const question = useMemo(() => makeSequenceQuestion(tryType, tryLevel, seed, { blank, big }), [tryType, tryLevel, seed, blank, big]);
+  const question = useMemo(() => makeSequenceQuestion(tryType === "cycle" ? "mixed" : tryType, tryLevel, seed, { blank, big }), [tryType, tryLevel, seed, blank, big]);
+  const cycleQ = useMemo(() => makeCycleQuestion(tryLevel, seed), [tryLevel, seed]);
+  const isCycle = tryType === "cycle";
 
   const buildMs = 600 + 350 * build.n;
   const showMs = 1500 + 450 * build.n * rowsFor(rule).length;
-  const tryMs = 1200 + 400 * question.terms.length * rowsFor(question.rule).length;
+  const tryMs = isCycle ? 6000 : 1200 + 400 * question.terms.length * rowsFor(question.rule).length;
+  const cycleMs = 7000;
 
-  // Shareable links: #try=alternate&level=2&seed=7&blank=mid&big=1(&a=17), #show=add&s=2&d=3&n=6, #build=… for explore, #f=0.5, #classroom
+  // Shareable links: #try=alternate&level=2&seed=7&blank=mid&big=1(&a=17), #try=cycle&level=3&seed=7(&a=2),
+  // #show=add&s=2&d=3&n=6, #show=cycle&set=shapes&c=0.1.2&n=100, #build=… for explore, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -123,7 +163,7 @@ export function SequenceTool() {
     const timer = setTimeout(() => {
       if (tryParam) {
         setMode("try");
-        if (tryParam in SEQ_TYPE_LABEL) setTryType(tryParam as SequenceQuestionType);
+        if (tryParam in SEQ_TYPE_LABEL) setTryType(tryParam as SeqTryType);
         const lv = Number(params.get("level"));
         if (lv === 1 || lv === 2 || lv === 3) setTryLevel(lv);
         const sd = Number(params.get("seed"));
@@ -136,6 +176,11 @@ export function SequenceTool() {
           setChecked(a);
           setF(1);
         } else setF(0);
+      } else if (show === "cycle") {
+        setTopic("cycle");
+        setCyc(decodeCycle(params));
+        setMode(params.has("show") ? "show" : "explore");
+        setF(1);
       } else if (show) {
         const b = decodeBuild(show, params);
         if (b) setBuild(b);
@@ -155,7 +200,7 @@ export function SequenceTool() {
     setF(m === "try" && checked === null ? 0 : 1);
   };
 
-  const freshQuestion = (type = tryType, level = tryLevel) => {
+  const freshQuestion = (type: SeqTryType = tryType, level = tryLevel) => {
     setTryType(type);
     setTryLevel(level);
     setSeed(newSeed());
@@ -189,8 +234,30 @@ export function SequenceTool() {
     .map((t) => termFa(t, build.letters))
     .join("، ");
 
+  // Repeating pattern (explore and show me).
+  const cycDiv = divide({ prefix: [], cycle: cyc.cycle, n: cyc.n });
+  const cycSlots = cycleLayout(0, cyc.cycle.length, cyc.n).slots.length;
+  const cycItem = itemAt({ prefix: [], cycle: cyc.cycle }, cyc.n);
+  const phase = f < PHASES[0] ? 0 : f < PHASES[1] ? 1 : 2;
+  const setCycle = (c: number[]) => setCyc((b) => ({ ...b, cycle: c }));
+
   let board: React.ReactNode;
-  if (mode !== "try") {
+  if (mode !== "try" && topic === "cycle") {
+    const show = mode === "show";
+    board = (
+      <Board view={cycleView(cycSlots)} imageName="cycle" label={`الگوی تکرارشونده: ${rowWords(cyc.set, cyc.cycle)}، … ؛ خانه ${fa(cyc.n)}`}>
+        <CycleG
+          set={cyc.set}
+          prefix={[]}
+          cycle={cyc.cycle}
+          n={cyc.n}
+          boxes={show ? f / PHASES[0] : 1}
+          equation={show ? (f - PHASES[0]) / 0.08 : 1}
+          walk={show ? (f - PHASES[1]) / (1 - PHASES[1] - 0.04) : 1}
+        />
+      </Board>
+    );
+  } else if (mode !== "try") {
     const rows = mode === "show" || showRows ? rowsFor(rule) : [];
     board = (
       <Board view={trainView(build.n)} imageName="sequence" label={`قطار دنباله: ${seqLine}`}>
@@ -204,6 +271,27 @@ export function SequenceTool() {
           places={build.letters}
           strands={rule.kind === "alt"}
           strandSteps={strandSteps(rule)}
+        />
+      </Board>
+    );
+  } else if (isCycle) {
+    const q = cycleQ;
+    const done = checked !== null;
+    const { view, given } = cycleBoardProps(q, done);
+    board = (
+      <Board view={view} imageName="cycle" label="الگوی تکرارشونده">
+        <CycleG
+          set={q.set}
+          prefix={q.prefix}
+          cycle={q.cycle}
+          n={q.n}
+          given={given}
+          hideN={!done && q.variant !== "count"}
+          target={q.variant === "count" ? q.target : undefined}
+          boxes={done ? Math.min(1, f / 0.4) : 0}
+          equation={done ? (f - 0.4) / 0.1 : 0}
+          walk={done ? (f - 0.6) / 0.36 : 0}
+          mark={done && f > 0.98 ? { right: checked === q.answer, text: checked === q.answer ? cycleAnswerFa(q) : `جواب تو: ${cycleAnswerFa(q, checked)} · جواب درست: ${cycleAnswerFa(q)}` } : null}
         />
       </Board>
     );
@@ -248,7 +336,7 @@ export function SequenceTool() {
             aria-selected={mode === "show"}
             onClick={() => {
               switchMode("show");
-              animate(showMs);
+              animate(topic === "cycle" ? cycleMs : showMs);
             }}
           >
             نشانم بده
@@ -271,12 +359,17 @@ export function SequenceTool() {
       </section>
 
       <section className={styles.controls}>
-        {showSlider ? (
+        {mode === "explore" && topic === "cycle" ? (
           <label className={styles.slider}>
-            <button className={styles.playSmall} onClick={() => play(mode === "explore" ? buildMs : inTry ? tryMs : showMs)} aria-label={run ? "توقف" : "پخش"}>
+            <span>خانه {fa(cyc.n)}</span>
+            <input type="range" min={1} max={N_MAX} step={1} value={cyc.n} onChange={(e) => setCyc((b) => ({ ...b, n: Number(e.target.value) }))} aria-label="شماره خانه" />
+          </label>
+        ) : showSlider ? (
+          <label className={styles.slider}>
+            <button className={styles.playSmall} onClick={() => play(mode === "explore" ? buildMs : inTry ? tryMs : topic === "cycle" ? cycleMs : showMs)} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{mode === "explore" ? "ساختن قطار" : rowsName(inTry ? question.rule : rule)}</span>
+            <span>{inTry && isCycle ? "دورها و تقسیم" : mode === "explore" ? "ساختن قطار" : topic === "cycle" ? ["۱. دسته کن", "۲. تقسیم کن", "۳. بشمار"][phase] : rowsName(inTry ? question.rule : rule)}</span>
             <input
               type="range"
               min={0}
@@ -298,7 +391,134 @@ export function SequenceTool() {
       </section>
 
       <aside className={styles.side}>
-        {mode === "explore" && (
+        {!inTry && (
+          <div className={styles.chipsRow} role="radiogroup" aria-label="بخش">
+            {(
+              [
+                ["rule", "قانون دنباله"],
+                ["cycle", "تکرار و باقیمانده"],
+              ] as [Topic, string][]
+            ).map(([t, label]) => (
+              <button
+                key={t}
+                role="radio"
+                aria-checked={topic === t}
+                onClick={() => {
+                  setTopic(t);
+                  setRun(null);
+                  if (mode === "show") animate(t === "cycle" ? cycleMs : showMs);
+                  else setF(1);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {mode === "explore" && topic === "cycle" && (
+          <>
+            <h2 className={styles.progress}>۱. یک دور بساز</h2>
+            <div className={styles.chipsRow} role="radiogroup" aria-label="نوع نماد">
+              {CYCLE_SETS.map(([k, label]) => (
+                <button key={k} role="radio" aria-checked={cyc.set === k} onClick={() => setCyc((b) => ({ ...b, set: k }))}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className={styles.note}>روی نمادها بزن تا به آخر دور اضافه شوند (۲ تا ۶ خانه).</p>
+            <div className={css.cards} role="group" aria-label="نمادها" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
+              {SYMBOLS[cyc.set].map((_, id) => (
+                <button key={id} className={css.card} style={{ minHeight: 44 }} disabled={cyc.cycle.length >= 6} onClick={() => setCycle([...cyc.cycle, id])} aria-label={`افزودن ${symbolWord(cyc.set, id)}`}>
+                  <SymbolIcon set={cyc.set} id={id} size={28} />
+                </button>
+              ))}
+            </div>
+            <div className={styles.row} style={{ marginTop: 6 }}>
+              <button className={styles.clear} disabled={cyc.cycle.length <= 2} onClick={() => setCycle(cyc.cycle.slice(0, -1))}>
+                ↩ حذف آخری
+              </button>
+              <button className={styles.clear} onClick={() => setCycle(cyc.cycle.slice(0, 2))} disabled={cyc.cycle.length <= 2}>
+                از نو (دو خانه)
+              </button>
+            </div>
+            <p className={css.seqLine}>
+              دور: {rowWords(cyc.set, cyc.cycle)} <small>({fa(cyc.cycle.length)} خانه)</small>
+            </p>
+            <h2 className={styles.progress}>۲. خانه چندم؟</h2>
+            <div className={styles.row} style={{ flexWrap: "wrap" }}>
+              {[-10, -1, 1, 10].map((d) => (
+                <button key={d} className={styles.clear} style={{ flex: "1 1 20%" }} disabled={cyc.n + d < 1 || cyc.n + d > N_MAX} onClick={() => setCyc((b) => ({ ...b, n: b.n + d }))}>
+                  <bdi dir="ltr">{d > 0 ? `+${fa(d)}` : `−${fa(-d)}`}</bdi>
+                </button>
+              ))}
+            </div>
+            <p className={styles.status + " " + styles.info}>
+              {ltrC(`${fa(cyc.n)} = ${fa(cycDiv.cycles)} × ${fa(cyc.cycle.length)} + ${fa(cycDiv.rem)}`)}:{" "}
+              {cycDiv.rem
+                ? `${fa(cycDiv.cycles)} دور کامل و ${fa(cycDiv.rem)} خانه دیگر؛ خانه ${fa(cyc.n)} همان خانه ${fa(cycDiv.rem)}ام دور است: ${symbolWord(cyc.set, cycItem)}.`
+                : `باقیمانده ۰؛ خانه ${fa(cyc.n)} آخرین خانه دور ${fa(cycDiv.cycles)} است: ${symbolWord(cyc.set, cycItem)}.`}
+            </p>
+            <button
+              className={styles.clear}
+              onClick={() => {
+                setMode("show");
+                animate(cycleMs);
+              }}
+            >
+              نشانم بده: دسته کن، تقسیم کن، بشمار
+            </button>
+          </>
+        )}
+
+        {mode === "show" && topic === "cycle" && (
+          <>
+            <h2>دسته کن، تقسیم کن، بشمار</h2>
+            <ol className={styles.rules}>
+              <li aria-current={phase === 0 ? "step" : undefined} style={phase === 0 ? CURRENT : undefined}>
+                {phase === 0 ? "◀ " : ""}
+                <strong>دسته کن:</strong> هر {fa(cyc.cycle.length)} خانه یک دور است و در یک قاب می‌رود ({rowWords(cyc.set, cyc.cycle)}).
+              </li>
+              <li aria-current={phase === 1 ? "step" : undefined} style={phase === 1 ? CURRENT : undefined}>
+                {phase === 1 ? "◀ " : ""}
+                <strong>تقسیم کن:</strong> {ltrC(`${fa(cyc.n)} ÷ ${fa(cyc.cycle.length)}`)} می‌شود {fa(cycDiv.cycles)} و باقیمانده {fa(cycDiv.rem)}؛ یعنی {fa(cycDiv.cycles)} دور کامل
+                {cycDiv.rem ? ` و ${fa(cycDiv.rem)} خانه از دور بعد` : ""}.
+              </li>
+              <li aria-current={phase === 2 ? "step" : undefined} style={phase === 2 ? CURRENT : undefined}>
+                {phase === 2 ? "◀ " : ""}
+                <strong>بشمار:</strong>{" "}
+                {cycDiv.rem
+                  ? `در دور آخر از خانه اول ${fa(cycDiv.rem)} خانه بشمار: ${symbolWord(cyc.set, cycItem)}.`
+                  : `باقیمانده ۰ یعنی خانه ${fa(cyc.n)} آخرین خانه یک دور کامل است، نه اولین خانه دور بعد: ${symbolWord(cyc.set, cycItem)}.`}
+              </li>
+            </ol>
+            <div className={styles.chipsRow} role="radiogroup" aria-label="نمونه" style={{ flexWrap: "wrap" }}>
+              {(
+                [
+                  ["باقیمانده ۱", { set: "shapes", cycle: [0, 1, 2], n: 100 }],
+                  ["باقیمانده ۰", { set: "letters", cycle: [0, 1, 2, 3], n: 48 }],
+                  ["دور ۵ تایی", { set: "beads", cycle: [0, 1, 1, 2, 3], n: 123 }],
+                ] as [string, CycleBuild][]
+              ).map(([name, b]) => (
+                <button
+                  key={name}
+                  role="radio"
+                  aria-checked={cyc.set === b.set && cyc.n === b.n && cyc.cycle.join() === b.cycle.join()}
+                  style={{ flex: "1 0 30%", fontSize: "0.8rem" }}
+                  onClick={() => {
+                    setCyc(b);
+                    animate(cycleMs);
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <p className={styles.note}>دور و شماره خانه را در «کشف» عوض کن.</p>
+          </>
+        )}
+
+        {mode === "explore" && topic === "rule" && (
           <>
             <h2 className={styles.progress}>۱. کارت قانون را انتخاب کن</h2>
             <div className={css.cards} role="radiogroup" aria-label="کارت قانون">
@@ -358,7 +578,7 @@ export function SequenceTool() {
           </>
         )}
 
-        {mode === "show" && (
+        {mode === "show" && topic === "rule" && (
           <>
             <h2>{rule.kind === "alt" ? "دو دنباله یکی‌درمیان" : "اختلاف‌ها زیر جمله‌ها"}</h2>
             <p className={styles.note}>
@@ -389,7 +609,23 @@ export function SequenceTool() {
           </>
         )}
 
-        {mode === "try" && (
+        {mode === "try" && isCycle && (
+          <CycleTryPanel
+            key={`cycle-${tryLevel}-${seed}`}
+            question={cycleQ}
+            level={tryLevel}
+            checked={checked}
+            onCheck={(v) => {
+              setChecked(v);
+              animate(tryMs);
+            }}
+            onType={(t) => freshQuestion(t, tryLevel)}
+            onLevel={(l) => freshQuestion(tryType, l)}
+            onNew={() => freshQuestion()}
+          />
+        )}
+
+        {mode === "try" && !isCycle && (
           <SequenceTryPanel
             key={`${tryType}-${tryLevel}-${seed}-${blank}-${big}`}
             question={question}

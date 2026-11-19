@@ -6,6 +6,7 @@ import {
   figuresFor,
   listShapes,
   makeCountQuestion,
+  makeShapeQuestion,
   shapeFromTaps,
   type CountQuestionType,
   type Level,
@@ -110,5 +111,15 @@ describe("count questions", () => {
     expect(countMistake(strip, 18 - 8)).toBe("noSquares");
     const angles = { type: "angle", level: 1, seed: 0, spec: { family: "rays", a: 2, b: 1 }, kind: "angle", answer: 5 } as const;
     expect(countMistake(angles, 6)).toBe("straight");
+  });
+});
+
+describe("all shape questions", () => {
+  it("hands hidden-figure and one-stroke questions to their makers", () => {
+    for (const l of [1, 2, 3] as Level[]) {
+      expect(makeShapeQuestion("hidden", l, 9).type).toBe("hidden");
+      expect(makeShapeQuestion("stroke", l, 9).type).toBe("stroke");
+      expect(makeShapeQuestion("square", l, 9)).toEqual(makeCountQuestion("square", l, 9));
+    }
   });
 });

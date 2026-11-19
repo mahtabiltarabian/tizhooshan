@@ -17,10 +17,11 @@
 // never move, so an equation always reads A ± B = C. Every slot must stay a
 // digit or a sign: no digit may vanish and no new slot appears.
 
+import { isMoreType, makeMoreQuestion, moreAnswerKey, moreMistake, moreSlips, type MoreQuestion, type MoreTag, type MoreType } from "./digits-more";
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type DigitsQuestionType = "extreme" | "condition" | "count" | "digitSum" | "divisible" | "match";
+export type DigitsQuestionType = "extreme" | "condition" | "count" | "digitSum" | "divisible" | "match" | MoreType;
 
 // ── Small number helpers ─────────────────────────────────────────────────
 
@@ -166,17 +167,22 @@ export interface MatchQuestion extends Base {
   answer: number[];
 }
 
-export type DigitsQuestion = ExtremeQuestion | ConditionQuestion | CountQuestion | DigitSumQuestion | DivisibleQuestion | MatchQuestion;
+export type DigitsQuestion = ExtremeQuestion | ConditionQuestion | CountQuestion | DigitSumQuestion | DivisibleQuestion | MatchQuestion | MoreQuestion;
 
-/** How a question is answered: arranging the cards, a number on the pad, or moving matchsticks. */
-export function answerKind(q: DigitsQuestion): "cards" | "number" | "match" {
+/** One of the five later topics (digits-more.ts)? */
+export const isMore = (q: DigitsQuestion): q is MoreQuestion => isMoreType(q.type);
+
+/** How a question is answered: arranging the cards, a number on the pad, moving matchsticks, a digit for each letter, or a sign in each gap. */
+export function answerKind(q: DigitsQuestion): "cards" | "number" | "match" | "letters" | "ops" {
   if (q.type === "match") return "match";
+  if (q.type === "crypt") return "letters";
+  if (q.type === "signs") return "ops";
   if (q.type === "condition" || (q.type === "extreme" && q.want !== "diff")) return "cards";
   return "number";
 }
 
 /** A question's answer as the string an answer is checked in (and written in a link). */
-export const answerKey = (q: DigitsQuestion) => (q.type === "match" ? q.answer.join(".") : String(q.answer));
+export const answerKey = (q: DigitsQuestion) => (isMore(q) ? moreAnswerKey(q) : q.type === "match" ? q.answer.join(".") : String(q.answer));
 
 /** Distinct digits, avoiding `not`. */
 function distinctDigits(rng: Rng, k: number, from: number[]) {
@@ -464,6 +470,8 @@ export function makeDigitsQuestion(type: DigitsQuestionType, level: Level, seed:
       return divisibleQuestion(rng, level, seed);
     case "match":
       return matchQuestion(rng, level, seed);
+    default:
+      return makeMoreQuestion(type, rng, level, seed);
   }
 }
 
@@ -489,7 +497,7 @@ export type DigitsTag =
   | "unreadable"
   | "notTrue"
   | "moves"
-  | "other";
+  | MoreTag;
 
 /** Uses each card exactly once? */
 const fromCards = (s: string, cards: number[], use: number) => {
@@ -508,6 +516,7 @@ export const RULES: Record<number, number[]> = { 3: [3], 9: [9], 4: [4], 6: [2, 
 
 /** Wrong answers with a known cause that are numbers (for count and diff), checked in order. */
 export function slips(q: DigitsQuestion): [DigitsTag, number][] {
+  if (isMore(q)) return moreSlips(q);
   if (q.type === "count") {
     const [ones, tens, hundreds] = placeCounts(q.digit, q.n);
     return [
@@ -526,6 +535,7 @@ export function slips(q: DigitsQuestion): [DigitsTag, number][] {
 /** Which slip an answer (as a string of digits, or of stick masks for a matchstick question) is. */
 export function digitsMistake(q: DigitsQuestion, value: string): DigitsTag {
   if (value === answerKey(q)) return "right";
+  if (isMore(q)) return moreMistake(q, value);
   switch (q.type) {
     case "match": {
       const masks = value.split(".").map(Number);

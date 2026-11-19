@@ -18,7 +18,10 @@ import { fa } from "@/tools/registry";
 import { ltr, rowsHint, signedFa, stepFa, termFa } from "./Train";
 import styles from "@/toolkit/TryPanel.module.css";
 
-export const SEQ_TYPE_LABEL: Record<SequenceQuestionType, string> = {
+/** The try-it types: the rule families, plus repeating patterns (their own generator). */
+export type SeqTryType = SequenceQuestionType | "cycle";
+
+export const SEQ_TYPE_LABEL: Record<SeqTryType, string> = {
   mixed: "به ترتیب سطح",
   arithmetic: "حسابی",
   geometric: "هندسی",
@@ -26,6 +29,7 @@ export const SEQ_TYPE_LABEL: Record<SequenceQuestionType, string> = {
   second: "اختلاف دوم",
   additive: "جمع دو قبلی",
   letters: "حرفی",
+  cycle: "تکرار و باقیمانده",
 };
 
 export const BLANK_LABEL: Record<BlankChoice, string> = { auto: "خالی هرجا", last: "خالی آخر", mid: "خالی وسط" };
@@ -139,7 +143,7 @@ interface Props {
   big: boolean;
   checked: number | null;
   onCheck: (v: number) => void;
-  onType: (t: SequenceQuestionType) => void;
+  onType: (t: SeqTryType) => void;
   onLevel: (l: Level) => void;
   onBlank: (b: BlankChoice) => void;
   onBig: (big: boolean) => void;
@@ -156,7 +160,7 @@ export function SequenceTryPanel(p: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.types} role="radiogroup" aria-label="نوع دنباله">
-        {(Object.keys(SEQ_TYPE_LABEL) as SequenceQuestionType[]).map((t) => (
+        {(Object.keys(SEQ_TYPE_LABEL) as SeqTryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {SEQ_TYPE_LABEL[t]}
           </button>

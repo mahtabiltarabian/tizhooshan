@@ -8,6 +8,7 @@
 //   top view    = seen from above; the front row at the bottom of the picture
 
 import { mulberry32, randInt, shuffle, type Rng } from "./random";
+import { makeSolidQuestion, type SolidQuestion } from "./solids";
 
 export type Level = 1 | 2 | 3;
 
@@ -183,7 +184,8 @@ export function cubeRange(w: number, d: number, v: Views): { min: number; max: n
 // ---------------------------------------------------------------------------
 // Questions.
 
-export type TowerQuestionType = "count" | "top" | "front" | "side" | "build" | "complete" | "paint";
+/** "solid": faces, edges and vertices of prisms and pyramids (see solids.ts). */
+export type TowerQuestionType = "count" | "top" | "front" | "side" | "build" | "complete" | "paint" | "solid";
 
 export type NumberMistake = "visibleOnly" | "offByOne" | "counted" | "otherK";
 export type ViewMistake = "mirrored" | "otherView" | "changed";
@@ -206,7 +208,8 @@ export type TowerQuestion =
     })
   | (Base & { type: "build"; tower: Tower; views: Views; min: number; max: number; solutions: number })
   | (Base & { type: "complete"; tower: Tower; n: number; options: number[]; mistakes: (NumberMistake | null)[]; answer: number })
-  | (Base & { type: "paint"; n: number; k: number; options: number[]; mistakes: (NumberMistake | null)[]; answer: number });
+  | (Base & { type: "paint"; n: number; k: number; options: number[]; mistakes: (NumberMistake | null)[]; answer: number })
+  | SolidQuestion;
 
 const SPECS: Record<Level, TowerSpec> = {
   1: { w: 3, d: 3, maxH: 2, cubes: [4, 8], hidden: "none" },
@@ -280,6 +283,7 @@ function viewOptions(rng: Rng, type: "top" | "front" | "side", t: Tower) {
 }
 
 export function makeTowerQuestion(type: TowerQuestionType, level: Level, seed: number): TowerQuestion {
+  if (type === "solid") return makeSolidQuestion(level, seed);
   const rng = mulberry32(seed);
 
   if (type === "paint") {

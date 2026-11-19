@@ -7,6 +7,7 @@ import { makeTowerQuestion, type TowerQuestion, type TowerQuestionType } from "@
 import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
 import { HeightGrid, IsoTower, ViewSvg } from "./Pictures";
+import { SolidPictureSvg } from "./SolidPicture";
 import { TOWER_TYPE_LABEL, towerPrompt } from "./TowerTryPanel";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -74,6 +75,21 @@ function figures(q: TowerQuestion) {
           <FigureRow>
             <IsoTower tower={q.tower} size={150} />
           </FigureRow>
+          <Choices>
+            {q.options.map((v, i) => (
+              <span key={i} className={styles.bigNum}>{fa(v)}</span>
+            ))}
+          </Choices>
+        </>
+      );
+    case "solid":
+      return (
+        <>
+          {q.kind === "count" && (
+            <FigureRow>
+              <SolidPictureSvg solid={q.solid} size={130} />
+            </FigureRow>
+          )}
           <Choices>
             {q.options.map((v, i) => (
               <span key={i} className={styles.bigNum}>{fa(v)}</span>

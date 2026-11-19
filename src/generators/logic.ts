@@ -15,10 +15,12 @@
 // sound, solved also means the answer is the only one.
 
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
+import { makeVennCountQuestion, type VennCountQuestion } from "./venn-count";
 
 export type Level = 1 | 2 | 3;
-export type LogicType = "grid" | "liars" | "venn";
-export const LOGIC_TYPES: LogicType[] = ["grid", "liars", "venn"];
+/** vennNum: Venn diagrams with numbers (generators/venn-count.ts). */
+export type LogicType = "grid" | "liars" | "venn" | "vennNum";
+export const LOGIC_TYPES: LogicType[] = ["grid", "liars", "venn", "vennNum"];
 
 export const NAMES = ["سارا", "علی", "مریم", "رضا", "نیما", "زهرا", "آرش", "هستی", "پارسا", "نازنین"];
 
@@ -698,10 +700,10 @@ export function vennSteps(q: VennQuestion): VennStep[] {
 
 // ───────────────────────── all questions ─────────────────────────
 
-export type LogicQuestion = GridQuestion | LiarsQuestion | VennQuestion;
+export type LogicQuestion = GridQuestion | LiarsQuestion | VennQuestion | VennCountQuestion;
 
 /** What kind of answer a question wants. */
-export const answerKind = (type: LogicType): "grid" | "people" | "choice" => (type === "grid" ? "grid" : type === "liars" ? "people" : "choice");
+export const answerKind = (type: LogicType): "grid" | "people" | "choice" | "number" => (type === "grid" ? "grid" : type === "liars" ? "people" : type === "vennNum" ? "number" : "choice");
 
 /** The grid size a level uses unless asked otherwise. */
 export const defaultSize = (level: Level): 3 | 4 => (level === 1 ? 3 : 4);
@@ -718,5 +720,7 @@ export function makeLogicQuestion(type: LogicType, level: Level, seed: number, o
       return liarsQuestion(rng, level, seed);
     case "venn":
       return vennQuestion(rng, level, seed);
+    case "vennNum":
+      return makeVennCountQuestion(level, seed);
   }
 }

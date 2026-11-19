@@ -28,9 +28,13 @@ import { HeightGrid, ViewSvg } from "./Pictures";
 import { LAYER_COLORS, TowerScene, type ColumnTap } from "./TowerScene";
 import { TOWER_TYPE_LABEL, TowerTryPanel, type TowerDisplay } from "./TowerTryPanel";
 import { paintWhy } from "./paintText";
+import { BASIC_SOLIDS, counts, PARTS, solidName, type Part } from "@/generators/solids";
+import { SolidScene } from "./SolidScene";
+import { SolidExplorePanel, SolidShowPanel, solidShowStep } from "./SolidPanels";
 
 type Mode = "explore" | "show" | "try";
-type ShowPart = "layers" | "paint";
+type ShowPart = "layers" | "paint" | "solids";
+type ExplorePart = "tower" | "solid";
 
 const BOARD = 5;
 const MAX_H = 5;
@@ -62,19 +66,31 @@ export function CubeTowersTool() {
     setLookNonce((n) => n + 1);
   };
 
-  // Playback value: layers pulled apart, painted cube opened (0..1).
+  // Playback value: layers pulled apart, painted cube opened, parts of a solid counted (0..1).
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
   }, [t]);
+  // Explore and show-me: faces, edges and vertices of a solid.
+  const [explorePart, setExplorePart] = useState<ExplorePart>("tower");
+  const [solidIndex, setSolidIndex] = useState(0);
+  const [marked, setMarked] = useState<Record<Part, boolean>>({ faces: true, edges: false, vertices: false });
+  const solid = BASIC_SOLIDS[solidIndex];
+  const solidSteps = PARTS.reduce((a, p) => a + counts(solid)[p], 0);
+
+  // Show part, before the playback below: its speed depends on it.
+  const [part, setPart] = useState<ShowPart>("layers");
+  // Counting a solid's parts takes about half a second per part.
+  const duration = mode === "show" && part === "solids" ? solidSteps * 550 : 1600;
+
   useEffect(() => {
     if (!playing) return;
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const next = Math.min(1, tRef.current + (now - last) / 1600);
+      const next = Math.min(1, tRef.current + (now - last) / duration);
       last = now;
       setT(next);
       if (next >= 1) setPlaying(false);
@@ -82,7 +98,7 @@ export function CubeTowersTool() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing]);
+  }, [playing, duration]);
   const play = () => {
     if (playing) return setPlaying(false);
     if (t >= 1) setT(0);
@@ -95,7 +111,6 @@ export function CubeTowersTool() {
   const [showCount, setShowCount] = useState(true);
 
   // Show me
-  const [part, setPart] = useState<ShowPart>("layers");
   const [showHidden, setShowHidden] = useState(true);
   const [paintN, setPaintN] = useState(3);
   const [focus, setFocus] = useState<number | null>(null);
@@ -110,14 +125,21 @@ export function CubeTowersTool() {
   const [build, setBuild] = useState<Tower>(() => emptyTower(3, 3));
   const [display, setDisplay] = useState<TowerDisplay | null>(null);
 
-  // Shareable links: #try=count&level=2&seed=7(&pick=n), #show=paint, #classroom
+  // Shareable links: #try=count&level=2&seed=7(&pick=n), #show=paint, #show=solids&solid=3, #solid=3, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
     const tryParam = params.get("try");
     const show = params.get("show");
-    if (!tryParam && show === null) return;
+    const solidParam = Number(params.get("solid"));
+    const hasSolid = params.has("solid") && Number.isInteger(solidParam) && solidParam >= 1 && solidParam <= BASIC_SOLIDS.length;
+    if (!tryParam && show === null && !hasSolid) return;
     const timer = setTimeout(() => {
+      if (hasSolid) setSolidIndex(solidParam - 1);
+      if (!tryParam && show === null) {
+        setExplorePart("solid");
+        return;
+      }
       if (tryParam) {
         setMode("try");
         if (tryParam in TOWER_TYPE_LABEL) setTryType(tryParam as TowerQuestionType);
@@ -133,6 +155,7 @@ export function CubeTowersTool() {
       } else {
         setMode("show");
         if (show === "paint") setPart("paint");
+        if (show === "solids") setPart("solids");
         const tt = Number(params.get("t"));
         if (Number.isFinite(tt)) setT(Math.min(1, Math.max(0, tt)));
       }
@@ -189,7 +212,31 @@ export function CubeTowersTool() {
 
   // What the 3D stage shows.
   let scene: React.ReactNode;
-  if (mode === "explore") {
+  if (mode === "explore" && explorePart === "solid") {
+    scene = <SolidScene solid={solid} highlight={marked} labels={{ faces: marked.faces ? Infinity : 0, edges: marked.edges ? Infinity : 0, vertices: marked.vertices ? Infinity : 0 }} />;
+  } else if (mode === "show" && part === "solids") {
+    const st = solidShowStep(solid, t);
+    scene = <SolidScene solid={solid} highlight={st.part ? { [st.part]: true } : {}} labels={st.part ? { [st.part]: st.shown } : {}} />;
+  } else if (mode === "try" && display?.scene === "solid") {
+    const many = display.solids.length > 1;
+    const lab = display.part ? { [display.part]: Infinity } : {};
+    const hi = display.part ? { [display.part]: true } : {};
+    scene = (
+      <>
+        {display.solids.map((s, i) => (
+          <SolidScene
+            key={`${i}-${s.family}-${s.n}-${s.shape ?? ""}`}
+            solid={s}
+            labels={lab}
+            highlight={hi}
+            position={many ? [i === 0 ? -1.8 : 1.8, 0, 0] : [0, 0, 0]}
+            scale={many ? 1.05 : 1.5}
+            caption={display.captions ? solidName(s) : undefined}
+          />
+        ))}
+      </>
+    );
+  } else if (mode === "explore") {
     scene = (
       <TowerScene
         tower={tower}
@@ -268,12 +315,18 @@ export function CubeTowersTool() {
             </button>
           ))}
         </div>
-        {mode !== "explore" && (
+        {mode !== "explore" && !(mode === "try" && display?.scene === "solid") && (
           <label className={styles.slider}>
             <button className={styles.playSmall} onClick={play} aria-label={playing ? "توقف" : "پخش"}>
               {playing ? "⏸" : "▶"}
             </button>
-            <span>{(mode === "show" && part === "paint") || (mode === "try" && display?.scene === "paint") ? "باز کردن مکعب" : "جدا کردن لایه‌ها"}</span>
+            <span>
+              {mode === "show" && part === "solids"
+                ? "شمردن گام‌به‌گام"
+                : (mode === "show" && part === "paint") || (mode === "try" && display?.scene === "paint")
+                  ? "باز کردن مکعب"
+                  : "جدا کردن لایه‌ها"}
+            </span>
             <input
               type="range"
               min={0}
@@ -292,6 +345,21 @@ export function CubeTowersTool() {
 
       <aside className={styles.side}>
         {mode === "explore" && (
+          <div className={styles.row} role="group" aria-label="چه چیزی ببینیم">
+            <button className={explorePart === "tower" ? styles.primary : styles.clear} aria-pressed={explorePart === "tower"} onClick={() => setExplorePart("tower")}>
+              برج مکعب‌ها
+            </button>
+            <button className={explorePart === "solid" ? styles.primary : styles.clear} aria-pressed={explorePart === "solid"} onClick={() => setExplorePart("solid")}>
+              وجه، یال و رأس
+            </button>
+          </div>
+        )}
+
+        {mode === "explore" && explorePart === "solid" && (
+          <SolidExplorePanel index={solidIndex} onIndex={setSolidIndex} marked={marked} onMarked={setMarked} />
+        )}
+
+        {mode === "explore" && explorePart === "tower" && (
           <>
             <h2>برج بساز</h2>
             <p className={styles.note}>روی صفحه یا روی یک مکعب بزن تا مکعب اضافه شود. با «برداشتن»، روی مکعب بزن تا برداشته شود.</p>
@@ -346,9 +414,26 @@ export function CubeTowersTool() {
               <button className={part === "paint" ? styles.primary : styles.clear} aria-pressed={part === "paint"} onClick={() => { setPart("paint"); setT(0); }}>
                 رنگ کن و ببر
               </button>
+              <button className={part === "solids" ? styles.primary : styles.clear} aria-pressed={part === "solids"} onClick={() => { setPart("solids"); setT(0); }}>
+                وجه، یال، رأس
+              </button>
             </div>
 
-            {part === "layers" ? (
+            {part === "solids" ? (
+              <SolidShowPanel
+                index={solidIndex}
+                onIndex={(i) => {
+                  setSolidIndex(i);
+                  setPlaying(false);
+                  setT(0);
+                }}
+                t={t}
+                onStep={(next) => {
+                  setPlaying(false);
+                  setT(next);
+                }}
+              />
+            ) : part === "layers" ? (
               <>
                 <p className={styles.note}>
                   {countCubes(tower) ? "برجی که ساختی" : "یک برج نمونه"}. «▶» را بزن تا لایه‌ها از هم جدا شوند و هر لایه را جدا بشماری.

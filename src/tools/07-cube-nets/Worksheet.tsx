@@ -3,13 +3,57 @@
 // Worksheet for tool 7: what each question looks like on paper, and its answer.
 // Settings, layout and printing come from the shared WorksheetShell.
 
-import { makeQuestion, type Question, type QuestionType } from "@/generators/cube-questions";
+import { makeQuestion, type Question } from "@/generators/cube-questions";
+import { makeDiceQuestion, type DiceQuestion } from "@/generators/dice";
 import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import styles from "@/toolkit/Worksheet.module.css";
 import { fa } from "@/tools/registry";
 import { IsoCube } from "./IsoCube";
 import { SymbolNet, TurnTile } from "./SymbolNet";
-import { prompt, TYPE_LABEL } from "./TryPanel";
+import { isDiceType, prompt, TYPE_LABEL, type NetsType } from "./TryPanel";
+import { DieIso, dieCaption, DieNetSvg, RollBoardSvg } from "./DiceSvg";
+import { dicePrompt } from "./diceText";
+
+type AnyQuestion = Question | DiceQuestion;
+const isDice = (q: AnyQuestion): q is DiceQuestion => q.type === "die" || q.type === "roll";
+
+function diceFigures(q: DiceQuestion) {
+  if (q.type === "roll")
+    return (
+      <FigureRow>
+        <figure className={styles.caption}>
+          <DieIso die={q.start} size={100} />
+          <figcaption>{dieCaption(q.start)}</figcaption>
+        </figure>
+        <RollBoardSvg w={q.w} d={q.d} from={q.from} path={q.path} size={170} />
+      </FigureRow>
+    );
+  switch (q.kind) {
+    case "opposite":
+      return (
+        <FigureRow>
+          <figure className={styles.caption}>
+            <DieIso die={q.die} size={110} />
+            <figcaption>{dieCaption(q.die)}</figcaption>
+          </figure>
+        </FigureRow>
+      );
+    case "missing":
+      return (
+        <FigureRow>
+          <DieNetSvg net={q.net} size={150} ask={q.ask} />
+        </FigureRow>
+      );
+    case "validNet":
+      return (
+        <Choices wide>
+          {q.nets.map((n, i) => (
+            <DieNetSvg key={i} net={n} size={118} />
+          ))}
+        </Choices>
+      );
+  }
+}
 
 function figures(q: Question) {
   switch (q.type) {
@@ -99,15 +143,15 @@ function answer(q: Question) {
   }
 }
 
-const CONFIG: WorksheetConfig<QuestionType, Question> = {
+const CONFIG: WorksheetConfig<NetsType, AnyQuestion> = {
   title: "گسترده و تاس",
   backHref: "/tools/cube-nets",
   typeLabels: TYPE_LABEL,
   defaultTypes: ["opposite", "makes"],
-  make: makeQuestion,
-  prompt: (q) => prompt(q, true),
-  figures,
-  answer,
+  make: (type, level, seed) => (isDiceType(type) ? makeDiceQuestion(type, level, seed) : makeQuestion(type, level, seed)),
+  prompt: (q) => (isDice(q) ? dicePrompt(q, true) : prompt(q, true)),
+  figures: (q) => (isDice(q) ? diceFigures(q) : figures(q)),
+  answer: (q) => (isDice(q) ? q.type === "die" && q.kind === "validNet" ? <>گزینه {fa(q.answer + 1)}</> : <>{fa(q.answer)} خال</> : answer(q)),
 };
 
 export function Worksheet() {

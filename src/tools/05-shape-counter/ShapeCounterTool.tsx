@@ -19,7 +19,9 @@ import {
   type Kind,
   type Level,
   type Shape,
+  type ShapeQuestionType,
 } from "@/generators/shape-count";
+import { NAMED, type NamedFigure } from "@/generators/one-stroke";
 import { newSeed } from "@/generators/random";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
@@ -29,6 +31,9 @@ import { COUNT_TYPE_LABEL, CounterTryPanel, groupsOf, groupSum, KIND_NAME, PIECE
 import { SHAPE_COUNTER_GUIDE } from "./guide";
 import type { Look } from "./Pictures";
 import { CountScene, GrowingScene } from "./Scene";
+import { HiddenLab } from "./HiddenLab";
+import { StrokeLab } from "./StrokeLab";
+import { TopicPicker, TypeLevelPicker, type Topic } from "./labKit";
 
 type Mode = "explore" | "show" | "try";
 type Range = { label: string; min: number; max: number; names?: string[] };
@@ -130,18 +135,28 @@ export function ShapeCounterTool() {
     setSelectedFound(null);
   };
 
+  // The hidden-figure and one-stroke parts (explore and show me).
+  const [topic, setTopic] = useState<Topic>("count");
+  const [strokeFig, setStrokeFig] = useState<NamedFigure | number>("house");
+  const [hiddenEx, setHiddenEx] = useState<{ level: Level; seed: number }>({ level: 1, seed: 705 });
+
   // Try it
-  const [tryType, setTryType] = useState<CountQuestionType>("triangle");
+  const [tryType, setTryType] = useState<ShapeQuestionType>("triangle");
   const [tryLevel, setTryLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(705);
   const [initialAnswer, setInitialAnswer] = useState<number | undefined>(undefined);
   const [answered, setAnswered] = useState(false);
-  const question = useMemo(() => makeCountQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+  const labTry = tryType === "hidden" || tryType === "stroke";
+  // Counting questions only; a hidden-figure or one-stroke question is made by its own panel.
+  const countType: CountQuestionType = tryType === "hidden" || tryType === "stroke" ? "triangle" : tryType;
+  const question = useMemo(() => makeCountQuestion(countType, tryLevel, seed), [countType, tryLevel, seed]);
   const qFig = useMemo(() => figureOf(questionSpec(question)), [question]);
   const qShapes = useMemo(() => listShapes(qFig, question.kind), [qFig, question.kind]);
   const tryMark = useMarking(qFig, question.kind);
 
-  // Shareable links: #try=triangle&level=2&seed=7(&n=12), #show=grid-3-2-rectangle, #f=0.5, #classroom
+  // Shareable links: #try=triangle&level=2&seed=7(&n=12), #show=grid-3-2-rectangle, #f=0.5, #classroom.
+  // Hidden figure and one stroke: #try=hidden|stroke&level&seed(&n = answer or option 1–4),
+  // #show=hidden-2-17 (level-seed), #show=stroke-house or #show=stroke-1234 (a random figure's seed).
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -161,6 +176,18 @@ export function ShapeCounterTool() {
           setAnswered(true);
           setF(1);
         } else setF(0);
+      } else if (show?.startsWith("stroke-") || show?.startsWith("hidden-")) {
+        const [t, a, b] = show.split("-");
+        if (t === "stroke") {
+          if (a in NAMED) setStrokeFig(a as NamedFigure);
+          else if (Number.isInteger(Number(a)) && Number(a) >= 0) setStrokeFig(Number(a));
+        } else {
+          const lv = Number(a);
+          const sd = Number(b);
+          setHiddenEx({ level: lv === 2 || lv === 3 ? lv : 1, seed: Number.isInteger(sd) && sd >= 0 ? sd : 705 });
+        }
+        setTopic(t as Topic);
+        setMode("show");
       } else if (show) {
         const [fam, a, b, k] = show.split("-");
         if (fam in FAMILIES) {
@@ -180,11 +207,17 @@ export function ShapeCounterTool() {
 
   const switchMode = (m: Mode) => {
     setMode(m);
+    // Into try it from a hidden-figure or one-stroke page: start on that type.
+    if (m === "try" && topic !== "count" && tryType !== topic) {
+      setTryType(topic);
+      setInitialAnswer(undefined);
+      setAnswered(false);
+    }
     setRun(null);
     setF(m === "try" ? 0 : 1);
   };
 
-  const freshQuestion = (type = tryType, level = tryLevel) => {
+  const freshQuestion = (type: ShapeQuestionType = tryType, level = tryLevel) => {
     setTryType(type);
     setTryLevel(level);
     setSeed(newSeed());
@@ -257,6 +290,24 @@ export function ShapeCounterTool() {
     );
   };
 
+  const topicPicker = (
+    <TopicPicker
+      topic={topic}
+      onTopic={(t) => {
+        setTopic(t);
+        if (mode === "show" && t === "count") animate(shapes.length);
+      }}
+    />
+  );
+  const picker = <TypeLevelPicker labels={COUNT_TYPE_LABEL} type={tryType} level={tryLevel} onType={(t) => freshQuestion(t, tryLevel)} onLevel={(l) => freshQuestion(tryType, l)} />;
+  const labTopic: Topic | null = mode === "try" ? (labTry ? (tryType as Topic) : null) : topic === "count" ? null : topic;
+  const labKey = mode === "try" ? `try-${tryLevel}-${seed}` : `ex-${mode}`;
+  let lab: React.ReactNode = null;
+  if (labTopic === "stroke")
+    lab = <StrokeLab key={labKey} mode={mode} topicPicker={topicPicker} figure={strokeFig} onFigure={setStrokeFig} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} />;
+  else if (labTopic === "hidden")
+    lab = <HiddenLab key={labKey} mode={mode} topicPicker={topicPicker} ex={hiddenEx} onEx={setHiddenEx} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} />;
+
   const groups = groupsOf(shapes);
   const shownGroups = groupsOf(shapes.slice(0, current + 1));
   const showShape = shapes[current];
@@ -297,6 +348,9 @@ export function ShapeCounterTool() {
         </div>
       </header>
 
+      {lab}
+      {!lab && (
+      <>
       <section className={styles.stageWrap} aria-label="صفحه شکل">
         {board}
       </section>
@@ -333,6 +387,7 @@ export function ShapeCounterTool() {
       <aside className={styles.side}>
         {mode === "explore" && (
           <>
+            {topicPicker}
             <h2>۱. شکل را انتخاب کن</h2>
             <div className={styles.choiceGrid} role="radiogroup" aria-label="شکل">
               {(Object.keys(FAMILIES) as Family[]).map((fam) => (
@@ -401,6 +456,7 @@ export function ShapeCounterTool() {
 
         {mode === "show" && (
           <>
+            {topicPicker}
             <h2>شمارش نظام‌مند</h2>
             <div className={styles.chipsRow} role="radiogroup" aria-label="چه چیزی">
               {kinds.map((k) => (
@@ -478,6 +534,8 @@ export function ShapeCounterTool() {
           />
         )}
       </aside>
+      </>
+      )}
     </main>
   );
 }

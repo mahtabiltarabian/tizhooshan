@@ -4,9 +4,12 @@
 // matchstick equation to correct. Counting and digit-sum questions are text
 // with an answer line. The answer key adds the working.
 
-import { makeDigitsQuestion, type DigitsQuestion, type DigitsQuestionType } from "@/generators/digits";
+import { isMore, makeDigitsQuestion, type DigitsQuestion, type DigitsQuestionType } from "@/generators/digits";
+import { fa } from "@/tools/registry";
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { answerFa, digitsHow, DIGITS_TYPE_LABEL, digitsPrompt, holeFa } from "./DigitsTryPanel";
+import { CryptG } from "./MoreBoards";
+import { exprFa, moreSteps } from "./MoreText";
 import { CardsSvg, MatchSvg } from "./Pictures";
 import styles from "@/toolkit/Worksheet.module.css";
 
@@ -37,6 +40,23 @@ function figures(q: DigitsQuestion) {
           <p className={styles.symbols}>تساوی درست: ..................</p>
         </>
       );
+    case "crypt":
+      return (
+        <>
+          <FigureRow>
+            <svg viewBox="4 0.3 6 7.1" width={150} role="img" aria-label="جمع رمزی">
+              <CryptG q={q} vals={q.letters.map(() => null)} />
+            </svg>
+          </FigureRow>
+          <p className={styles.symbols}>{q.letters.map((l) => `${l} = ......`).join("   ")}</p>
+        </>
+      );
+    case "signs":
+      return (
+        <p className={styles.symbols} style={{ fontSize: "1.3rem" }}>
+          {exprFa(q.nums, q.ops.map(() => null), q.paren).replace(/؟/g, "☐")} = {fa(q.target)}
+        </p>
+      );
     default:
       return <p className={styles.symbols}>جواب: ..................</p>;
   }
@@ -44,6 +64,12 @@ function figures(q: DigitsQuestion) {
 
 function answer(q: DigitsQuestion) {
   if (q.type === "match") return <>{answerFa(q)}</>;
+  if (isMore(q))
+    return (
+      <>
+        {answerFa(q)} · <span style={{ fontWeight: 400 }}>{moreSteps(q).filter((s) => !s.startsWith("قاعده")).join(" ")}</span>
+      </>
+    );
   return (
     <>
       {answerFa(q)} · <span style={{ fontWeight: 400 }}>{digitsHow(q)}</span>
