@@ -167,9 +167,10 @@ describe("dice questions", () => {
       const q = makeDiceQuestion("roll", 1, seed);
       if (q.type !== "roll") throw new Error("type");
       const end = rollAll(q.start, q.path);
-      expect(diceMistake(q, 7 - end.top)).toBe("topBottom");
       const back = rollAll(q.start, q.path.map((d) => ({ E: "W", W: "E", N: "S", S: "N" } as const)[d]));
-      if (back.top !== end.top && back.top !== 7 - end.top) expect(diceMistake(q, back.top)).toBe("wrongWay");
+      // Rolling backwards is named first; it can give the bottom face too.
+      if (back.top !== end.top) expect(diceMistake(q, back.top)).toBe("wrongWay");
+      if (back.top !== 7 - end.top) expect(diceMistake(q, 7 - end.top)).toBe("topBottom");
     }
     expect(DIRS).toHaveLength(4);
   });

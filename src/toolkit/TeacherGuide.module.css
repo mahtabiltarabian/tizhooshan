@@ -95,6 +95,27 @@
   font-weight: 700;
 }
 
+.pick {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.hint {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.examples li {
+  margin-bottom: 4px;
+}
+
+.scene {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .footer {
   margin-top: 18px;
   text-align: left;
@@ -119,7 +140,28 @@
   }
 
   .close,
-  .footer {
+  .pick {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.hint {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.examples li {
+  margin-bottom: 4px;
+}
+
+.scene {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footer {
     display: none;
   }
 }

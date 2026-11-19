@@ -135,7 +135,7 @@ export function PaperTool() {
   // Show me: one fold opened per step.
   const [step, setStep] = useState(0);
 
-  // Shareable links: #try=holes&level=2&seed=7(&pick=n), #show(&step=n), #explore=v,h&punch=2.5_0.5, #f=0.5, #classroom
+  // Shareable links: #try=holes&level=2&seed=7(&pick=n), #show(&step=n), #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -157,8 +157,12 @@ export function PaperTool() {
         }
       } else if (params.has("show")) {
         setMode("show");
-        const st = Number(params.get("step"));
-        if (Number.isInteger(st) && st >= 0) setStep(st);
+        // On arrival the scene is the sample; fold it as far as the step says.
+        const sk = SAMPLE.folds.length;
+        const raw = Number(params.get("step"));
+        const st = Number.isInteger(raw) ? Math.max(0, Math.min(sk, raw)) : 0;
+        setStep(st);
+        setF(sk ? (sk - st) / sk : 1);
       }
       const ff = Number(params.get("f"));
       if (params.has("f") && Number.isFinite(ff)) setF(Math.min(1, Math.max(0, ff)));

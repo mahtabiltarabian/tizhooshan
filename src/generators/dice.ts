@@ -254,9 +254,11 @@ export function diceSlips(q: DiceQuestion): [DiceTag, number][] {
   if (q.type === "roll") {
     const end = rollEnd(q);
     const swap = (m: Partial<Record<Dir, Dir>>) => q.path.map((d) => m[d] ?? d);
+    // Rolling backwards comes first: after one roll it gives the same number
+    // as swapping top and bottom, and "the right face comes up" is the slip.
     return [
-      [q.ask === "south" ? "frontBack" : "topBottom", 7 - end[q.ask]],
       ["wrongWay", rollAll(q.start, swap(REVERSE))[q.ask]],
+      [q.ask === "south" ? "frontBack" : "topBottom", 7 - end[q.ask]],
       ["mirror", rollAll(q.start, swap({ E: "W", W: "E" }))[q.ask]],
       ["flipNS", rollAll(q.start, swap({ N: "S", S: "N" }))[q.ask]],
       ["oneShort", rollAll(q.start, q.path.slice(0, -1))[q.ask]],
