@@ -78,3 +78,45 @@
 .soon {
   opacity: 0.55;
 }
+
+/* Phones: two compact cards per row. */
+@media (max-width: 560px) {
+  .main {
+    padding: 20px 12px 40px;
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+  }
+
+  .header p {
+    margin-bottom: 18px;
+    font-size: 0.9rem;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .card > a,
+  .card > div {
+    min-height: 0;
+    gap: 4px;
+    padding: 12px;
+  }
+
+  .num {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .title {
+    font-size: 0.98rem;
+  }
+
+  .meta {
+    font-size: 0.78rem;
+  }
+}

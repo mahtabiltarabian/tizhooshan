@@ -10,3 +10,30 @@
   box-shadow: var(--shadow);
   touch-action: none;
 }
+
+/* The 2D board's drawing. */
+.drawing {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  direction: ltr;
+}
+
+/* Phones: the toolbar gets its own strip at the top, and a 2D board takes
+   the shape of its drawing (--fit, set by Board), so no space is wasted. */
+@media (max-width: 900px) {
+  .stage {
+    box-sizing: content-box;
+    height: auto;
+    min-height: 0;
+    padding-top: 50px;
+    aspect-ratio: var(--fit, 4 / 3);
+    max-height: 72vh;
+  }
+
+  .drawing {
+    inset-block-start: 50px;
+    height: calc(100% - 50px);
+  }
+}

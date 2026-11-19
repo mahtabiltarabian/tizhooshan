@@ -76,3 +76,44 @@
 .colors button[aria-checked="true"] {
   box-shadow: 0 0 0 3px var(--ink);
 }
+
+/* Phones: a slim row of icons across the top of the board. */
+@media (max-width: 900px) {
+  .bar {
+    inset-block-start: 6px;
+    inset-inline-start: 6px;
+    max-width: calc(100% - 12px);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 12px;
+  }
+
+  .bar > button {
+    width: 36px;
+    min-height: 36px;
+  }
+
+  .bar > button span {
+    font-size: 1.05rem;
+  }
+
+  .bar > button small {
+    display: none;
+  }
+
+  .bar hr {
+    width: auto;
+    height: 22px;
+    margin: 0 2px;
+    border-top: none;
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .colors {
+    flex-direction: row;
+    padding: 0 4px;
+  }
+}

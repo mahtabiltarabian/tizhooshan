@@ -72,6 +72,9 @@ function buildCheck(kinds: PieceKind[], poses: Pose[], target: Set<number>): { d
   return { done: false, text: "هنوز جای خالی هست." };
 }
 
+/** Turn and flip buttons for the selected piece: three share a line. */
+const NUDGE = { flex: "1 1 6.5em", width: "auto", minWidth: 0, padding: "0 6px" } as const;
+
 export function PuzzleTool() {
   const [mode, setMode] = useState<Mode>("explore");
   const [classroom, setClassroom] = useClassroom();
@@ -453,17 +456,18 @@ export function PuzzleTool() {
             />
           </label>
         ) : editing ? (
-          <div className={styles.row} style={{ flex: 1 }}>
-            <span className={styles.stepText} style={{ margin: 0, flex: 1 }}>
+          // Wraps on phones: the hint on one line, the three buttons below.
+          <div className={styles.row} style={{ flex: 1, flexWrap: "wrap" }}>
+            <span className={styles.stepText} style={{ margin: 0, flex: "1 1 12em" }}>
               {editing.sel === null ? "روی یک قطعه بزن تا انتخاب شود" : "قطعه انتخاب‌شده:"}
             </span>
-            <button className={styles.clear} onClick={() => nudgeSelected("back")} disabled={editing.sel === null}>
+            <button className={styles.clear} style={NUDGE} onClick={() => nudgeSelected("back")} disabled={editing.sel === null}>
               ↺ چرخش
             </button>
-            <button className={styles.clear} onClick={() => nudgeSelected("turn")} disabled={editing.sel === null}>
+            <button className={styles.clear} style={NUDGE} onClick={() => nudgeSelected("turn")} disabled={editing.sel === null}>
               ↻ چرخش
             </button>
-            <button className={styles.clear} onClick={() => nudgeSelected("flip")} disabled={editing.sel === null || !canFlip}>
+            <button className={styles.clear} style={NUDGE} onClick={() => nudgeSelected("flip")} disabled={editing.sel === null || !canFlip}>
               ⇋ برگرداندن
             </button>
           </div>

@@ -402,25 +402,99 @@ button:disabled {
   height: auto;
 }
 
-@media (max-width: 760px) {
+/* Tablets: a narrower side panel leaves the board room. */
+@media (max-width: 1100px) and (min-width: 901px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 270px;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .header h1 {
+    font-size: 1.35rem;
+  }
+
+  .tabs button {
+    padding: 0 12px;
+  }
+}
+
+/* Phones: one column; board first, then its controls, then the panel. */
+@media (max-width: 900px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto 50vh auto auto;
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
       "header"
       "stage"
       "controls"
       "side";
     height: auto;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .header {
+    gap: 8px;
+  }
+
+  /* Title first, the back link at the far end of the same row. */
+  .header h1 {
+    order: 1;
+    font-size: 1.2rem;
+    gap: 8px;
+  }
+
+  .badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .back {
+    order: 2;
+    font-size: 0.85rem;
+    margin-inline-start: auto;
   }
 
   .tabs {
+    order: 3;
     margin-inline-start: 0;
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .tabs button {
+    flex: 1 0 auto;
+    min-height: 44px;
+    padding: 0 10px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  .teacher {
+    order: 4;
+    width: 100%;
+  }
+
+  .teacher > button,
+  .teacher > a {
     flex: 1;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .controls {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .side {
+    padding: 12px;
   }
 
   .player {
