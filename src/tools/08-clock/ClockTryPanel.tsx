@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { answerKind, clockMistake, hm, MONTHS, WEEKDAYS, type ClockQuestion, type ClockQuestionType, type Level } from "@/generators/clock";
+import { answerKind, clockMistake, daysIn, hm, isLeapYear, MONTHS, WEEKDAYS, type ClockQuestion, type ClockQuestionType, type Level } from "@/generators/clock";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import { durationFa, timeFa } from "./Pictures";
@@ -20,6 +20,8 @@ export const CLOCK_TYPE_LABEL: Record<ClockQuestionType, string> = {
 export const ltr = (s: string) => `⁦${s}⁩`;
 
 const dateFa = (d: { m: number; d: number }) => `${fa(d.d)} ${MONTHS[d.m].name}`;
+/** "سال ۱۴۰۳ کبیسه است" or "… کبیسه نیست". */
+const leapFa = (year: number) => `سال ${fa(year)} کبیسه ${isLeapYear(year) ? "است" : "نیست"}`;
 const sideWord = (fast: boolean) => (fast ? "جلو" : "عقب");
 
 export function clockPrompt(q: ClockQuestion, paper = false): string {
@@ -38,6 +40,8 @@ export function clockPrompt(q: ClockQuestion, paper = false): string {
     case "weekday":
       return `امروز ${WEEKDAYS[q.start]} است. ${fa(q.days)} روز ${q.back ? "پیش چه روزی بود" : "بعد چه روزی است"}؟`;
     case "month":
+      if (q.year !== undefined)
+        return `${dateFa(q.from)} ${fa(q.year)} ${WEEKDAYS[q.weekday]} است. ${dateFa(q.to)} ${fa(q.year + 1)} چه روزی است؟ (${leapFa(q.year)}.)`;
       return `${dateFa(q.from)} ${WEEKDAYS[q.weekday]} است. ${dateFa(q.to)} همان سال چه روزی است؟`;
   }
 }
@@ -69,10 +73,14 @@ export function clockHow(q: ClockQuestion): string {
       return `${weeksFa(q.days)}: ${fa(Math.floor(q.days / 7))} هفته کامل باز ${WEEKDAYS[q.start]} می‌شود، بعد ${fa(q.days % 7)} روز ${q.back ? "عقب" : "جلو"}: ${WEEKDAYS[q.answer]}.`;
     case "month": {
       if (q.from.m === q.to.m) return `${ltr(`${fa(q.to.d)} − ${fa(q.from.d)} = ${fa(q.days)}`)} روز؛ ${weeksFa(q.days)}، پس ${fa(q.days % 7)} روز بعد از ${WEEKDAYS[q.weekday]}: ${WEEKDAYS[q.answer]}.`;
-      const parts = [`باقی ${MONTHS[q.from.m].name} ${ltr(`${MONTHS[q.from.m].days} − ${q.from.d} = ${MONTHS[q.from.m].days - q.from.d}`)}`];
-      for (let m = q.from.m + 1; m < q.to.m; m++) parts.push(`${MONTHS[m].name} ${MONTHS[m].days}`);
+      // Months after `from` up to `to`, counted past Esfand into the next year when the question names a year.
+      const last = q.to.m + (q.year !== undefined ? 12 : 0);
+      const len = (k: number) => daysIn(k % 12, q.year);
+      const parts = [`باقی ${MONTHS[q.from.m].name} ${ltr(`${len(q.from.m)} − ${q.from.d} = ${len(q.from.m) - q.from.d}`)}`];
+      for (let k = q.from.m + 1; k < last; k++) parts.push(`${MONTHS[k % 12].name} ${len(k)}`);
       parts.push(`${MONTHS[q.to.m].name} ${q.to.d}`);
-      return `${MONTHS[q.from.m].name} ${fa(MONTHS[q.from.m].days)} روز دارد. روزها: ${fa(parts.join("، "))}؛ جمع ${fa(q.days)} روز. ${weeksFa(q.days)}، پس ${fa(q.days % 7)} روز بعد از ${WEEKDAYS[q.weekday]}: ${WEEKDAYS[q.answer]}.`;
+      const leap = q.year !== undefined ? `${leapFa(q.year)}، پس اسفندش ${fa(daysIn(11, q.year))} روز دارد. ` : "";
+      return `${leap}${MONTHS[q.from.m].name} ${fa(len(q.from.m))} روز دارد. روزها: ${fa(parts.join("، "))}؛ جمع ${fa(q.days)} روز. ${weeksFa(q.days)}، پس ${fa(q.days % 7)} روز بعد از ${WEEKDAYS[q.weekday]}: ${WEEKDAYS[q.answer]}.`;
     }
   }
 }
@@ -125,6 +133,15 @@ function feedback(q: ClockQuestion, v: number): { tone: Tone; text: string } {
       return { tone: "turned", text: `نزدیک بود! یک روز اختلاف دارد: روز شروع را نشمار؛ از روز بعدش بشمار. ${right}` };
     case "assume30":
       return { tone: "turned", text: `نزدیک بود! همه ماه‌ها ۳۰ روز نیستند: شش ماه اول ۳۱ روز دارند. ${right}` };
+    case "esfand": {
+      const year = (q as { year: number }).year;
+      return {
+        tone: "turned",
+        text: isLeapYear(year)
+          ? `نزدیک بود! ${leapFa(year)}؛ پس اسفندش ۳۰ روز دارد، نه ۲۹. ${right}`
+          : `نزدیک بود! ${leapFa(year)}؛ پس اسفندش ۲۹ روز دارد. اسفند فقط در سال کبیسه ۳۰ روز است. ${right}`,
+      };
+    }
     default:
       return { tone: "bad", text: right };
   }

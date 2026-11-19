@@ -5,13 +5,17 @@ import {
   clockMistake,
   dateOf,
   dayOfYear,
+  daysIn,
   handAngles,
   hm,
+  isLeapYear,
   makeClockQuestion,
   mirrorOf,
   MONTHS,
   slips,
   wrap,
+  wrap7,
+  yearLength,
   type ClockQuestionType,
   type Level,
 } from "./clock";
@@ -51,6 +55,37 @@ describe("clock arithmetic", () => {
     for (let doy = 0; doy < 365; doy++) {
       const { m, d } = dateOf(doy);
       expect(dayOfYear(m, d)).toBe(doy);
+    }
+  });
+
+  it("knows the leap years of the Solar Hijri calendar", () => {
+    for (const y of [1370, 1375, 1379, 1383, 1387, 1391, 1395, 1399, 1403, 1408, 1412, 1416, 1420]) expect(isLeapYear(y), `${y}`).toBe(true);
+    for (const y of [1396, 1397, 1398, 1400, 1401, 1402, 1404, 1405, 1406, 1407, 1409]) expect(isLeapYear(y), `${y}`).toBe(false);
+    // Mostly every 4 years, sometimes 5 (1403 → 1408): 8 leap years in 33.
+    for (let start = 1300; start < 1500; start += 33) expect(Array.from({ length: 33 }, (_, i) => start + i).filter(isLeapYear).length).toBe(8);
+    expect(daysIn(11, 1403)).toBe(30);
+    expect(daysIn(11, 1404)).toBe(29);
+    expect(daysIn(11)).toBe(29);
+    expect(yearLength(1399)).toBe(366);
+    expect(yearLength(1400)).toBe(365);
+  });
+
+  it("walks dates across years with the right Esfand", () => {
+    // 1403 is leap: the day after 29 Esfand is 30 Esfand.
+    expect(dateOf(365, 1403)).toEqual({ y: 1403, m: 11, d: 30 });
+    expect(dateOf(366, 1403)).toEqual({ y: 1404, m: 0, d: 1 });
+    // 1404 is not.
+    expect(dateOf(365, 1404)).toEqual({ y: 1405, m: 0, d: 1 });
+    // Backwards: the day before 1 Farvardin 1404 is 30 Esfand 1403.
+    expect(dateOf(-1, 1404)).toEqual({ y: 1403, m: 11, d: 30 });
+    expect(dateOf(-1, 1403)).toEqual({ y: 1402, m: 11, d: 29 });
+    // Day by day over 1395 … 1410, against a counter.
+    let [y, m, d] = [1395, 0, 1];
+    for (let k = 0; k < 16 * 366; k++) {
+      expect(dateOf(k, 1395)).toEqual({ y, m, d });
+      d++;
+      if (d > daysIn(m, y)) [m, d] = [m + 1, 1];
+      if (m === 12) [y, m] = [y + 1, 0];
     }
   });
 });
@@ -110,17 +145,29 @@ describe("clock questions", () => {
             case "month": {
               expect(q.days).toBeGreaterThan(0);
               expect(q.to.d).toBeLessThanOrEqual(MONTHS[q.to.m].days);
-              expect(q.to.m - q.from.m).toBe(level === 1 ? 0 : level === 2 ? 1 : q.to.m - q.from.m);
-              if (level === 3) expect(q.to.m - q.from.m).toBeGreaterThanOrEqual(2);
-              // Walk the calendar day by day.
+              expect(q.from.d).toBeLessThanOrEqual(MONTHS[q.from.m].days);
+              // Only level 3 names a year, and then the question crosses Esfand into the next year.
+              if (level < 3) expect(q.year).toBeUndefined();
+              const months = q.to.m - q.from.m + (q.year !== undefined ? 12 : 0);
+              expect(months).toBe(level === 1 ? 0 : level === 2 ? 1 : months);
+              if (level === 3) expect(months).toBeGreaterThanOrEqual(2);
+              if (q.year !== undefined) expect(q.from.m).toBeGreaterThanOrEqual(9);
+              // Year-less questions never reach the end of Esfand, where the year would matter.
+              else expect(q.to.m < 11 || q.to.d < 30).toBe(true);
+              // Walk the calendar day by day, with this year's Esfand.
               let w = q.weekday;
               let { m, d } = q.from;
+              let y = q.year ?? 1404;
               while (m !== q.to.m || d !== q.to.d) {
                 d++;
-                if (d > MONTHS[m].days) [m, d] = [m + 1, 1];
+                if (d > daysIn(m, y)) [m, d] = [m + 1, 1];
+                if (m === 12) [y, m] = [y + 1, 0];
                 w = (w + 1) % 7;
               }
+              expect(y).toBe(q.year !== undefined ? q.year + 1 : 1404);
               expect(w).toBe(q.answer);
+              // In a year-named question, the other Esfand length is its own slip.
+              if (q.year !== undefined) expect(clockMistake(q, wrap7(q.answer + (isLeapYear(q.year) ? -1 : 1)))).toBe("esfand");
               break;
             }
           }
@@ -148,5 +195,15 @@ describe("clock questions", () => {
     // 10 Farvardin to 5 Ordibehesht: 26 days, not 25.
     const month = { type: "month", level: 2, seed: 0, from: { m: 0, d: 10 }, to: { m: 1, d: 5 }, weekday: 0, days: 26, answer: 5 } as const;
     expect(clockMistake(month, 4)).toBe("assume30");
+
+    // 20 Bahman 1403 to 10 Farvardin 1404: 10 + 30 (Esfand 1403 is leap) + 10 = 50 days.
+    const leap = { type: "month", level: 3, seed: 0, from: { m: 10, d: 20 }, to: { m: 0, d: 10 }, year: 1403, weekday: 0, days: 50, answer: 1 } as const;
+    expect(clockMistake(leap, 1)).toBe("right");
+    expect(clockMistake(leap, 0)).toBe("esfand");
+    expect(clockMistake(leap, 2)).toBe("offByOne");
+    // The same in 1402, not leap: 49 days; Esfand taken as 30 gives one day later.
+    const common = { ...leap, year: 1402, days: 49, answer: 0 } as const;
+    expect(clockMistake(common, 1)).toBe("esfand");
+    expect(clockMistake(common, 6)).toBe("offByOne");
   });
 });

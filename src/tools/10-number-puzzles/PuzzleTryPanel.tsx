@@ -1,6 +1,6 @@
 "use client";
 
-import { blankCells, cornersOf, lineOk, puzzleMistake, SHAPE_RULES, type Level, type NumberPuzzle, type PuzzleType, type Step } from "@/generators/number-puzzles";
+import { blankCells, cornersOf, firstMove, lineOk, puzzleMistake, SHAPE_RULES, type Level, type NumberPuzzle, type PuzzleType, type Step } from "@/generators/number-puzzles";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
@@ -47,6 +47,22 @@ export function puzzlePrompt(q: NumberPuzzle, paper = false): string {
       const blank = blankCells(q)[0];
       return `در هر مثلث، عدد وسط با یک قانون از سه عدد گوشه ساخته می‌شود. ${LEVEL_HINT[q.level]} ${blank % 4 === 3 ? "عدد وسط شکل ۳ چند است؟" : "عدد گوشه‌ای که «؟» دارد چند است؟"}`;
     }
+  }
+}
+
+/** The "think first" hint: true for this puzzle's own first step (see firstMove). */
+export function firstHint(q: NumberPuzzle): string {
+  switch (firstMove(q)) {
+    case "rule":
+      return "اول فکر کن: چه قانونی در شکل ۱ و شکل ۲ هر دو درست است؟";
+    case "sum":
+      return "اول فکر کن: جمع هر خط چند است؟ سه سطر با هم همه عددها را می‌گیرند.";
+    case "cornerSum":
+      return "اول فکر کن: هر گوشه در دو ضلع هست. جمع سه ضلع با جمع همه عددها چه فرقی دارد؟";
+    case "only":
+      return "اول فکر کن: هیچ خطی فقط یک خانه خالی ندارد؛ کدام خانه خالی فقط با یکی از عددهای باقی‌مانده جور است؟";
+    case "line":
+      return "اول فکر کن: کدام خط فقط یک خانه خالی دارد؟";
   }
 }
 

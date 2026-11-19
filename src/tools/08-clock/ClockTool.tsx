@@ -8,8 +8,10 @@ import {
   answerKind,
   dateOf,
   dayOfYear,
+  daysIn,
   handAngles,
   hm,
+  isLeapYear,
   makeClockQuestion,
   mirrorOf,
   MONTHS,
@@ -30,6 +32,11 @@ import { CLOCK_GUIDE } from "./guide";
 import { ClockG, timeFa, WeekG, weekHeight } from "./Pictures";
 
 type Mode = "explore" | "show" | "try";
+
+/** The calendar's start year, and the years the explore stepper allows. */
+const DEFAULT_YEAR = 1405;
+const MIN_YEAR = 1390;
+const MAX_YEAR = 1420;
 type Area = "clock" | "calendar";
 
 const VIEW: [number, number, number, number] = [0, 0, 16, 9];
@@ -60,8 +67,8 @@ function startCaption(q: ClockQuestion) {
 
 /** Day questions as a calendar: day 0 is the start, the target is the answer day. */
 function calendarOf(q: ClockQuestion) {
-  if (q.type === "weekday") return { weekday: q.start, target: q.back ? -q.days : q.days, doy: undefined };
-  if (q.type === "month") return { weekday: q.weekday, target: q.days, doy: dayOfYear(q.from.m, q.from.d) };
+  if (q.type === "weekday") return { weekday: q.start, target: q.back ? -q.days : q.days, doy: undefined, year: undefined };
+  if (q.type === "month") return { weekday: q.weekday, target: q.days, doy: dayOfYear(q.from.m, q.from.d), year: q.year };
   return null;
 }
 
@@ -96,6 +103,7 @@ export function ClockTool() {
   const [showAngle, setShowAngle] = useState(true);
   const [showMirror, setShowMirror] = useState(false);
   const [from, setFrom] = useState<DateRef>({ m: 6, d: 1 });
+  const [year, setYear] = useState(DEFAULT_YEAR);
   const [weekday, setWeekday] = useState(2);
   const [jump, setJump] = useState(30);
 
@@ -110,7 +118,7 @@ export function ClockTool() {
   const showMs = area === "clock" ? 9000 : Math.min(9000, 1200 + 350 * (Math.floor(Math.abs(jump) / 7) + (Math.abs(jump) % 7)));
   const tryMs = (q: ClockQuestion) => (answerKind(q.type) === "day" ? Math.min(9000, 1200 + 350 * (Math.floor(Math.abs(calendarOf(q)!.target) / 7) + (Math.abs(calendarOf(q)!.target) % 7))) : 4000);
 
-  // Shareable links: #try=angle&level=2&seed=7(&a=75), #show=clock-210 or #show=cal-6-1-2-30, #f=0.5, #classroom
+  // Shareable links: #try=angle&level=2&seed=7(&a=75), #show=clock-210 or #show=cal-6-1-2-30(-1403), #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -136,9 +144,11 @@ export function ClockTool() {
           setArea("clock");
           setTime(Number(rest[0]) || 0);
         } else if (kind === "cal") {
-          const [m, d, w, n] = rest as number[];
+          const [m, d, w, n, y] = rest as number[];
           setArea("calendar");
-          if (m >= 0 && m < 12) setFrom({ m, d: Math.min(MONTHS[m].days, Math.max(1, d || 1)) });
+          const yy = Number.isInteger(y) && y >= MIN_YEAR && y <= MAX_YEAR ? y : DEFAULT_YEAR;
+          setYear(yy);
+          if (m >= 0 && m < 12) setFrom({ m, d: Math.min(daysIn(m, yy), Math.max(1, d || 1)) });
           if (w >= 0 && w < 7) setWeekday(w);
           if (Number.isFinite(n)) setJump(Math.max(-400, Math.min(400, n)));
         }
@@ -150,6 +160,12 @@ export function ClockTool() {
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+
+  // Esfand 30 exists only in a leap year.
+  const changeYear = (y: number) => {
+    setYear(y);
+    setFrom({ ...from, d: Math.min(from.d, daysIn(from.m, y)) });
+  };
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -178,14 +194,16 @@ export function ClockTool() {
   const lo = Math.min(0, jump);
   const hi = Math.max(0, jump);
   const doy = dayOfYear(from.m, from.d);
-  const landed = dateOf(doy + jump);
+  const landed = dateOf(doy + jump, year);
+  /** "۱۰ فروردین", with the year when the jump leaves the start year. */
+  const landedFa = `${fa(landed.d)} ${MONTHS[landed.m].name}${landed.y !== year ? ` ${fa(landed.y!)}` : ""}`;
 
   let board: React.ReactNode;
   if (mode !== "try") {
     if (area === "calendar")
       board = (
         <Board view={weekView(weekday, lo, hi)} imageName="calendar" label="تقویم هفتگی">
-          <WeekG weekday={weekday} lo={lo} hi={hi} doy={doy} target={jump} hops={mode === "show" ? f : 1} x={0} y={0} />
+          <WeekG weekday={weekday} lo={lo} hi={hi} doy={doy} year={year} target={jump} hops={mode === "show" ? f : 1} x={0} y={0} />
         </Board>
       );
     else if (mode === "show")
@@ -221,9 +239,9 @@ export function ClockTool() {
       const [vx, vy, vw, vh] = weekView(cal.weekday, wlo, whi);
       board = (
         <Board view={[vx, vy, vw, vh + 1.4]} imageName="calendar" label="تقویم">
-          <WeekG weekday={cal.weekday} lo={wlo} hi={whi} doy={cal.doy} x={0} y={0} />
+          <WeekG weekday={cal.weekday} lo={wlo} hi={whi} doy={cal.doy} year={cal.year} x={0} y={0} />
           <text x={3.5} y={vh + 0.4} fontSize={0.42} fontWeight={700} textAnchor="middle" fill="#1f2430">
-            {q.type === "month" ? `${fa(q.to.d)} ${MONTHS[q.to.m].name}: ؟` : q.type === "weekday" ? `${fa(q.days)} روز ${q.back ? "پیش" : "بعد"}: ؟` : ""}
+            {q.type === "month" ? `${fa(q.to.d)} ${MONTHS[q.to.m].name}${q.year !== undefined ? ` ${fa(q.year + 1)}` : ""}: ؟` : q.type === "weekday" ? `${fa(q.days)} روز ${q.back ? "پیش" : "بعد"}: ؟` : ""}
           </text>
         </Board>
       );
@@ -232,7 +250,7 @@ export function ClockTool() {
       const qhi = Math.max(0, cal.target);
       board = (
         <Board view={weekView(cal.weekday, qlo, qhi)} imageName="calendar" label="تقویم">
-          <WeekG weekday={cal.weekday} lo={qlo} hi={qhi} doy={cal.doy} target={cal.target} hops={f} x={0} y={0} />
+          <WeekG weekday={cal.weekday} lo={qlo} hi={qhi} doy={cal.doy} year={cal.year} target={cal.target} hops={f} x={0} y={0} />
         </Board>
       );
     } else if (q.type === "angle") {
@@ -280,7 +298,7 @@ export function ClockTool() {
       <bdi dir="ltr">
         {fa(Math.abs(jump))} = ۷ × {fa(weeks)} + {fa(rest)}
       </bdi>
-      : {fa(weeks)} هفته کامل باز {WEEKDAYS[weekday]}، بعد {fa(rest)} روز {jump < 0 ? "عقب" : "جلو"}: {landedDay}، {fa(landed.d)} {MONTHS[landed.m].name}.
+      : {fa(weeks)} هفته کامل باز {WEEKDAYS[weekday]}، بعد {fa(rest)} روز {jump < 0 ? "عقب" : "جلو"}: {landedDay}، {landedFa}.
     </p>
   );
 
@@ -413,15 +431,22 @@ export function ClockTool() {
           <>
             <h2 className={styles.progress}>۱. روز شروع</h2>
             <div className={styles.row}>
-              <select value={from.m} onChange={(e) => setFrom({ m: Number(e.target.value), d: Math.min(from.d, MONTHS[Number(e.target.value)].days) })} aria-label="ماه" style={{ minHeight: 44, flex: 1 }}>
+              <select value={from.m} onChange={(e) => setFrom({ m: Number(e.target.value), d: Math.min(from.d, daysIn(Number(e.target.value), year)) })} aria-label="ماه" style={{ minHeight: 44, flex: 1 }}>
                 {MONTHS.map((mo, i) => (
                   <option key={mo.name} value={i}>
-                    {mo.name} ({fa(mo.days)} روز)
+                    {mo.name} ({fa(daysIn(i, year))} روز)
                   </option>
                 ))}
               </select>
-              <Stepper label={`روز ${fa(from.d)}`} onLess={() => setFrom({ ...from, d: from.d - 1 })} onMore={() => setFrom({ ...from, d: from.d + 1 })} lessOff={from.d <= 1} moreOff={from.d >= MONTHS[from.m].days} />
+              <Stepper label={`روز ${fa(from.d)}`} onLess={() => setFrom({ ...from, d: from.d - 1 })} onMore={() => setFrom({ ...from, d: from.d + 1 })} lessOff={from.d <= 1} moreOff={from.d >= daysIn(from.m, year)} />
             </div>
+            <Stepper
+              label={`سال ${fa(year)} (${isLeapYear(year) ? "کبیسه" : "عادی"})`}
+              onLess={() => changeYear(year - 1)}
+              onMore={() => changeYear(year + 1)}
+              lessOff={year <= MIN_YEAR}
+              moreOff={year >= MAX_YEAR}
+            />
             <div className={styles.chipsRow} role="radiogroup" aria-label="روز هفته" style={{ flexWrap: "wrap" }}>
               {WEEKDAYS.map((w, i) => (
                 <button key={w} role="radio" aria-checked={weekday === i} onClick={() => setWeekday(i)} style={{ flex: "1 0 28%" }}>
@@ -437,7 +462,7 @@ export function ClockTool() {
               <button className={styles.clear} onClick={() => setJump(Math.min(400, jump + 7))}>+۷</button>
             </div>
             {calendarText}
-            <MonthTable />
+            <MonthTable year={year} />
           </>
         )}
 
@@ -477,7 +502,7 @@ export function ClockTool() {
             <p className={styles.note}>هر ۷ روز، باز همان روز هفته است. پس اول هفته‌های کامل را کنار بگذار (پرش‌های آبی)، بعد فقط روزهای باقی‌مانده را بشمار (پرش‌های خط‌چین قرمز).</p>
             {calendarText}
             <p className={styles.note}>
-              از {fa(from.d)} {MONTHS[from.m].name}، {fa(Math.abs(jump))} روز {jump < 0 ? "پیش" : "بعد"} می‌شود {fa(landed.d)} {MONTHS[landed.m].name}.
+              از {fa(from.d)} {MONTHS[from.m].name} {fa(year)}، {fa(Math.abs(jump))} روز {jump < 0 ? "پیش" : "بعد"} می‌شود {landedFa}.
             </p>
           </>
         )}
@@ -526,11 +551,13 @@ function TimeNudges({ time, onTime }: { time: number; onTime: (t: number) => voi
   );
 }
 
-function MonthTable() {
+function MonthTable({ year }: { year: number }) {
   return (
     <>
-      <h2 className={styles.progress}>روزهای ماه‌ها</h2>
-      <p className={styles.note}>شش ماه اول ۳۱ روز، پنج ماه بعد ۳۰ روز، اسفند ۲۹ روز (در سال کبیسه ۳۰).</p>
+      <h2 className={styles.progress}>روزهای ماه‌ها در سال {fa(year)}</h2>
+      <p className={styles.note}>
+        شش ماه اول ۳۱ روز، پنج ماه بعد ۳۰ روز، اسفند ۲۹ روز (در سال کبیسه ۳۰). سال {fa(year)} کبیسه {isLeapYear(year) ? "است" : "نیست"}.
+      </p>
       <table className={styles.countTable}>
         <tbody>
           {[0, 6].map((start) => (
@@ -539,7 +566,7 @@ function MonthTable() {
                 <td key={m.name} style={{ fontSize: "0.78rem" }}>
                   {m.name}
                   <br />
-                  {fa(m.days)}
+                  {fa(daysIn(MONTHS.indexOf(m), year))}
                 </td>
               ))}
             </tr>

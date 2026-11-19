@@ -4,6 +4,7 @@ import {
   candidates,
   cellSlips,
   cornerCandidates,
+  firstMove,
   fittingRules,
   givenValues,
   LO_SHU,
@@ -22,6 +23,9 @@ import {
 
 const LEVELS: Level[] = [1, 2, 3];
 const solution = (q: NumberPuzzle) => q.cells.map((c) => c.value);
+
+/** Lines a child could finish straight away: one blank, and a total that is known. */
+const oneBlankLines = (q: NumberPuzzle) => q.lines.filter((l) => (l.total || !q.targetHidden) && l.cells.filter((i) => !q.cells[i].given).length === 1);
 
 /** Every way to put the unused numbers of the set into the blanks so all lines hold (independent of the solver). */
 function countSetFills(q: NumberPuzzle, limit = 50): number {
@@ -126,6 +130,22 @@ describe("solver", () => {
   });
 });
 
+describe("first-move hint", () => {
+  it("fits the puzzle", () => {
+    expect(firstMove(makeNumberPuzzle("shape", 1, 1))).toBe("rule");
+    expect(firstMove(makeNumberPuzzle("magic", 3, 1))).toBe("sum");
+    expect(firstMove(makeNumberPuzzle("star", 3, 1))).toBe("cornerSum");
+    expect(firstMove(makeNumberPuzzle("pyramid", 2, 1))).toBe("line");
+    // A magic square with one blank starts from its line.
+    const one = makeNumberPuzzle("magic", 1, 1);
+    expect(firstMove({ ...one, cells: one.cells.map((c, i) => ({ ...c, given: i !== 0 })) })).toBe("line");
+    // Some level-2 squares have no line with one blank: the hint then says to eliminate.
+    const elim = Array.from({ length: 500 }, (_, seed) => makeNumberPuzzle("magic", 2, seed)).find((q) => firstMove(q) === "only");
+    expect(elim).toBeDefined();
+    expect(oneBlankLines(elim!)).toEqual([]);
+  });
+});
+
 describe("number puzzles", () => {
   it("is the same for the same seed", () => {
     for (const t of PUZZLE_TYPES) for (const l of LEVELS) expect(makeNumberPuzzle(t, l, 42)).toEqual(makeNumberPuzzle(t, l, 42));
@@ -153,6 +173,16 @@ describe("number puzzles", () => {
 
             // No slip may be the right answer.
             for (const [c, , v] of cellSlips(q)) if (v === sol[c]) fail("slip is the answer");
+
+            // The "think first" hint is true for this puzzle.
+            const move = firstMove(q);
+            if ((move === "rule") !== (type === "shape")) fail(`hint ${move}`);
+            if (move === "sum" && !(type === "magic" && q.targetHidden)) fail("sum hint");
+            if (move === "cornerSum" && !(type === "star" && q.anyFill && n === 6)) fail("corner hint");
+            if (move === "line" && !oneBlankLines(q).length) fail("no line with one blank");
+            if (move === "only" && (oneBlankLines(q).length || !blanks.some((c) => candidates(q, givenValues(q), c).length === 1))) fail("only hint");
+            // The two puzzles the old one-blank hint misled on.
+            if (level === 3 && (type === "magic" || type === "star") && move === "line") fail("line hint on a level-3 magic puzzle");
 
             switch (type) {
               case "magic":

@@ -463,6 +463,22 @@ export function solveSteps(q: NumberPuzzle): Step[] | null {
   return steps;
 }
 
+/**
+ * Where to start, for the "think first" hint: what the solver's first step needs.
+ * rule: number in shape. sum: the hidden magic total (then the centre). cornerSum: the open
+ * magic triangle. line: some line has one blank. only: no line has one blank yet, so look for
+ * a cell that only one of the numbers left can fill.
+ */
+export type FirstMove = "rule" | "sum" | "cornerSum" | "line" | "only";
+export function firstMove(q: NumberPuzzle): FirstMove {
+  if (q.type === "shape") return "rule";
+  const first = solveSteps(q)?.[0];
+  if (!first) return "line";
+  if (first.kind === "sum" || first.kind === "centre") return "sum";
+  if (first.kind === "cornerSum" || first.kind === "pick") return "cornerSum";
+  return first.kind === "only" ? "only" : "line";
+}
+
 /** Cell values once the first k steps are done. */
 export function valuesAfter(q: NumberPuzzle, steps: readonly Step[], k: number): (number | null)[] {
   const vals = givenValues(q);

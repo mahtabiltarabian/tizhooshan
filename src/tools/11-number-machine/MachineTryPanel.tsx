@@ -9,7 +9,10 @@ import {
   machineMistake,
   machineValue,
   opValue,
+  orderUsed,
+  reorder,
   sameRule,
+  swappedPair,
   type BuildQuestion,
   type Level,
   type Machine,
@@ -18,6 +21,7 @@ import {
   type NumberQuestion,
   type Op,
   type OperatorQuestion,
+  type Rule,
   type Step,
 } from "@/generators/number-machine";
 import { NumberPad } from "@/toolkit/NumberPad";
@@ -118,6 +122,17 @@ export function answerFa(q: MachineQuestion): string {
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
+/** What a child did with the steps when they ran them in another order. */
+function orderSlipFa(rule: Rule, order: number[] | null): string {
+  if (!order || order.every((k, i) => k === rule.length - 1 - i)) return "تو از آخر شروع کردی.";
+  const pair = swappedPair(order);
+  if (pair) {
+    const [i, j] = pair;
+    return `تو جای مرحله ${fa(i + 1)} (${ltr(stepFa(rule[i]))}) و مرحله ${fa(j + 1)} (${ltr(stepFa(rule[j]))}) را عوض کردی.`;
+  }
+  return `تو مرحله‌ها را به این ترتیب اجرا کردی: ${ltr(ruleFa(reorder(rule, order)))}.`;
+}
+
 function numberFeedback(q: NumberQuestion, v: number): { tone: Tone; text: string } {
   const how = machineHow(q);
   const right = `جواب ${fa(q.answer)} است. ${how}`;
@@ -126,7 +141,7 @@ function numberFeedback(q: NumberQuestion, v: number): { tone: Tone; text: strin
     case "right":
       return { tone: "good", text: `درست است! ${how}` };
     case "order":
-      return { tone: "turned", text: `نزدیک بود! ترتیب مرحله‌ها مهم است: اول ${ltr(stepFa(rule[0]))}، بعد ${ltr(stepFa(rule[1]))}. تو از آخر شروع کردی. ${right}` };
+      return { tone: "turned", text: `نزدیک بود! ترتیب مرحله‌ها مهم است: ${rule.map((s, i) => `${i ? "بعد" : "اول"} ${ltr(stepFa(s))}`).join("، ")}. ${orderSlipFa(rule, q.type === "run" ? orderUsed(q, v) : null)} ${right}` };
     case "stopEarly":
       return q.type === "operator"
         ? { tone: "turned", text: `نزدیک بود! این فقط داخل پرانتز است. حالا جوابش را با ${fa(q.c)} دوباره به ★ بده. ${right}` }

@@ -431,6 +431,22 @@ export const FIGURES: { name: string; poly: Pt[] }[] = [
 let figuresMemo: typeof FIGURES | null = null;
 export const tangramFigures = () => (figuresMemo ??= FIGURES.filter((f) => solveOnce(polyTris(f.poly), TANGRAM, true) !== null));
 
+/** The "simple pieces" set of explore mode, biggest first (show-me moves them in this order): 10 unit squares in all. */
+export const SIMPLE_SET: PieceKind[] = ["trap", "domino", "midTri", "smallTri", "unit", "unit", "half", "half"];
+
+/** Figures the simple set makes, using every piece (the tests check each with the solver). */
+export const SIMPLE_FIGURES: { name: string; poly: Pt[] }[] = [
+  { name: "مستطیل", poly: [[0, 0], [5, 0], [5, 2], [0, 2]] },
+  { name: "شش‌ضلعی", poly: [[0, 1], [1, 0], [5, 0], [6, 1], [5, 2], [1, 2]] },
+  { name: "متوازی‌الاضلاع", poly: [[0, 0], [5, 0], [7, 2], [2, 2]] },
+  { name: "ذوزنقه", poly: [[0, 0], [7, 0], [5, 2], [2, 2]] },
+  { name: "خانه", poly: [[1, 0], [3, 0], [3, 3], [4, 3], [2, 5], [0, 3], [1, 3]] },
+  { name: "پله", poly: [[0, 0], [4, 0], [4, 1], [3, 1], [3, 2], [2, 2], [2, 3], [1, 3], [1, 4], [0, 4]] },
+];
+
+let simpleMemo: typeof SIMPLE_FIGURES | null = null;
+export const simpleFigures = () => (simpleMemo ??= SIMPLE_FIGURES.filter((f) => solveOnce(polyTris(f.poly), SIMPLE_SET, true) !== null));
+
 // ── Questions ────────────────────────────────────────────────────────────
 
 export type PuzzleQuestionType = "build" | "overlay" | "combine" | "split" | "extra" | "complete";

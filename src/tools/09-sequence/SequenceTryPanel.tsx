@@ -15,7 +15,7 @@ import {
 } from "@/generators/sequence";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
-import { ltr, signedFa, stepFa, termFa } from "./Train";
+import { ltr, rowsHint, signedFa, stepFa, termFa } from "./Train";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const SEQ_TYPE_LABEL: Record<SequenceQuestionType, string> = {
@@ -222,7 +222,7 @@ export function SequenceTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>روی صفحه، ردیف اختلاف‌ها زیر قطار ساخته می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && <p className={styles.hint}>{rowsHint(q.rule)} با نوار پایین جلو و عقب ببر.</p>}
       {!done && <p className={styles.hint}>یک قانون باید با همه جمله‌ها جور باشد؛ پس فقط یک جواب درست است.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

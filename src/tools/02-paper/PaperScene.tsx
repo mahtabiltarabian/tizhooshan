@@ -85,6 +85,11 @@ function clipSegment([a, b]: [Pt, Pt], poly: Poly): [Pt, Pt] | null {
   ];
 }
 
+const HOLE_R = 0.3;
+
+/** A hole as a 24-sided polygon. */
+const disc = ([x, y]: Pt): Poly => Array.from({ length: 24 }, (_, i): Pt => [x + HOLE_R * Math.cos((i * Math.PI) / 12), y + HOLE_R * Math.sin((i * Math.PI) / 12)]);
+
 /** Point strictly or on the edge of a convex polygon. */
 function contains(poly: Poly, [x, y]: Pt): boolean {
   const p = ccw(poly);
@@ -149,7 +154,12 @@ export function PaperScene({ S, folds, f, holes = [], removed = [], cutLines = [
           ...fa,
           geometry,
           edges: outerEdges(fa.poly, S),
-          holes: holes.filter((h) => contains(fa.poly, h)),
+          // Each hole clipped to the panel: one punched on a fold is half on each panel.
+          holes: holes
+            .filter((h) => contains(fa.poly, h))
+            .map((h) => intersect(disc(h), fa.poly))
+            .filter((d) => d.length > 2)
+            .map(shapeGeometry),
           removed: removed.map((r) => intersect(r, fa.poly)).filter((r) => r.length > 2).map(shapeGeometry),
           cuts: cutLines.map((s) => clipSegment(s, fa.poly)).filter((s): s is [Pt, Pt] => !!s),
           grid: grid
@@ -171,6 +181,7 @@ export function PaperScene({ S, folds, f, holes = [], removed = [], cutLines = [
         p.geometry.dispose();
         p.edges.dispose();
         p.removed.forEach((g) => g.dispose());
+        p.holes.forEach((g) => g.dispose());
       }),
     [model],
   );
@@ -196,7 +207,6 @@ export function PaperScene({ S, folds, f, holes = [], removed = [], cutLines = [
   };
 
   const scale = 4 / S;
-  const holeR = 0.3;
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={scale}>
@@ -215,10 +225,9 @@ export function PaperScene({ S, folds, f, holes = [], removed = [], cutLines = [
             {p.grid.map((s, j) => (
               <Strip key={`g${j}`} seg={s} width={0.02} color="#d8cdb8" z={0.001} />
             ))}
-            {p.holes.map(([x, y], j) =>
+            {p.holes.map((g, j) =>
               [0.003, -0.003].map((z) => (
-                <mesh key={`h${j}${z}`} position={[x, y, z]}>
-                  <circleGeometry args={[holeR, 24]} />
+                <mesh key={`h${j}${z}`} geometry={g} position={[0, 0, z]}>
                   <meshBasicMaterial color={INK} side={DoubleSide} />
                 </mesh>
               )),

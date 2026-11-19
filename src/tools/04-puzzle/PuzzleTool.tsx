@@ -9,6 +9,8 @@ import {
   normalize,
   PIECES,
   polyTris,
+  SIMPLE_SET,
+  simpleFigures,
   solveOnce,
   TANGRAM,
   tangramFigures,
@@ -33,9 +35,10 @@ type Mode = "explore" | "show" | "try";
 type Area = "puzzle" | "sheets";
 type SetName = "tangram" | "simple";
 
-const SETS: Record<SetName, { label: string; kinds: PieceKind[] }> = {
-  tangram: { label: "تانگرام (۷ قطعه)", kinds: TANGRAM },
-  simple: { label: "قطعه‌های ساده", kinds: ["unit", "unit", "half", "half", "smallTri", "midTri", "domino", "trap"] },
+/** Piece sets for explore; "show me" uses the one chosen there. `figures`: the shadows that set fills. */
+const SETS: Record<SetName, { label: string; kinds: PieceKind[]; figures: () => { name: string; poly: [number, number][] }[]; showName: string }> = {
+  tangram: { label: "تانگرام (۷ قطعه)", kinds: TANGRAM, figures: tangramFigures, showName: "تانگرام" },
+  simple: { label: "قطعه‌های ساده", kinds: SIMPLE_SET, figures: simpleFigures, showName: "ساده" },
 };
 
 
@@ -101,9 +104,9 @@ export function PuzzleTool() {
   }, []);
 
   // Explore: puzzle
-  const figures = useMemo(() => tangramFigures(), []);
   const [area, setArea] = useState<Area>("puzzle");
   const [set, setSet] = useState<SetName>("tangram");
+  const figures = useMemo(() => SETS[set].figures(), [set]);
   const [figure, setFigure] = useState(0);
   const [guides, setGuides] = useState(false);
   const [step, setStep] = useState<45 | 90>(90);
@@ -113,10 +116,10 @@ export function PuzzleTool() {
   const [gallery, setGallery] = useState<{ kind: PieceKind; pose: Pose }[][]>([]);
 
   const figTarget = useMemo(() => {
-    if (set !== "tangram" || figure < 0) return null;
+    if (figure < 0 || !figures[figure]) return null;
     const ids = normalize(polyTris(figures[figure].poly)).tris;
     const spot = targetSpot(ids);
-    return { ids, spot, solution: solveOnce(ids, TANGRAM, true)! };
+    return { ids, spot, solution: solveOnce(ids, SETS[set].kinds, true)! };
   }, [set, figure, figures]);
   const figSet = useMemo(() => new Set(figTarget ? figTarget.ids.map((id) => id + figTarget.spot[0] * 1024 + figTarget.spot[1] * 4) : []), [figTarget]);
   const exploreStatus = figTarget ? buildCheck(kinds, poses, figSet) : null;
@@ -125,6 +128,8 @@ export function PuzzleTool() {
     setSet(s);
     setPoses(trayPoses(SETS[s].kinds.map((kind) => ({ kind }))));
     setSelected(null);
+    // Each set has its own shadows: start on the first one, or stay free.
+    setFigure((i) => (i < 0 ? i : 0));
   };
 
   // Explore: see-through sheets
@@ -163,7 +168,7 @@ export function PuzzleTool() {
   // Poses belong to the question only once the tray has been laid out for it.
   const buildStatus = question.type === "build" && buildTarget && buildPoses.length === question.kinds.length ? buildCheck(question.kinds, buildPoses, buildTarget.set) : null;
 
-  // Shareable links: #try=build&level=2&seed=7(&pick=1)(&solve), #show=puzzle-2 or #show=sheets, #f=0.5, #classroom
+  // Shareable links: #try=build&level=2&seed=7(&pick=1)(&solve), #show=puzzle-2, #show=simple-2 or #show=sheets, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     if (params.has("classroom")) applyClassroom(true);
@@ -188,6 +193,10 @@ export function PuzzleTool() {
         if (kind === "sheets") setArea("sheets");
         else {
           setArea("puzzle");
+          if (kind === "simple") {
+            setSet("simple");
+            setPoses(trayPoses(SIMPLE_SET.map((k) => ({ kind: k }))));
+          }
           const i = Number(n);
           if (Number.isInteger(i) && i >= 0) setFigure(i);
         }
@@ -224,10 +233,12 @@ export function PuzzleTool() {
   const glide = (kindsOf: PieceKind[], from: Pose[], to: (Pose | null)[], t: number) =>
     kindsOf.map((kind, i) => (to[i] ? blendPose(kind, from[i], to[i]!, t * kindsOf.length - i) : from[i]));
 
-  const showFigure = figures[Math.max(0, figure)];
+  // Show me: the pieces chosen in explore build one of that set's shadows.
+  const showKinds = kinds;
+  const showFigure = figures[Math.min(Math.max(0, figure), figures.length - 1)];
   const showIds = useMemo(() => normalize(polyTris(showFigure.poly)).tris, [showFigure]);
   const showSpot = targetSpot(showIds);
-  const showSolution = useMemo(() => solveOnce(showIds, TANGRAM, true)!, [showIds]);
+  const showSolution = useMemo(() => solveOnce(showIds, showKinds, true)!, [showIds, showKinds]);
 
   // ── Board ──
   let board: React.ReactNode;
@@ -306,15 +317,15 @@ export function PuzzleTool() {
   } else if (mode === "show" && area === "sheets") {
     board = sheetBoard(4, sheetA, sheetB, sheetMove, f, "روی‌هم‌گذاری کاغذها");
   } else if (mode === "show") {
-    const from = trayPoses(TANGRAM.map((kind) => ({ kind })));
-    const to = matchSolution(TANGRAM, showSolution).map((p) => (p ? poseOf(movePlacement(p, showSpot)) : null));
+    const from = trayPoses(showKinds.map((kind) => ({ kind })));
+    const to = matchSolution(showKinds, showSolution).map((p) => (p ? poseOf(movePlacement(p, showSpot)) : null));
     showMs = 8000;
     board = (
       <PuzzleBoard
         view={VIEW}
-        label={`ساختن ${showFigure.name} با تانگرام`}
+        label={`ساختن ${showFigure.name} با ${SETS[set].label}`}
         target={{ ids: showIds, x: showSpot[0], y: showSpot[1] }}
-        pieces={glide(TANGRAM, from, to, f).map((pose, i) => ({ kind: TANGRAM[i], pose, color: pieceColor(i) }))}
+        pieces={glide(showKinds, from, to, f).map((pose, i) => ({ kind: showKinds[i], pose, color: pieceColor(i) }))}
       />
     );
   } else {
@@ -520,15 +531,14 @@ export function PuzzleTool() {
             </div>
             <h2 className={styles.progress}>۲. سایه</h2>
             <div className={styles.choiceGrid} role="radiogroup" aria-label="سایه">
-              <button role="radio" aria-checked={set !== "tangram" || figure < 0} onClick={() => setFigure(-1)}>
+              <button role="radio" aria-checked={figure < 0} onClick={() => setFigure(-1)}>
                 آزاد
               </button>
-              {set === "tangram" &&
-                figures.map((fig, i) => (
-                  <button key={fig.name} role="radio" aria-checked={figure === i} onClick={() => setFigure(i)}>
-                    {fig.name}
-                  </button>
-                ))}
+              {figures.map((fig, i) => (
+                <button key={fig.name} role="radio" aria-checked={figure === i} onClick={() => setFigure(i)}>
+                  {fig.name}
+                </button>
+              ))}
             </div>
             <div className={styles.row} style={{ marginTop: 8 }}>
               <button className={styles.toggle} aria-pressed={guides} onClick={() => setGuides(!guides)} disabled={!figTarget}>
@@ -601,7 +611,7 @@ export function PuzzleTool() {
               ))}
             </div>
             <p className={styles.note}>
-              هفت قطعه تانگرام آهسته سر جایشان می‌روند: اول قطعه‌های بزرگ. هر قطعه می‌چرخد و اگر لازم باشد برمی‌گردد. قطعه {fa(Math.min(TANGRAM.length, Math.floor(f * TANGRAM.length) + 1))} از {fa(TANGRAM.length)}.
+              {fa(showKinds.length)} قطعه {SETS[set].showName} (همان دسته‌ای که در «کشف» انتخاب شده) آهسته سر جایشان می‌روند: اول قطعه‌های بزرگ. هر قطعه می‌چرخد و اگر لازم باشد برمی‌گردد. قطعه {fa(Math.min(showKinds.length, Math.floor(f * showKinds.length) + 1))} از {fa(showKinds.length)}.
             </p>
           </>
         )}

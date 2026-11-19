@@ -770,22 +770,7 @@ export function MotionTool() {
         {mode === "explore" && area === "track" && (
           <>
             <h2 className={styles.progress}>دو متحرک روی مسیر</h2>
-            <div className={styles.choiceGrid} role="radiogroup" aria-label="نوع حرکت">
-              {(
-                [
-                  ["one", "یک متحرک"],
-                  ["meet", "به طرف هم"],
-                  ["chase", "هم‌جهت"],
-                ] as [TrackMode, string][]
-              ).map(([m, label]) => (
-                <button key={m} role="radio" aria-checked={trackMode === m} onClick={() => setTrackMode(m)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className={styles.note} style={{ marginTop: 8 }}>
-              ▶ الف (پنج‌ضلعی) از چپ راه می‌افتد{trackMode === "meet" ? "؛ ● ب (دایره) از سر دیگر به طرف او" : trackMode === "chase" ? "؛ ● ب (دایره) جلوتر است و همان طرف می‌رود" : ""}.
-            </p>
+            <TrackModeChoice value={trackMode} onChange={setTrackMode} />
             <Stepper label={`طول مسیر ${fa(length)} کیلومتر`} onLess={() => setLength(length - 30)} onMore={() => setLength(length + 30)} lessOff={length <= 60} moreOff={length >= 600} />
             <Stepper label={`سرعت الف ${fa(vA)}`} onLess={() => setVA(vA - 10)} onMore={() => setVA(vA + 10)} lessOff={vA <= 10} moreOff={vA >= 120} />
             {trackMode !== "one" && <Stepper label={`سرعت ب ${fa(vB)}`} onLess={() => setVB(vB - 10)} onMore={() => setVB(vB + 10)} lessOff={vB <= 10} moreOff={vB >= 120} />}
@@ -846,6 +831,13 @@ export function MotionTool() {
         {mode === "show" && area === "track" && (
           <>
             <h2>نمودار زمان–مسافت</h2>
+            <TrackModeChoice
+              value={trackMode}
+              onChange={(m) => {
+                setTrackMode(m);
+                play.animate(0, 1, showMs("track"));
+              }}
+            />
             <p className={styles.note}>هر متحرک یک خط است: خط پر الف، خط‌چین ب. هرچه تندتر، خط شیب‌دارتر. جایی که دو خط به هم می‌رسند، دو متحرک به هم رسیده‌اند.</p>
             <table className={styles.countTable}>
               <thead>
@@ -937,6 +929,30 @@ function DriverChips({ driver, onDriver }: { driver: Rot; onDriver: (r: Rot) => 
           </button>
         ))}
       </div>
+    </>
+  );
+}
+
+const TRACK_MODES: [TrackMode, string][] = [
+  ["one", "یک متحرک"],
+  ["meet", "به طرف هم"],
+  ["chase", "هم‌جهت"],
+];
+
+/** One mover, two toward each other, or two the same way (explore and show me). */
+function TrackModeChoice({ value, onChange }: { value: TrackMode; onChange: (m: TrackMode) => void }) {
+  return (
+    <>
+      <div className={styles.choiceGrid} role="radiogroup" aria-label="نوع حرکت">
+        {TRACK_MODES.map(([m, label]) => (
+          <button key={m} role="radio" aria-checked={value === m} onClick={() => onChange(m)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className={styles.note} style={{ marginTop: 8 }}>
+        ▶ الف (پنج‌ضلعی) از چپ راه می‌افتد{value === "meet" ? "؛ ● ب (دایره) از سر دیگر به طرف او" : value === "chase" ? "؛ ● ب (دایره) جلوتر است و همان طرف می‌رود" : ""}.
+      </p>
     </>
   );
 }

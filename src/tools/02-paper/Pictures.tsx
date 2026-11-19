@@ -10,11 +10,13 @@ import {
   centroid,
   chord,
   clip,
+  creases,
   intersect,
   lineNormal,
   reflect,
   shapes,
   square,
+  unfoldPoints,
   type Fold,
   type FoldLine,
   type Poly,
@@ -53,6 +55,9 @@ interface PaperSvgProps {
   links?: [Pt, Pt][];
   marks?: Mark[];
   onCell?: (i: number, j: number) => void;
+  /** Spots on a fold where a hole can be punched too: small dashed rings, tapped with `onSpot`. */
+  spots?: Pt[];
+  onSpot?: (p: Pt) => void;
   onVertex?: (v: number) => void;
   label?: string;
 }
@@ -72,6 +77,8 @@ export function PaperSvg({
   links = [],
   marks = [],
   onCell,
+  spots = [],
+  onSpot,
   onVertex,
   label,
 }: PaperSvgProps) {
@@ -139,6 +146,10 @@ export function PaperSvg({
           const part = intersect(r, paper);
           return part.length > 2 && <polygon key={`r${i}`} points={pts(part)} fill={GONE} stroke={INK} strokeWidth={1.4} strokeDasharray="4 3" />;
         })}
+        {/* Clipped to the paper: a hole punched on a fold shows as a half circle at the folded edge. */}
+        {holes.map(([x, y], i) => (
+          <circle key={`h${i}`} cx={X(x)} cy={Y(y)} r={u * 0.27} fill={INK} />
+        ))}
       </g>
 
       <polygon points={pts(paper)} fill="none" stroke={INK} strokeWidth={2} strokeLinejoin="round" />
@@ -149,10 +160,6 @@ export function PaperSvg({
 
       {links.map(([a, b], i) => (
         <line key={`l${i}`} x1={X(a[0])} y1={Y(a[1])} x2={X(b[0])} y2={Y(b[1])} stroke="#3d7bf7" strokeWidth={1.6} strokeDasharray="2 4" strokeLinecap="round" />
-      ))}
-
-      {holes.map(([x, y], i) => (
-        <circle key={`h${i}`} cx={X(x)} cy={Y(y)} r={u * 0.27} fill={INK} />
       ))}
 
       {cuts.map(([a, b], i) => (
@@ -197,6 +204,23 @@ export function PaperSvg({
           );
         })}
 
+      {onSpot &&
+        spots.map(([x, y], i) => (
+          <circle
+            key={`p${x},${y}`}
+            cx={X(x)}
+            cy={Y(y)}
+            r={Math.max(8, u * 0.32)}
+            fill="transparent"
+            stroke={INK}
+            strokeWidth={1.4}
+            strokeDasharray="3 2"
+            style={{ cursor: "pointer" }}
+            onClick={() => onSpot([x, y])}
+            aria-label={`جای ${fa(i + 1)} روی خط تا`}
+          />
+        ))}
+
       {onVertex &&
         paper.map(([x, y], v) => (
           <circle
@@ -231,6 +255,18 @@ export function FoldSteps({ S, folds, size = 96, order, captions = true }: { S: 
       ))}
     </div>
   );
+}
+
+/**
+ * One picture of an "order" question. With two or more folds, step n is the
+ * paper before fold n. With one fold, the steps are fold → punch → open.
+ */
+export function OrderPicture({ S, folds, punches, step, size }: { S: number; folds: Fold[]; punches: Pt[]; step: number; size: number }) {
+  const before = shapes(S, folds);
+  if (folds.length !== 1) return <PaperSvg S={S} size={size} shape={before[step]} fold={folds[step]} outline grid={false} />;
+  if (step === 0) return <PaperSvg S={S} size={size} fold={folds[0]} grid={false} label="کاغذ باز و خط تا" />;
+  if (step === 1) return <PaperSvg S={S} size={size} shape={before[1]} outline holes={punches} label="کاغذ تاشده با سوراخ" />;
+  return <PaperSvg S={S} size={size} holes={unfoldPoints(punches, folds)} creases={creases(S, folds)} label="کاغذ باز با سوراخ‌ها" />;
 }
 
 /** Persian letter names for the shuffled steps in "order" questions. */

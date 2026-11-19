@@ -178,6 +178,8 @@ interface WeekProps {
   hi: number;
   /** Day of the year of day 0, to write dates; otherwise days are numbered from 0. */
   doy?: number;
+  /** Solar Hijri year of day 0, so each Esfand has its right length; without one, every year is common. */
+  year?: number;
   /** The day the question asks about (offset). */
   target?: number;
   /** Write "؟" on the target until it is shown. */
@@ -202,7 +204,7 @@ export function weekRows(weekday: number, lo: number, hi: number) {
 
 export const weekHeight = (weekday: number, lo: number, hi: number) => HEAD + weekRows(weekday, lo, hi).length * CELL;
 
-export function WeekG({ weekday, lo, hi, doy, target, hideTarget, hops, x, y, onDay }: WeekProps) {
+export function WeekG({ weekday, lo, hi, doy, year, target, hideTarget, hops, x, y, onDay }: WeekProps) {
   const rows = weekRows(weekday, lo, hi);
   const where = new Map<number, [number, number]>();
   const cells: React.ReactNode[] = [];
@@ -222,7 +224,7 @@ export function WeekG({ weekday, lo, hi, doy, target, hideTarget, hops, x, y, on
       // Saturday on the right, like a Persian calendar.
       const cx = x + (6 - c) * CELL;
       where.set(k, [cx + CELL / 2, top + CELL / 2]);
-      const date = doy !== undefined ? dateOf(doy + k) : null;
+      const date = doy !== undefined ? dateOf(doy + k, year) : null;
       const isTarget = k === target;
       const isStart = k === 0;
       cells.push(

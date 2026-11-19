@@ -13,11 +13,13 @@ import {
   makeMachineQuestion,
   MAX,
   opValue,
+  orderUsed,
   prod,
   runRule,
   sameFunction,
   slips,
   sumTimes,
+  swappedPair,
   trace,
   type Level,
   type Machine,
@@ -26,6 +28,7 @@ import {
   type Op,
   type Rule,
   type Step,
+  wrongOrders,
 } from "./number-machine";
 
 const TYPES: MachineQuestionType[] = ["run", "reverse", "guess", "build", "operator"];
@@ -132,6 +135,8 @@ describe("number machine questions", () => {
             need(machineMistake(q, q.answer) === "right", "answer is right");
             // A slip that happens to be the answer is not reported as a slip.
             for (const [, v] of slips(q)) if (v !== q.answer) need(machineMistake(q, v) !== "other", "slip is named");
+            // An order slip can always say which steps were taken in which order.
+            if (q.type === "run") for (const [tag, v] of slips(q)) if (tag === "order" && v !== q.answer) need(machineMistake(q, v) === "order" && orderUsed(q, v) !== null, "order is named");
           }
 
           switch (q.type) {
@@ -266,5 +271,33 @@ describe("number machine questions", () => {
     expect(sameFunction(b2.machine, other)).toBe(true);
     const opBuild = { ...b, level: 3 as Level, machine: { kind: "op", op: lin(3, 1) } as Machine, examples: [[2, 5], [4, 1], [3, 3]].map(([x, y]) => ({ input: [x, y], output: 3 * x + y })) };
     expect(buildMistake(opBuild, { kind: "op", op: lin(1, 3) })).toBe("swapped");
+  });
+
+  it("names which steps a three-step order slip moved", () => {
+    expect(wrongOrders(2)).toEqual([[1, 0]]);
+    const orders = wrongOrders(3);
+    expect(orders).toHaveLength(5);
+    expect(orders[0]).toEqual([2, 1, 0]); // backwards first
+    expect(orders.slice(1, 3)).toEqual(expect.arrayContaining([[1, 0, 2], [0, 2, 1]]));
+    expect(swappedPair([1, 0, 2])).toEqual([0, 1]);
+    expect(swappedPair([0, 2, 1])).toEqual([1, 2]);
+    expect(swappedPair([1, 2, 0])).toBeNull();
+
+    // 4 →[×2]→ 8 →[+3]→ 11 →[×3]→ 33
+    const run = { level: 3 as Level, seed: 0, type: "run" as const, rule: [{ op: "×" as Op, n: 2 }, { op: "+" as Op, n: 3 }, { op: "×" as Op, n: 3 }], input: 4, answer: 33 };
+    expect(machineMistake(run, 30)).toBe("order"); // ×3, +3, ×2
+    expect(orderUsed(run, 30)).toEqual([2, 1, 0]);
+    expect(machineMistake(run, 42)).toBe("order"); // +3, ×2, ×3: steps 1 and 2 swapped
+    expect(orderUsed(run, 42)).toEqual([1, 0, 2]);
+    expect(machineMistake(run, 27)).toBe("order"); // ×2, ×3, +3: steps 2 and 3 swapped
+    expect(orderUsed(run, 27)).toEqual([0, 2, 1]);
+    expect(machineMistake(run, 11)).toBe("stopEarly");
+    expect(orderUsed(run, 33)).toBeNull();
+    expect(orderUsed(run, 11)).toBeNull();
+
+    // A reorder that is neither backwards nor one swap: 4 →[+2]→ 6 →[×3]→ 18 →[+1]→ 19.
+    const odd = { ...run, rule: [{ op: "+" as Op, n: 1 }, { op: "+" as Op, n: 2 }, { op: "×" as Op, n: 3 }], answer: 21 };
+    expect(machineMistake(odd, 19)).toBe("order");
+    expect(orderUsed(odd, 19)).toEqual([1, 2, 0]);
   });
 });

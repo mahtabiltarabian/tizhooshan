@@ -301,8 +301,8 @@ export function ruleText(rule: Rule, layout: Layout): string {
         : `شکل: در هر سطر و هر ستون، ${rule.set.map((s) => SHAPE_NAME[s]).join("، ")} هر کدام یک بار می‌آید.`;
     case "fill":
       return layout === "seq"
-        ? `رنگ: ${rule.set.map((s) => FILL_NAME[s]).join("، ")} به همین ترتیب تکرار می‌شوند.`
-        : `رنگ: در هر سطر و هر ستون، ${rule.set.map((s) => FILL_NAME[s]).join("، ")} هر کدام یک بار می‌آید.`;
+        ? `رنگ و نقش: ${rule.set.map((s) => FILL_NAME[s]).join("، ")} به همین ترتیب تکرار می‌شوند.`
+        : `رنگ و نقش: در هر سطر و هر ستون، ${rule.set.map((s) => FILL_NAME[s]).join("، ")} هر کدام یک بار می‌آید.`;
     case "lines":
       return rule.op === "add" ? "جمع شکل: خانه سوم = خانه اول و دوم روی هم (همه خط‌ها)." : "تفریق شکل: خانه سوم = خانه اول و دوم روی هم، ولی خط‌های مشترک پاک می‌شوند.";
   }
@@ -321,7 +321,7 @@ export function valuesText(tiles: (Tile | null)[], rules: Rule[]): string {
         case "shape":
           return `شکل ${list((t) => SHAPE_NAME[t.shape!])}`;
         case "fill":
-          return `رنگ ${list((t) => FILL_NAME[t.fill!])}`;
+          return `رنگ و نقش ${list((t) => FILL_NAME[t.fill!])}`;
         case "lines":
           return rule.op === "add" ? "اول + دوم = سوم" : "اول و دوم روی هم، مشترک‌ها پاک = سوم";
       }
@@ -433,7 +433,7 @@ function sidesQuestion(level: Level, seed: number, rng: Rng): GridQuestion {
   const wrong = slips.filter((w) => w.tile.sides! >= 3 && w.tile.sides! <= 8 && w.tile.dots! >= 0 && w.tile.dots! <= 6);
   const why: Why[] = [{ text: `تعداد ضلع‌ها هر بار ${sStep > 0 ? "یکی بیشتر" : "یکی کمتر"} می‌شود: ${cells.slice(0, 4).map((t) => fa(t.sides!)).join("، ")}، …`, cells: [0, 1, 2, 3] }];
   if (level >= 2) why.push({ text: `تعداد نقطه‌ها هر بار ${dStep > 0 ? "یکی بیشتر" : "یکی کمتر"} می‌شود: ${cells.slice(0, 4).map((t) => fa(t.dots!)).join("، ")}، …`, cells: [0, 1, 2, 3] });
-  if (level === 3 && fills.length > 1) why.push({ text: `رنگ‌ها به ترتیب تکرار می‌شوند: ${fills.map((f) => FILL_NAME[f]).join("، ")}.`, cells: [0, 1, 2, 3] });
+  if (level === 3 && fills.length > 1) why.push({ text: `رنگ و نقش شکل‌ها به ترتیب تکرار می‌شوند: ${fills.map((f) => FILL_NAME[f]).join("، ")}.`, cells: [0, 1, 2, 3] });
   return { type: "sides", level, seed, rows: 1, cols: 5, cells, blank: 4, ...assemble(rng, ans, wrong, optionCount(level)), why };
 }
 
@@ -532,7 +532,7 @@ function missingQuestion(level: Level, seed: number, rng: Rng): MissingQuestion 
   const all = shuffle(rng, [{ tiles: right, tag: "right" as Tag }, ...picked]);
   const words: Record<string, string> = {
     shape: `شکل‌ها (${shapes.map((s) => SHAPE_NAME[s]).join("، ")})`,
-    fill: `رنگ‌ها (${fills.map((f) => FILL_NAME[f]).join("، ")})`,
+    fill: `رنگ و نقش شکل‌ها (${fills.map((f) => FILL_NAME[f]).join("، ")})`,
     turn: "جهت پیکان‌ها",
     count: "تعداد شکل‌ها (۱، ۲، ۳)",
   };

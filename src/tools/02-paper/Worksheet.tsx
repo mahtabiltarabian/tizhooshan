@@ -6,8 +6,9 @@
 import { makePaperQuestion, shapes, unfoldPoints, type PaperQuestion, type PaperQuestionType } from "@/generators/paper-folding";
 import { Choices, FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
-import { PAPER_TYPE_LABEL, paperPrompt } from "./PaperTryPanel";
-import { FoldSteps, PaperSvg, STEP_NAMES } from "./Pictures";
+import { orderNames, PAPER_TYPE_LABEL, paperPrompt } from "./PaperTryPanel";
+import { FoldSteps, OrderPicture, PaperSvg, STEP_NAMES } from "./Pictures";
+import pictureStyles from "./Pictures.module.css";
 import styles from "@/toolkit/Worksheet.module.css";
 
 function figures(q: PaperQuestion) {
@@ -84,7 +85,14 @@ function figures(q: PaperQuestion) {
     case "order":
       return (
         <FigureRow>
-          <FoldSteps S={q.S} folds={q.folds} size={92} order={q.shown} />
+          <div className={pictureStyles.steps}>
+            {q.shown.map((step, n) => (
+              <figure key={n}>
+                <OrderPicture S={q.S} folds={q.folds} punches={q.punches} step={step} size={92} />
+                <figcaption>شکل {STEP_NAMES[n]}</figcaption>
+              </figure>
+            ))}
+          </div>
         </FigureRow>
       );
   }
@@ -100,7 +108,7 @@ function answer(q: PaperQuestion) {
         </span>
       </>
     );
-  if (q.type === "order") return <>{q.folds.map((_, i) => STEP_NAMES[q.shown.indexOf(i)]).join("، ")}</>;
+  if (q.type === "order") return <>{orderNames(q)}</>;
   return <>گزینه {fa(q.answer + 1)}</>;
 }
 

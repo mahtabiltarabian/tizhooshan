@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "./random";
-import { cellTile, fillLayout, makePatternQuestion, makeRules, tileKey, type Level, type PatternQuestionType, type Tile } from "./patterns";
+import { cellTile, fillLayout, makePatternQuestion, makeRules, ruleText, tileKey, valuesText, type Level, type PatternQuestionType, type Tile } from "./patterns";
 
 const TYPES: PatternQuestionType[] = ["matrix2", "matrix3", "sequence", "rotation", "combine", "sides", "missing", "odd"];
 const LEVELS: Level[] = [1, 2, 3];
@@ -79,5 +79,20 @@ describe("pattern questions", () => {
       const m = makePatternQuestion("odd", 2, s);
       if (m.type === "odd") expect(m.tiles.filter((t) => t.flip).length).toBe(1);
     }
+  });
+
+  it("calls fill «رنگ و نقش», the name on the explore card, never just «رنگ»", () => {
+    const bare = /رنگ(?! و نقش)/;
+    const fill = { kind: "fill", set: ["white", "black", "striped"], shift: 1 } as const;
+    expect(ruleText({ ...fill, set: [...fill.set] }, "m3")).toMatch(/^رنگ و نقش:/);
+    expect(ruleText({ ...fill, set: [...fill.set] }, "seq")).toMatch(/^رنگ و نقش:/);
+    expect(valuesText([{ fill: "black" }, null], [{ ...fill, set: [...fill.set] }])).toMatch(/^رنگ و نقش سیاه، ؟$/);
+    for (const t of TYPES)
+      for (const l of LEVELS)
+        for (let s = 0; s < 300; s++) {
+          const q = makePatternQuestion(t, l, s);
+          const text = JSON.stringify(q);
+          expect(text, `${t} ${l} ${s}`).not.toMatch(bare);
+        }
   });
 });

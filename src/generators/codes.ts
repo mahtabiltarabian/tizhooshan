@@ -335,18 +335,58 @@ const arabicPlace = (i: number) => (PERSIAN_ONLY.includes(i) ? i : ARABIC.indexO
 const each = (xs: readonly number[], f: (x: number) => number | null) => xs.map((x) => (x === SPACE ? SPACE : f(x)));
 const complete = (xs: (number | null)[]): xs is number[] => xs.every((x) => x !== null);
 
+/**
+ * The answer as someone would give it who counts in the 28-letter Arabic
+ * alphabet (پ چ ژ گ missing), slot by slot, encoding or decoding. null where
+ * that alphabet gives nothing: decoding a number past its end. Only for shift
+ * and number rules; for the others, null.
+ */
+export function arabicReading(q: CodeQuestion): (number | null)[] | null {
+  const r = q.rule;
+  if (r.kind === "shift") {
+    const d = signedShift(q.dir === "encode" ? r.n : -r.n);
+    return each(q.given, (x) => arabicStep(x, d));
+  }
+  if (r.kind !== "number") return null;
+  // Counting places in the 28-letter Arabic alphabet.
+  const value = (i: number) => r.start + r.step * (r.rev ? ARABIC.length - 1 - arabicPlace(i) : arabicPlace(i));
+  if (q.dir === "encode") return each(q.given, value);
+  return each(q.given, (t) => ARABIC.find((l) => value(l) === t) ?? null);
+}
+
+/**
+ * Decoding with پ چ ژ گ left out, letter by letter: every letter is either
+ * right or what the 28-letter alphabet gives, and at least one is the latter.
+ * A code past the end of the 28 letters has no such letter, so there the
+ * right letter or an empty slot is allowed.
+ */
+function arabicDecode(q: CodeQuestion, value: readonly (number | null)[]): boolean {
+  if (q.dir !== "decode" || value.length !== q.answer.length) return false;
+  const reading = arabicReading(q);
+  if (!reading) return false;
+  let slip = false;
+  for (let i = 0; i < value.length; i++) {
+    const v = value[i];
+    if (v === q.answer[i]) continue;
+    if (reading[i] === null ? v !== null : v !== reading[i]) return false;
+    if (reading[i] !== null) slip = true;
+  }
+  return slip;
+}
+
 /** Wrong answers with a known cause, in the order they are checked. */
 export function slips(q: CodeQuestion): [CodeTag, number[]][] {
   const out: [CodeTag, (number | null)[]][] = [];
   const r = q.rule;
   const g = q.given;
+  const arabic = arabicReading(q);
   // The letter rule as one signed step from the given text to the answer.
   if (r.kind === "shift") {
     const d = signedShift(q.dir === "encode" ? r.n : -r.n);
     out.push(["wrongWay", each(g, (x) => mod(x - d))]);
     out.push(["offByOne", each(g, (x) => mod(x + d + 1))]);
     out.push(["offByOne", each(g, (x) => mod(x + d - 1))]);
-    out.push(["arabic", each(g, (x) => arabicStep(x, d))]);
+    out.push(["arabic", arabic ?? []]);
     const crosses = g.some((x) => x !== SPACE && (x + d >= N || x + d < 0));
     if (crosses) {
       // Stopped at the end of the alphabet, or miscounted the step round the end.
@@ -368,17 +408,7 @@ export function slips(q: CodeQuestion): [CodeTag, number[]][] {
       ["wrongWay", { ...r, rev: !r.rev }],
     ];
     for (const [tag, v] of variants) out.push([tag, q.dir === "encode" ? encode(v, g) : decode(v, g)]);
-    // Counting places in the 28-letter Arabic alphabet.
-    const value = (i: number) => r.start + r.step * (r.rev ? ARABIC.length - 1 - arabicPlace(i) : arabicPlace(i));
-    if (q.dir === "encode") out.push(["arabic", each(g, value)]);
-    else
-      out.push([
-        "arabic",
-        each(g, (t) => {
-          const i = ARABIC.find((l) => value(l) === t);
-          return i ?? null;
-        }),
-      ]);
+    out.push(["arabic", arabic ?? []]);
   }
   if (q.show === "examples" && r.kind !== "shape") {
     const family = r.kind === "number" ? NUMBER_FAMILY : LETTER_FAMILY;
@@ -396,6 +426,7 @@ export const slotMarks = (q: CodeQuestion, value: readonly (number | null)[]) =>
 export function codeMistake(q: CodeQuestion, value: readonly (number | null)[]): CodeTag {
   if (sameTokens(value, q.answer)) return "right";
   for (const [tag, v] of slips(q)) if (!sameTokens(v, q.answer) && sameTokens(value, v)) return tag;
+  if (arabicDecode(q, value)) return "arabic";
   // Some letters coded, the rest copied as they were.
   if (outKind(q.rule) === "letter" && value.length === q.answer.length) {
     const marks = slotMarks(q, value);

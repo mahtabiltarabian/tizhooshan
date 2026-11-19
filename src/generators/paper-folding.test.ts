@@ -4,6 +4,7 @@ import {
   area,
   centroid,
   countPieces,
+  creaseSpots,
   creases,
   facets,
   foldedPoly,
@@ -11,6 +12,7 @@ import {
   inside,
   makePaperQuestion,
   maskKey,
+  orderSteps,
   reflect,
   shapes,
   square,
@@ -55,6 +57,50 @@ describe("geometry", () => {
       { line: { kind: "h", c: 2 }, moving: 1 },
     ];
     expect(holeCells(unfoldPoints([[2.5, 0.5]], folds))).toEqual(["1,0", "1,3", "2,0", "2,3"]);
+  });
+});
+
+describe("holes on a fold line", () => {
+  it("a hole on the crease of one fold unfolds to one hole on the crease, not two", () => {
+    const folds: Fold[] = [{ line: { kind: "v", c: 2 }, moving: 1 }];
+    expect(unfoldPoints([[2, 1.5]], folds)).toEqual([[2, 1.5]]);
+    // Next to it, off the line, it still doubles.
+    expect(unfoldPoints([[1.5, 1.5]], folds)).toHaveLength(2);
+  });
+
+  it("folded twice, a hole on the last crease makes 2 holes; on both creases (the corner), 1", () => {
+    const folds: Fold[] = [
+      { line: { kind: "v", c: 2 }, moving: 1 },
+      { line: { kind: "h", c: 2 }, moving: 1 },
+    ];
+    expect(unfoldPoints([[0.5, 2]], folds).sort()).toEqual([[0.5, 2], [3.5, 2]]);
+    expect(unfoldPoints([[2, 2]], folds)).toEqual([[2, 2]]);
+  });
+
+  it("on a diagonal fold, a cell centre on the crease stays one hole", () => {
+    const folds: Fold[] = [{ line: { kind: "d", c: 0 }, moving: 1 }];
+    expect(unfoldPoints([[1.5, 1.5]], folds)).toEqual([[1.5, 1.5]]);
+  });
+
+  it("crease spots lie on the folded edge, never on the sheet's own edge, and unfold to fewer holes", () => {
+    expect(creaseSpots(4, [])).toEqual([]);
+    const one: Fold[] = [{ line: { kind: "v", c: 2 }, moving: 1 }];
+    expect(creaseSpots(4, one)).toEqual([[2, 0.5], [2, 1.5], [2, 2.5], [2, 3.5]]);
+    fc.assert(
+      fc.property(level, seed, (l, s) => {
+        const q = makePaperQuestion("holes", l, s);
+        const spots = creaseSpots(q.S, q.folds);
+        expect(spots.length).toBeGreaterThan(0);
+        for (const p of spots) {
+          const open = unfoldPoints([p], q.folds);
+          expect(open.length).toBeLessThan(2 ** q.folds.length);
+          expect(open.every(([x, y]) => x > 0 && y > 0 && x < q.S && y < q.S)).toBe(true);
+          // It is on (at least) one fold line once the paper is folded back up to that fold.
+          expect(open.some((o) => q.folds.some((f) => Math.abs(reflect(o, f.line)[0] - o[0]) + Math.abs(reflect(o, f.line)[1] - o[1]) < 1e-6))).toBe(true);
+        }
+      }),
+      { numRuns: 150 },
+    );
   });
 });
 
@@ -190,13 +236,24 @@ describe("makePaperQuestion", () => {
     );
   });
 
-  it("order: steps are shown out of order", () => {
+  it("order: level 1 has one fold, levels 2 and 3 have two and three; steps are shown out of order", () => {
     fc.assert(
       fc.property(level, seed, (l, s) => {
         const q = makePaperQuestion("order", l, s);
         if (q.type !== "order") throw new Error("type");
-        expect([...q.shown].sort()).toEqual(q.folds.map((_, i) => i));
+        expect(q.folds).toHaveLength(l);
+        const n = orderSteps(q.folds);
+        expect([...q.shown].sort()).toEqual(Array.from({ length: n }, (_, i) => i));
         expect(q.shown.some((v, i) => v !== i)).toBe(true);
+        if (l === 1) {
+          // One fold: put fold → punch → open in order; the hole is off the fold, so it doubles.
+          expect(n).toBe(3);
+          expect(q.punches).toHaveLength(1);
+          expect(unfoldPoints(q.punches, q.folds)).toHaveLength(2);
+        } else {
+          expect(n).toBe(l);
+          expect(q.punches).toEqual([]);
+        }
       }),
     );
   });

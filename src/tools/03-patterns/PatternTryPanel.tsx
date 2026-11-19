@@ -22,7 +22,7 @@ const TAG_NAME: Partial<Record<Tag, string>> = {
   turn: "چرخش",
   count: "تعداد",
   shape: "شکل",
-  fill: "رنگ",
+  fill: "رنگ و نقش",
   lines: "خط‌ها",
   marks: "جای نشانه‌ها",
   arrow: "جهت پیکان",

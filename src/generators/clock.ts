@@ -36,7 +36,7 @@ export function hm(t: number) {
 
 export const WEEKDAYS = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
 
-/** Months of the Persian year: six of 31 days, five of 30, Esfand 29 (30 in a leap year). */
+/** Months of a common Persian year: six of 31 days, five of 30, Esfand 29 (30 in a leap year: see daysIn). */
 export const MONTHS: { name: string; days: number }[] = [
   { name: "فروردین", days: 31 },
   { name: "اردیبهشت", days: 31 },
@@ -52,17 +52,52 @@ export const MONTHS: { name: string; days: number }[] = [
   { name: "اسفند", days: 29 },
 ];
 
-/** Day of the year, 0 … 364, of day d (1 …) of month m (0 …). */
+// Leap years of the Solar Hijri calendar, by the 33-year cycles with breaks
+// that jalaali-js uses (Borkowski's table). Good for years -61 … 3177.
+const BREAKS = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
+const div = (a: number, b: number) => Math.trunc(a / b);
+const mod = (a: number, b: number) => a - div(a, b) * b;
+
+/** Is this Solar Hijri year a leap year (Esfand 30 days)? 1399 and 1403 are; 1400 … 1402 are not. */
+export function isLeapYear(year: number) {
+  if (!Number.isInteger(year) || year < BREAKS[0] || year >= BREAKS[BREAKS.length - 1]) throw new RangeError(`year ${year} is out of range`);
+  let jp = BREAKS[0];
+  let jump = 0;
+  for (let i = 1; i < BREAKS.length; i++) {
+    jump = BREAKS[i] - jp;
+    if (year < BREAKS[i]) break;
+    jp = BREAKS[i];
+  }
+  let n = year - jp;
+  if (jump - n < 6) n = n - jump + div(jump + 4, 33) * 33;
+  return mod(mod(n + 1, 33) - 1, 4) === 0;
+}
+
+/** Days in month m (0 …) of a year; without a year, a common year (Esfand 29). */
+export const daysIn = (m: number, year?: number) => (m === 11 && year !== undefined && isLeapYear(year) ? 30 : MONTHS[m].days);
+
+/** 365, or 366 in a leap year. */
+export const yearLength = (year?: number) => (year !== undefined && isLeapYear(year) ? 366 : 365);
+
+/** Day of the year, 0 … 365, of day d (1 …) of month m (0 …). Esfand comes last, so the year does not matter. */
 export const dayOfYear = (m: number, d: number) => MONTHS.slice(0, m).reduce((s, x) => s + x.days, 0) + d - 1;
 
-/** Month and day of a day of the year (wraps into the next year). */
-export function dateOf(doy: number) {
-  let r = ((doy % 365) + 365) % 365;
+/**
+ * Date of a day counted from 1 Farvardin of `year` (negative = earlier years, past the year's end = later years).
+ * Each Esfand has its own length. Without a year, every year counts as common.
+ */
+export function dateOf(doy: number, year?: number) {
+  let y = year ?? 0;
+  const len = (k: number) => (year === undefined ? 365 : yearLength(k));
+  let r = doy;
+  while (r < 0) r += len(--y);
+  while (r >= len(y)) r -= len(y++);
   for (let m = 0; m < 12; m++) {
-    if (r < MONTHS[m].days) return { m, d: r + 1 };
-    r -= MONTHS[m].days;
+    const n = year === undefined ? MONTHS[m].days : daysIn(m, y);
+    if (r < n) return { y: year === undefined ? undefined : y, m, d: r + 1 };
+    r -= n;
   }
-  return { m: 11, d: 29 };
+  throw new Error("unreachable");
 }
 
 export interface DateRef {
@@ -124,6 +159,12 @@ export interface MonthQuestion extends Base {
   type: "month";
   from: DateRef;
   to: DateRef;
+  /**
+   * Year of `from`, named only when the question crosses Esfand into the next year
+   * (then `to` is in year + 1 and whether the year is leap matters). Year-less
+   * questions stay inside one year and never reach Esfand 30.
+   */
+  year?: number;
   /** Weekday of `from`. */
   weekday: number;
   /** Days from `from` to `to`. */
@@ -213,6 +254,9 @@ function weekdayQuestion(rng: Rng, level: Level, seed: number): WeekdayQuestion 
   return { type: "weekday", level, seed, start, days, back, answer: wrap7(start + (back ? -days : days)) };
 }
 
+/** Years a question may name: around now, so the children may know them. */
+const YEARS = Array.from({ length: 16 }, (_, i) => 1395 + i);
+
 function monthQuestion(rng: Rng, level: Level, seed: number): MonthQuestion {
   const weekday = randInt(rng, 7);
   let from: DateRef;
@@ -227,6 +271,16 @@ function monthQuestion(rng: Rng, level: Level, seed: number): MonthQuestion {
     const m = randInt(rng, 11);
     from = { m, d: 5 + randInt(rng, 24) };
     to = { m: m + 1, d: 1 + randInt(rng, 28) };
+  } else if (rng() < 0.35) {
+    // Across Esfand into the next year: the year is named, half of them leap.
+    const leap = rng() < 0.5;
+    const year = pick(rng, YEARS.filter((y) => isLeapYear(y) === leap));
+    const m = 9 + randInt(rng, 3);
+    from = { m, d: 1 + randInt(rng, 28) };
+    // At least two month boundaries, like the other level-3 questions.
+    to = { m: Math.max(randInt(rng, 2), m - 10), d: 1 + randInt(rng, 29) };
+    const days = yearLength(year) - dayOfYear(from.m, from.d) + dayOfYear(to.m, to.d);
+    return { type: "month", level, seed, from, to, year, weekday, days, answer: wrap7(weekday + days) };
   } else {
     const m = randInt(rng, 9);
     from = { m, d: 1 + randInt(rng, 28) };
@@ -267,6 +321,7 @@ export type ClockTag =
   | "noRun"
   | "offByOne"
   | "assume30"
+  | "esfand"
   | "other";
 
 /** Wrong answers with a known cause, in the order they are checked. */
@@ -320,8 +375,12 @@ export function slips(q: ClockQuestion): [ClockTag, number][] {
       ];
     }
     case "month": {
-      const days30 = (q.to.m - q.from.m) * 30 + q.to.d - q.from.d;
+      const months = q.to.m - q.from.m + (q.year !== undefined ? 12 : 0);
+      const days30 = months * 30 + q.to.d - q.from.d;
       return [
+        // Esfand taken as 29 days in a leap year, or 30 in a common one. Checked first: in a
+        // common year, taking every month as 30 days often lands on the same day.
+        ...(q.year !== undefined ? [["esfand", wrap7(q.answer + (isLeapYear(q.year) ? -1 : 1))] as [ClockTag, number]] : []),
         ["assume30", wrap7(q.weekday + days30)],
         ["offByOne", wrap7(q.answer - 1)],
         ["offByOne", wrap7(q.answer + 1)],

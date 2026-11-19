@@ -16,7 +16,7 @@ import {
   type Pt,
 } from "@/generators/paper-folding";
 import { fa } from "@/tools/registry";
-import { FoldSteps, PaperSvg, STEP_NAMES, type Mark } from "./Pictures";
+import { FoldSteps, OrderPicture, PaperSvg, STEP_NAMES, type Mark } from "./Pictures";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const PAPER_TYPE_LABEL: Record<PaperQuestionType, string> = {
@@ -45,7 +45,7 @@ export const startsFolded = (t: PaperQuestionType) => t !== "foldedShape" && t !
 
 export function paperDisplay(q: PaperQuestion): PaperDisplay {
   const base = { S: q.S, folds: q.folds, holes: [] as Pt[], removed: [] as Poly[], cutLines: [] as [Pt, Pt][] };
-  if (q.type === "holes" || q.type === "holesChoice") return { ...base, holes: unfoldPoints(q.punches, q.folds) };
+  if (q.type === "holes" || q.type === "holesChoice" || q.type === "order") return { ...base, holes: unfoldPoints(q.punches, q.folds) };
   if (q.type === "cutChoice") return { ...base, removed: unfoldPolys([q.cut], q.folds) };
   if (q.type === "pieces") return { ...base, cutLines: unfoldSegments([q.segment], q.folds) };
   return base;
@@ -68,6 +68,10 @@ export function paperPrompt(q: PaperQuestion, paper = false): string {
     case "foldedShape":
       return `${folded}. در آخر، کاغذ تاشده چه شکلی است و کجای صفحه است؟`;
     case "order":
+      if (q.folds.length === 1)
+        return paper
+          ? "کاغذ را یک بار تا کرده‌ایم، سوراخ زده‌ایم و باز کرده‌ایم. این شکل‌ها به‌هم‌ریخته‌اند. زیر هر شکل بنویس چندمین مرحله است."
+          : "کاغذ را یک بار تا کرده‌ایم، سوراخ زده‌ایم و باز کرده‌ایم. این شکل‌ها به‌هم‌ریخته‌اند. به ترتیب رویشان بزن: اول کدام، بعد کدام؟";
       return paper
         ? "این تاها به‌هم‌ریخته‌اند. زیر هر شکل بنویس چندمین تا است."
         : "این تاها به‌هم‌ریخته‌اند. به ترتیب رویشان بزن: اول کدام تا را زده‌ایم، بعد کدام؟";
@@ -75,6 +79,28 @@ export function paperPrompt(q: PaperQuestion, paper = false): string {
 }
 
 const layers = (k: number) => 2 ** k;
+
+/** Letters of the pictures in the right order, e.g. «ب، الف، پ». */
+export const orderNames = (q: Extract<PaperQuestion, { type: "order" }>) => q.shown.map((_, i) => STEP_NAMES[q.shown.indexOf(i)]).join("، ");
+
+/** `seq[n]`: the picture tapped n-th. Says what went wrong in words. */
+function orderFeedback(q: Extract<PaperQuestion, { type: "order" }>, seq: number[]): { tone: Tone; text: string } {
+  const names = orderNames(q);
+  const steps = seq.map((pos) => q.shown[pos]);
+  if (steps.every((st, n) => st === n)) {
+    return q.folds.length === 1
+      ? { tone: "good", text: `درست است! ترتیب: ${names}. اول تا می‌کنیم، بعد کاغذ تاشده را سوراخ می‌کنیم، بعد باز می‌کنیم و سوراخ دو تا می‌شود.` }
+      : { tone: "good", text: `درست است! ترتیب: ${names}. هر تا روی شکلِ تای قبلی انجام می‌شود.` };
+  }
+  if (q.folds.length === 1) {
+    // Steps: 0 fold, 1 punch the folded paper, 2 open.
+    if (steps.indexOf(2) < steps.indexOf(1))
+      return { tone: "bad", text: `ترتیب درست: ${names}. کاغذ باز با دو سوراخ آخر است: سوراخ را روی کاغذ تاشده می‌زنیم و وقتی باز کنیم، دو تا می‌شود.` };
+    return { tone: "bad", text: `ترتیب درست: ${names}. اول باید تا کنیم: کاغذ تاشده با سوراخ بعد از تا می‌آید.` };
+  }
+  if (steps[0] !== 0) return { tone: "bad", text: `ترتیب درست: ${names}. تای اول روی کاغذ کامل (مربع) است؛ از کاغذ کامل شروع کن.` };
+  return { tone: "bad", text: `ترتیب درست: ${names}. نکته: هر تا روی کاغذی است که تای قبل درست کرده؛ شکل هر مرحله نصف شکل مرحله قبل است.` };
+}
 
 function choiceFeedback(q: PaperQuestion, picked: number): { tone: Tone; text: string } {
   if (q.type === "holes" || q.type === "order") return { tone: "bad", text: "" };
@@ -161,14 +187,8 @@ export function PaperTryPanel(p: Props) {
 
   let fb: { tone: Tone; text: string } | null = picked !== null ? choiceFeedback(q, picked) : null;
   if (q.type === "holes" && checked) fb = holesFeedback(q, mine);
-  const orderDone = q.type === "order" && seq.length === k;
-  if (q.type === "order" && orderDone) {
-    const right = seq.every((pos, i) => q.shown[pos] === i);
-    const names = q.folds.map((_, i) => STEP_NAMES[q.shown.indexOf(i)]).join("، ");
-    fb = right
-      ? { tone: "good", text: `درست است! ترتیب: ${names}. هر تا روی شکلِ تای قبلی انجام می‌شود.` }
-      : { tone: "bad", text: `ترتیب درست: ${names}. نکته: هر تا روی کاغذی است که تای قبل درست کرده؛ از کاغذ کامل شروع کن.` };
-  }
+  const orderDone = q.type === "order" && seq.length === q.shown.length;
+  if (q.type === "order" && orderDone) fb = orderFeedback(q, seq);
 
   const mark = (i: number): Tone | null => {
     if (picked === null || q.type === "holes" || q.type === "order") return null;
@@ -308,7 +328,7 @@ export function PaperTryPanel(p: Props) {
       {q.type === "order" && (
         <>
           <ul className={styles.options}>
-            {q.shown.map((foldIdx, pos) => {
+            {q.shown.map((stepIdx, pos) => {
               const n = seq.indexOf(pos);
               const tone: Tone | null = orderDone ? (q.shown[pos] === n ? "good" : "bad") : null;
               return (
@@ -319,13 +339,13 @@ export function PaperTryPanel(p: Props) {
                     onClick={() => {
                       const next = [...seq, pos];
                       setSeq(next);
-                      if (next.length === k) p.onAnswered();
+                      if (next.length === q.shown.length) p.onAnswered();
                     }}
                     aria-label={`شکل ${STEP_NAMES[pos]}`}
                   >
-                    <PaperSvg S={q.S} size={104} shape={before[foldIdx]} fold={q.folds[foldIdx]} outline grid={false} />
+                    <OrderPicture S={q.S} folds={q.folds} punches={q.punches} step={stepIdx} size={104} />
                     <span className={styles.optionNum}>
-                      {STEP_NAMES[pos]} {n >= 0 && `← ${fa(n + 1)}`} {tone && ICON[tone]} {orderDone && tone === "bad" && `(درست: ${fa(foldIdx + 1)})`}
+                      {STEP_NAMES[pos]} {n >= 0 && `← ${fa(n + 1)}`} {tone && ICON[tone]} {orderDone && tone === "bad" && `(درست: ${fa(stepIdx + 1)})`}
                     </span>
                   </button>
                 </li>

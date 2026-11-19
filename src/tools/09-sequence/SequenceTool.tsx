@@ -13,7 +13,7 @@ import { decodeBuild, DEFAULT_BUILD, LIMITS, PRESETS, ruleOf, TOO_BIG, type Buil
 import { SEQUENCE_GUIDE } from "./guide";
 import css from "./Sequence.module.css";
 import { BLANK_LABEL, SEQ_TYPE_LABEL, SequenceTryPanel } from "./SequenceTryPanel";
-import { ltr, numFa, rowsFor, signedFa, stepFa, termFa, trainView, TrainG } from "./Train";
+import { ltr, numFa, rowsFor, rowsName, signedFa, stepFa, termFa, trainView, TrainG } from "./Train";
 
 type Mode = "explore" | "show" | "try";
 
@@ -276,7 +276,7 @@ export function SequenceTool() {
             <button className={styles.playSmall} onClick={() => play(mode === "explore" ? buildMs : inTry ? tryMs : showMs)} aria-label={run ? "توقف" : "پخش"}>
               {run ? "⏸" : "▶"}
             </button>
-            <span>{mode === "explore" ? "ساختن قطار" : "ردیف اختلاف‌ها"}</span>
+            <span>{mode === "explore" ? "ساختن قطار" : rowsName(inTry ? question.rule : rule)}</span>
             <input
               type="range"
               min={0}
@@ -331,7 +331,7 @@ export function SequenceTool() {
 
             <div className={styles.row} style={{ marginTop: 8 }}>
               <button className={styles.toggle} aria-pressed={showRows} onClick={() => setShowRows(!showRows)}>
-                {showRows ? "✓ " : ""}اختلاف‌ها را نشان بده
+                {showRows ? "✓ " : ""}{rule.kind === "alt" ? "کمان‌های یکی‌درمیان را نشان بده" : "اختلاف‌ها را نشان بده"}
               </button>
               {build.kind !== "mul" && build.kind !== "sum2" && (
                 <button className={styles.toggle} aria-pressed={build.letters} onClick={() => set("letters", !build.letters)}>
@@ -353,15 +353,19 @@ export function SequenceTool() {
                 animate(showMs);
               }}
             >
-              نشانم بده اختلاف‌ها چه می‌گویند
+              {rule.kind === "alt" ? "نشانم بده دو دنباله درهم چطورند" : "نشانم بده اختلاف‌ها چه می‌گویند"}
             </button>
           </>
         )}
 
         {mode === "show" && (
           <>
-            <h2>اختلاف‌ها زیر جمله‌ها</h2>
-            <p className={styles.note}>زیر هر دو واگن کنار هم، می‌نویسیم چقدر عوض شد. اگر اختلاف‌ها ثابت نبودند، زیر خودشان ردیف اختلاف دوم را می‌سازیم.</p>
+            <h2>{rule.kind === "alt" ? "دو دنباله یکی‌درمیان" : "اختلاف‌ها زیر جمله‌ها"}</h2>
+            <p className={styles.note}>
+              {rule.kind === "alt"
+                ? "هر کمان یک واگن را به واگن یکی بعد از بعدی‌اش وصل می‌کند: بالای قطار واگن‌های ●، زیر قطار واگن‌های ▲. روی هر کمان می‌نویسیم آن دنباله چقدر عوض شد."
+                : "زیر هر دو واگن کنار هم، می‌نویسیم چقدر عوض شد. اگر اختلاف‌ها ثابت نبودند، زیر خودشان ردیف اختلاف دوم را می‌سازیم."}
+            </p>
             <div className={styles.chipsRow} role="radiogroup" aria-label="نمونه" style={{ flexWrap: "wrap" }}>
               {CARDS.map(([kind, , name]) => (
                 <button

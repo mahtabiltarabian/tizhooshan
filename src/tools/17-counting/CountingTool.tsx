@@ -163,6 +163,12 @@ export function CountingTool() {
     setF(0);
   };
 
+  /** Show me: go straight to step i (and pause). */
+  const stepTo = (i: number) => {
+    setRun(null);
+    setF(steps.length > 1 ? Math.max(0, Math.min(1, i / (steps.length - 1))) : 1);
+  };
+
   const play = (ms: number) => {
     if (run) return setRun(null);
     animate(ms, f >= 0.99 ? 0 : f);
@@ -471,6 +477,14 @@ export function CountingTool() {
                 </li>
               ))}
             </ol>
+            <div className={styles.row} style={{ marginTop: 8 }}>
+              <button className={styles.clear} onClick={() => stepTo(showStage - 1)} disabled={showStage === 0}>
+                → قدم قبل
+              </button>
+              <button className={styles.clear} onClick={() => stepTo(showStage + 1)} disabled={showStage >= steps.length - 1}>
+                قدم بعد ←
+              </button>
+            </div>
             <button
               className={tryStyles.next}
               style={{ marginTop: 12, width: "100%" }}

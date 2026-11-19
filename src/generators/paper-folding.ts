@@ -190,6 +190,7 @@ export function symmetryLines(poly: Poly, kinds: LineKind[] = ["v", "h", "d", "a
   return candidates.filter((l) => kinds.includes(l.kind) && Number.isInteger(l.c) && samePoly(reflectPoly(poly, l), poly));
 }
 
+const inSquare = (p: Pt, S: number) => p[0] > 0 && p[1] > 0 && p[0] < S && p[1] < S;
 const dedupePts = (pts: Pt[]) => pts.filter((p, i) => pts.findIndex((q) => samePoint(p, q)) === i);
 
 /** Unfold points punched through the folded paper: mirror across each fold, last first. */
@@ -387,6 +388,37 @@ export function punchableCells(S: number, folds: Fold[]): Pt[] {
   return out;
 }
 
+/** On the edge of a convex polygon (not strictly inside, not outside). */
+export function onBoundary(p: Pt, poly: Poly): boolean {
+  return poly.some((a, i) => {
+    const b = poly[(i + 1) % poly.length];
+    const cr = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    const dot = (p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1]);
+    const len2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2;
+    return Math.abs(cr) < EPS && dot > -EPS && dot < len2 + EPS;
+  });
+}
+
+/**
+ * Spots on a fold of the folded shape where a hole can be punched: the middle
+ * of a grid edge or a cell centre that lies on a crease. Such a hole goes
+ * through the fold itself, so when that fold is opened its two halves meet
+ * and make one hole on the crease, not two. Spots on the sheet's own edge are
+ * left out (a punch there only bites a notch out of the edge).
+ */
+export function creaseSpots(S: number, folds: Fold[]): Pt[] {
+  if (!folds.length) return [];
+  const final = shapes(S, folds).at(-1)!;
+  const out: Pt[] = [];
+  for (let v = 0; v <= 2 * S; v++)
+    for (let u = 0; u <= 2 * S; u++) {
+      if (u % 2 === 0 && v % 2 === 0) continue; // grid corners
+      const p: Pt = [u / 2, v / 2];
+      if (onBoundary(p, final) && unfoldPoints([p], folds).every((q) => inSquare(q, S))) out.push(p);
+    }
+  return out;
+}
+
 /** A small triangle cut off one corner of the folded shape. */
 export function cornerCut(shape: Poly, vertex: number, leg = 1): Poly {
   const v = shape[vertex];
@@ -419,7 +451,19 @@ export type PaperQuestion =
   | (Base & { type: "cutChoice"; cut: Poly; options: Poly[][]; mistakes: (PaperMistake | null)[]; answer: number })
   | (Base & { type: "pieces"; segment: [Pt, Pt]; options: number[]; mistakes: (PaperMistake | null)[]; answer: number })
   | (Base & { type: "foldedShape"; options: Poly[]; mistakes: (PaperMistake | null)[]; answer: number })
-  | (Base & { type: "order"; shown: number[] });
+  /**
+   * `shown[n]`: which step the n-th picture is. With two or more folds the
+   * steps are the folds. With one fold there is nothing to put in order, so
+   * the steps are the whole job instead (ORDER_ONE_FOLD): fold, punch
+   * `punches` in the folded paper, open it. `punches` is empty otherwise.
+   */
+  | (Base & { type: "order"; shown: number[]; punches: Pt[] });
+
+/** The steps of a one-fold "order" question, in the right order. */
+export const ORDER_ONE_FOLD = ["fold", "punch", "open"] as const;
+
+/** How many pictures an "order" question puts in order. */
+export const orderSteps = (folds: Fold[]) => (folds.length === 1 ? ORDER_ONE_FOLD.length : folds.length);
 
 const SETUP: Record<Level, { S: number; k: number; kinds: LineKind[]; diagonal: boolean; holes: [number, number] }> = {
   1: { S: 4, k: 1, kinds: ["v", "h"], diagonal: false, holes: [1, 1] },
@@ -441,7 +485,6 @@ export function perpendicular(l: FoldLine, S: number): FoldLine {
   }
 }
 
-const inSquare = (p: Pt, S: number) => p[0] > 0 && p[1] > 0 && p[0] < S && p[1] < S;
 const ptsKey = (pts: Pt[]) => holeCells(pts).join(";");
 
 function choose<T>(rng: Rng, correct: T, candidates: { value: T; mistake: PaperMistake }[], key: (v: T) => string) {
@@ -463,14 +506,15 @@ export function makePaperQuestion(type: PaperQuestionType, level: Level, seed: n
   const rng = mulberry32(seed);
   const setup = SETUP[level];
   const S = setup.S;
-  const k = type === "order" ? Math.max(2, setup.k) : setup.k;
+  const k = setup.k;
   const folds = randomFolds(rng, S, k, setup.kinds, setup.diagonal);
   const final = shapes(S, folds).at(-1)!;
 
   if (type === "order") {
-    let shown = shuffle(rng, folds.map((_, i) => i));
+    let shown = shuffle(rng, Array.from({ length: orderSteps(folds) }, (_, i) => i));
     while (shown.every((v, i) => v === i)) shown = shuffle(rng, shown);
-    return { type, seed, level, S, folds, shown };
+    const punches = k === 1 ? shuffle(rng, punchableCells(S, folds)).slice(0, 1) : [];
+    return { type, seed, level, S, folds, shown, punches };
   }
 
   if (type === "foldedShape") {

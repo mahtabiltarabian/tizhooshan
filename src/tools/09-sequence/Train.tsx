@@ -56,6 +56,16 @@ export function rowsFor(rule: Rule): RowName[] {
   }
 }
 
+/** What the rows of working are called: woven sequences get hop arcs, not a row of differences. */
+export const rowsName = (rule: Rule) => (rule.kind === "alt" ? "کمان‌های یکی‌درمیان" : "ردیف اختلاف‌ها");
+
+/** Where to look on the board once the rows are drawn. */
+export function rowsHint(rule: Rule) {
+  if (rule.kind === "alt")
+    return "روی صفحه، کمان‌های بالای قطار واگن‌های ● را یکی‌درمیان به هم وصل می‌کنند و کمان‌های زیر قطار واگن‌های ▲ را؛ روی هر کمان، گام همان دنباله نوشته شده.";
+  return "روی صفحه، ردیف اختلاف‌ها زیر قطار ساخته می‌شود.";
+}
+
 interface TrainProps {
   /** All the terms (alphabet places when `letters`). */
   terms: number[];

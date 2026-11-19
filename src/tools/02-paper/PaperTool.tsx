@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cornerCut,
+  creaseSpots,
   creases,
   makePaperQuestion,
   punchableCells,
@@ -49,6 +50,8 @@ function foldName(f: Fold): string {
       return up ? "بالا‌راست روی پایین‌چپ" : "پایین‌چپ روی بالا‌راست";
   }
 }
+
+const samePt = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
 
 /** Sample for "show me" when nothing was punched in explore. */
 const SAMPLE = (() => {
@@ -181,6 +184,8 @@ export function PaperTool() {
     if (punches.some((q) => q[0] === p[0] && q[1] === p[1])) return setPunches(punches.filter((q) => q[0] !== p[0] || q[1] !== p[1]));
     if (punchableCells(S, folds).some((q) => q[0] === p[0] && q[1] === p[1])) setPunches([...punches, p]);
   };
+  const tapSpot = (p: Pt) =>
+    setPunches(punches.some((q) => q[0] === p[0] && q[1] === p[1]) ? punches.filter((q) => q[0] !== p[0] || q[1] !== p[1]) : [...punches, p]);
   const tapVertex = (v: number) => setCutVerts(cutVerts.includes(v) ? cutVerts.filter((x) => x !== v) : [...cutVerts, v]);
 
   // Show me: the explore paper if it has a hole or a cut, otherwise the sample.
@@ -199,6 +204,9 @@ export function PaperTool() {
   const shownHoles = unfoldPoints(ex.punches, open);
   const lastHoles = s ? unfoldPoints(ex.punches, ex.folds.slice(K - s + 1)) : [];
   const links: [Pt, Pt][] = s ? lastHoles.map((p) => [p, reflect(p, ex.folds[K - s].line)]) : [];
+  // Holes on the fold just opened: they stay one hole each.
+  const onFold = s ? lastHoles.filter((p) => samePt(p, reflect(p, ex.folds[K - s].line))).length : 0;
+  const counts = Array.from({ length: s + 1 }, (_, i) => unfoldPoints(ex.punches, ex.folds.slice(K - i)).length);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -357,7 +365,13 @@ export function PaperTool() {
                 </button>
               </div>
             </div>
-            <p className={styles.note}>{tool === "punch" ? "روی یک خانه کاغذ تاشده بزن تا سوراخ شود (روی خط تا نمی‌شود)." : "روی یک گوشه کاغذ تاشده بزن تا بریده شود."}</p>
+            <p className={styles.note}>
+              {tool === "punch"
+                ? folds.length
+                  ? "روی یک خانه کاغذ تاشده بزن تا سوراخ شود. روی لبه تا هم می‌شود سوراخ زد: دایره‌های خط‌چین."
+                  : "روی یک خانه کاغذ بزن تا سوراخ شود."
+                : "روی یک گوشه کاغذ تاشده بزن تا بریده شود."}
+            </p>
             <PaperSvg
               S={S}
               size={220}
@@ -366,6 +380,8 @@ export function PaperTool() {
               holes={punches}
               removed={cuts}
               onCell={tool === "punch" ? tapCell : undefined}
+              spots={creaseSpots(S, folds)}
+              onSpot={tool === "punch" ? tapSpot : undefined}
               onVertex={tool === "corner" ? tapVertex : undefined}
               label="کاغذ تاشده"
             />
@@ -416,7 +432,7 @@ export function PaperTool() {
             <p className={styles.stepText}>
               {s === 0
                 ? `کاغذ تاشده با ${fa(ex.punches.length)} سوراخ${exCuts.length ? " و برش" : ""}. ${fa(2 ** K)} لایه روی هم است، پس هر سوراخ از ${fa(2 ** K)} لایه رد شده.`
-                : `تای ${fa(K - s + 1)} باز شد: هر سوراخ نسبت به خط‌چین قرینه شد. حالا ${fa(shownHoles.length)} سوراخ.`}
+                : `تای ${fa(K - s + 1)} باز شد: هر سوراخ نسبت به خط‌چین قرینه شد${onFold ? `؛ سوراخ روی خط تا قرینه خودش است و یکی می‌ماند (دو نیمه‌اش به هم رسیدند)` : ""}. حالا ${fa(shownHoles.length)} سوراخ.`}
             </p>
             <PaperSvg
               S={ex.S}
@@ -431,7 +447,7 @@ export function PaperTool() {
               label={`مرحله ${fa(s)}`}
             />
             <p className={`${styles.status} ${styles.info}`}>
-              {Array.from({ length: s + 1 }, (_, i) => fa(ex.punches.length * 2 ** i)).join(" ← ")} سوراخ
+              {counts.map((n) => fa(n)).join(" ← ")} سوراخ
             </p>
             <p className={styles.note}>خط‌چین آبی هر سوراخ را به قرینه‌اش وصل می‌کند: هر دو تا خط تا یک فاصله دارند.</p>
           </>

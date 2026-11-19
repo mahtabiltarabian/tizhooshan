@@ -29,7 +29,7 @@ import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
 import { PUZZLES_GUIDE } from "./guide";
 import { figureView, PuzzleFigure } from "./Pictures";
-import { linesRight, PUZZLE_TYPE_LABEL, PuzzleTryPanel, setFa, stepText } from "./PuzzleTryPanel";
+import { firstHint, linesRight, PUZZLE_TYPE_LABEL, PuzzleTryPanel, setFa, stepText } from "./PuzzleTryPanel";
 
 type Mode = "explore" | "show" | "try";
 type Area = "square" | "triangle" | "pyramid";
@@ -390,9 +390,7 @@ export function NumberPuzzlesTool() {
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
             {mode === "try"
-              ? question.type === "shape"
-                ? "اول فکر کن: چه قانونی در شکل ۱ و شکل ۲ هر دو درست است؟"
-                : "اول فکر کن: کدام خط فقط یک خانه خالی دارد؟"
+              ? firstHint(question)
               : area === "square"
                 ? `${fa(sqRight)} از ۸ خط جمعشان ${fa(exQ.target!)} است`
                 : area === "triangle"

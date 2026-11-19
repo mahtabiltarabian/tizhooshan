@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   areaOf,
   FIGURES,
+  SIMPLE_FIGURES,
+  SIMPLE_SET,
+  simpleFigures,
   isSolid,
   keyOf,
   makePuzzleQuestion,
@@ -66,6 +69,15 @@ describe("the lattice", () => {
       const target = polyTris(f.poly);
       const s = solveOnce(target, TANGRAM, true)!;
       expect(norm(unionOf(s))).toBe(norm(target));
+      expect(keyOf(unionOf(s))).toBe(keyOf(target));
+    }
+    // The simple set (explore and show-me) makes each of its figures with every piece.
+    expect(SIMPLE_SET.reduce((s, k) => s + areaOf(k), 0)).toBe(40);
+    expect(simpleFigures()).toHaveLength(SIMPLE_FIGURES.length);
+    for (const f of SIMPLE_FIGURES) {
+      const target = polyTris(f.poly);
+      const s = solveOnce(target, SIMPLE_SET, true)!;
+      expect(s.map((p) => p.kind).sort()).toEqual([...SIMPLE_SET].sort());
       expect(keyOf(unionOf(s))).toBe(keyOf(target));
     }
     // Two small triangles make the tangram square, and the medium triangle.

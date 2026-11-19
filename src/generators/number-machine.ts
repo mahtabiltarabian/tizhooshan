@@ -451,6 +451,39 @@ export type MachineTag =
   | "fitsSome"
   | "other";
 
+/** The steps of a rule taken in another order: order[i] is the step done i-th. */
+export const reorder = (rule: Rule, order: number[]): Rule => order.map((i) => rule[i]);
+
+/** A single pair of steps swapped: their places (0-based, i < j), or null. */
+export function swappedPair(order: number[]): [number, number] | null {
+  const moved = order.flatMap((k, i) => (k === i ? [] : [i]));
+  return moved.length === 2 && order[moved[0]] === moved[1] ? [moved[0], moved[1]] : null;
+}
+
+/**
+ * Every wrong order of n steps, in the order they are checked: backwards
+ * first (the usual slip), then one pair swapped, then any other reorder.
+ */
+export function wrongOrders(n: number): number[][] {
+  const all: number[][] = [];
+  const grow = (prefix: number[]) => {
+    if (prefix.length === n) {
+      if (prefix.some((k, i) => k !== i)) all.push(prefix);
+      return;
+    }
+    for (let k = 0; k < n; k++) if (!prefix.includes(k)) grow([...prefix, k]);
+  };
+  grow([]);
+  const rank = (o: number[]) => (o.every((k, i) => k === n - 1 - i) ? 0 : swappedPair(o) ? 1 : 2);
+  return all.sort((x, y) => rank(x) - rank(y));
+}
+
+/** The wrong order of the steps that gives this answer to a run question, if any. */
+export function orderUsed(q: RunQuestion, value: number): number[] | null {
+  if (value === q.answer || q.rule.length < 2) return null;
+  return wrongOrders(q.rule.length).find((o) => near(runRule(q.input, reorder(q.rule, o)), value)) ?? null;
+}
+
 /** Wrong answers with a known cause, in the order they are checked. */
 export function slips(q: NumberQuestion): [MachineTag, number][] {
   const out: [MachineTag, number][] = [];
@@ -465,7 +498,7 @@ export function slips(q: NumberQuestion): [MachineTag, number][] {
         if (s.op === "+") add("wrongOp", q.input * s.n);
         if (s.op === "×") add("wrongOp", q.input + s.n);
       } else {
-        add("order", runRule(q.input, [...q.rule].reverse()));
+        for (const order of wrongOrders(q.rule.length)) add("order", runRule(q.input, reorder(q.rule, order)));
         add("stopEarly", t[q.rule.length - 1]);
       }
       break;

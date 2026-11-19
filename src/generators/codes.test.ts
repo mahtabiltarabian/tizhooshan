@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALPHABET,
   answerKind,
+  arabicReading,
   arabicStep,
   CODE_TYPES,
   codeMistake,
@@ -232,6 +233,44 @@ describe("slips", () => {
     const r2 = { ...rev, coded: encode(rev.rule, rev.plain) as number[] };
     const r3 = { ...r2, answer: r2.coded };
     expect(codeMistake(r3, [26, 27])).toBe("wrongWay");
+  });
+
+  it("names the Arabic-alphabet slip when decoding", () => {
+    // تپق is باغ 2 on. Going 2 back without پ: ت → ب → ا, پ → ب → ا, ق → ف → غ.
+    const shift = base({ kind: "shift", n: 2 }, "decode", "باغ");
+    expect(textOf(shift.given)).toBe("تپق");
+    expect(codeMistake(shift, L("ااغ"))).toBe("arabic");
+    // Another wrong letter is not this slip.
+    expect(codeMistake(shift, L("بال"))).toBe("other");
+
+    // ماهی as numbers from ا = ۱: 28 1 31 32. In the 28 letters, 28 is ی and
+    // 31, 32 are past the end, so the whole slip has no letter there.
+    const num = { ...base({ kind: "number", start: 1, step: 1, rev: false }, "decode", "ماهی"), type: "number" as const };
+    expect(num.given).toEqual([28, 1, 31, 32]);
+    expect(arabicReading(num)).toEqual([31, 0, null, null]);
+    expect(codeMistake(num, L("یاهی"))).toBe("arabic"); // the last two worked out some other way
+    expect(codeMistake(num, [31, 0, null, null])).toBe("arabic"); // the last two left empty
+    expect(codeMistake(num, L("یاهب"))).toBe("other");
+    expect(codeMistake(num, L("ماهی"))).toBe("right");
+    // گل is 26 27: in the 28 letters those are و and ه.
+    const gol = { ...num, ...base({ kind: "number", start: 1, step: 1, rev: false }, "decode", "گل"), type: "number" as const };
+    expect(codeMistake(gol, L("وه"))).toBe("arabic");
+    // Counting from ی (ی = ۱): سیب is 18 1 31. In the 28 letters 18 is ز, 1 is still ی, 31 is past the end.
+    const back = { ...base({ kind: "number", start: 1, step: 1, rev: true }, "decode", "سیب"), type: "number" as const };
+    expect(back.given).toEqual([18, 1, 31]);
+    expect(arabicReading(back)).toEqual([12, 31, null]);
+    expect(codeMistake(back, L("زیب"))).toBe("arabic");
+
+    // Over many decoding questions, that reading is always named as a slip.
+    for (const type of ["shift", "number", "sentence"] as const)
+      for (const level of [1, 2, 3] as const)
+        for (let seed = 0; seed < 500; seed++) {
+          const q = makeCodeQuestion(type, level, seed);
+          const reading = arabicReading(q);
+          if (q.dir !== "decode" || !reading || !reading.some((x, i) => x !== null && x !== q.answer[i])) continue;
+          expect(codeMistake(q, reading)).not.toBe("other");
+          expect(codeMistake(q, reading.map((x, i) => x ?? q.answer[i]))).not.toBe("other");
+        }
   });
 
   it("marks each slot", () => {
