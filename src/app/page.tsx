@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AREA_LABEL, TOOLS, fa } from "@/tools/registry";
+import { OfflineStatus } from "./OfflineSupport";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -8,6 +9,7 @@ export default function Home() {
       <header className={styles.header}>
         <h1>جعبه‌ابزار تیزهوشان</h1>
         <p>ببین، بساز، دست‌کاری کن — بدون اینترنت و بدون ثبت‌نام</p>
+        <OfflineStatus />
       </header>
 
       <ul className={styles.grid}>
