@@ -5,12 +5,12 @@
 // Cubes are coloured by layer; hidden cubes can be striped; layers can be
 // pulled apart to count them; taps report which column was touched.
 
-import { RoundedBox } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { BoxGeometry, EdgesGeometry, type CanvasTexture } from "three";
 import { isHidden, type Tower } from "@/generators/cube-towers";
 import { hatchTexture, textTexture } from "@/engine-3d/textTexture";
+import { roundedBox } from "@/engine-3d/roundedBox";
 
 export const LAYER_COLORS = ["#4d96ff", "#ffc93d", "#4cc38a", "#ff6b6b", "#b983ff"];
 const SIZE = 0.96;
@@ -108,11 +108,9 @@ export function TowerScene({ tower, explode = 0, showHidden = false, ghosts = []
       {cubes.map(({ x, y, z, hidden }) => {
         const striped = showHidden && hidden;
         return (
-          <RoundedBox
+          <mesh
             key={`${x},${y},${z}`}
-            args={[SIZE, SIZE, SIZE]}
-            radius={0.06}
-            smoothness={3}
+            geometry={roundedBox(SIZE, SIZE, SIZE, 0.06, 3)}
             position={at(x, y, z)}
             castShadow
             onClick={(e) => tap(e, x, y, z)}
@@ -122,7 +120,7 @@ export function TowerScene({ tower, explode = 0, showHidden = false, ghosts = []
               map={striped && tex ? tex.hatch : null}
               roughness={0.45}
             />
-          </RoundedBox>
+          </mesh>
         );
       })}
 

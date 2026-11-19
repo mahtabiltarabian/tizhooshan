@@ -6,10 +6,10 @@
 // the cube, as on paper. Shapes that are not nets fold too, so the faces
 // that collide can be seen.
 
-import { RoundedBox } from "@react-three/drei";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CanvasTexture } from "three";
 import { foldNet, pickRoot, type Cell } from "@/generators/cube-nets";
+import { roundedBox } from "@/engine-3d/roundedBox";
 import { labelTexture } from "./faceTexture";
 import { hinge, labelRotation, NET_TO_WORLD } from "./foldGeometry";
 
@@ -87,9 +87,9 @@ export function FoldingNet({ cells, t, labels, marked = [], colors, sequential =
 
   const tile = (idx: number) => (
     <>
-      <RoundedBox args={[SIZE, SIZE, THICK]} radius={0.03} smoothness={3} position={[0, 0, -THICK / 2]} castShadow>
+      <mesh geometry={roundedBox(SIZE, SIZE, THICK, 0.03, 3)} position={[0, 0, -THICK / 2]} castShadow>
         <meshStandardMaterial color={colors?.[idx] ?? FACE_COLORS[idx % FACE_COLORS.length]} roughness={0.45} />
-      </RoundedBox>
+      </mesh>
       {textures?.[idx] && (
         <mesh position={[0, 0, 0.002]} rotation={labelRotation(turns?.[idx] ?? 0)}>
           <planeGeometry args={[SIZE * 0.8, SIZE * 0.8]} />

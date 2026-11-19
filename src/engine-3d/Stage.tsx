@@ -3,17 +3,27 @@
 // Shared 3D stage for every 3D tool: soft toy lighting, a table, contact
 // shadow, touch/mouse orbit, and the shared toolbar (pen, text, undo, zoom,
 // first view, save image). Nothing is loaded from the network.
+//
+// Weak tablets: the scene is drawn only when something changes (a prop, the
+// camera, an animation step), never in an idle loop, and devices with little
+// memory or few cores get the light quality (no shadows, 1× pixels).
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { Vector3, type WebGLRenderer } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AnnotationLayer, paintAnnotations, PEN_COLORS, type Annotation, type DrawTool } from "@/toolkit/AnnotationLayer";
 import { Toolbar } from "@/toolkit/Toolbar";
 import styles from "./Stage.module.css";
 
-export type Quality = "low" | "normal" | "high";
+import { autoQuality, type Quality } from "./quality";
+
+export type { Quality };
+
+const deviceQuality = () =>
+  autoQuality((navigator as Navigator & { deviceMemory?: number }).deviceMemory, navigator.hardwareConcurrency);
+const noSubscribe = () => () => {};
 
 /** Named views a tool can fly the camera to. Model "front" (-y) is world +z. */
 export type Look = "front" | "side" | "top" | "corner";
@@ -21,6 +31,7 @@ export type Look = "front" | "side" | "top" | "corner";
 interface StageProps {
   children: ReactNode;
   target?: [number, number, number];
+  /** Fixed quality; by default it follows the device. */
   quality?: Quality;
   /** File name stem for "save image". */
   imageName?: string;
@@ -44,7 +55,7 @@ function CameraRig({
   controls: React.RefObject<OrbitControlsImpl | null>;
   home: [number, number, number];
 }) {
-  const { camera } = useThree();
+  const { camera, invalidate } = useThree();
   const goal = useRef<Vector3 | null>(null);
   useEffect(() => {
     if (!look) return;
@@ -56,13 +67,24 @@ function CameraRig({
       corner: home,
     };
     goal.current = new Vector3(...p[look]);
-  }, [look, nonce, home]);
+    invalidate();
+  }, [look, nonce, home, invalidate]);
   useFrame((_, dt) => {
     if (!goal.current) return;
     camera.position.lerp(goal.current, Math.min(1, dt * 4));
     controls.current?.update();
     if (camera.position.distanceTo(goal.current) < 0.02) goal.current = null;
+    else invalidate();
   });
+  return null;
+}
+
+/** Shadows settle over a few frames; draw those once the scene opens. */
+function Warmup() {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    invalidate(6);
+  }, [invalidate]);
   return null;
 }
 
@@ -76,12 +98,14 @@ const HOME: [number, number, number] = [3.4, 4.2, 4.6];
 export function Stage({
   children,
   target = [0, 0.5, 0],
-  quality = "normal",
+  quality: forced,
   imageName = "tizhooshan",
   camera = HOME,
   look = null,
   lookNonce = 0,
 }: StageProps) {
+  const device = useSyncExternalStore(noSubscribe, deviceQuality, () => "normal" as Quality);
+  const quality = forced ?? device;
   const controls = useRef<OrbitControlsImpl>(null);
   const gl = useRef<WebGLRenderer | null>(null);
   const [tool, setTool] = useState<DrawTool>("none");
@@ -122,6 +146,8 @@ export function Stage({
     <div className={styles.stage}>
       <Canvas
         style={{ position: "absolute", inset: 0 }}
+        // Draw only when something changed; props, controls and the camera rig ask for frames.
+        frameloop="demand"
         shadows={quality !== "low"}
         dpr={DPR[quality]}
         camera={{ position: camera, fov: 38 }}
@@ -154,6 +180,7 @@ export function Stage({
           maxDistance={MAX_DISTANCE}
           maxPolarAngle={Math.PI * 0.47}
         />
+        <Warmup />
         <CameraRig look={look} nonce={lookNonce} controls={controls} home={camera} />
       </Canvas>
 
