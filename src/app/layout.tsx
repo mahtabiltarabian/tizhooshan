@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource/vazirmatn/400.css";
 import "@fontsource/vazirmatn/700.css";
 import "./globals.css";
+import { PracticeBar } from "@/practice/PracticeBar";
 import { OfflineSupport } from "./OfflineSupport";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fa" dir="rtl">
       <body>
+        <PracticeBar />
         {children}
         <OfflineSupport />
       </body>

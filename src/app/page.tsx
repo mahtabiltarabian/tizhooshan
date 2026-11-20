@@ -10,6 +10,10 @@ export default function Home() {
         <h1>جعبه‌ابزار تیزهوشان</h1>
         <p>ببین، بساز، دست‌کاری کن — بدون اینترنت و بدون ثبت‌نام</p>
         <OfflineStatus />
+        <Link href="/practice/" className={styles.practice}>
+          <strong>تمرین</strong>
+          <span>بازی امروز، چالش روزانه و مرور اشتباه‌ها، به اندازه هر کودک</span>
+        </Link>
       </header>
 
       <ul className={styles.grid}>

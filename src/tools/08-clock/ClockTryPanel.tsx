@@ -159,6 +159,8 @@ interface Props {
   onType: (t: ClockQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function ClockTryPanel(p: Props) {
@@ -166,21 +168,21 @@ export function ClockTryPanel(p: Props) {
   const kind = answerKind(q.type);
   const [num, setNum] = useState(kind === "number" && checked !== null ? String(checked) : "");
   const [day, setDay] = useState<number | null>(kind === "day" ? checked : null);
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
 
   const nudge = (d: number) => p.onTime(((p.time + d) % 720 + 720) % 720);
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(CLOCK_TYPE_LABEL) as ClockQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {CLOCK_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -215,7 +217,7 @@ export function ClockTryPanel(p: Props) {
         <div className={styles.types} role="radiogroup" aria-label="روز هفته" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
           {WEEKDAYS.map((name, i) => (
             <button key={name} role="radio" aria-checked={day === i} onClick={() => setDay(i)} disabled={done}>
-              {done && i === q.answer ? "✓ " : done && i === checked ? "✗ " : ""}
+              {done && !p.exam && i === q.answer ? "✓ " : done && !p.exam && i === checked ? "✗ " : ""}
               {name}
             </button>
           ))}
@@ -237,8 +239,8 @@ export function ClockTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && kind === "time" && <p className={styles.hint}>روی صفحه، ساعت درست کار می‌کند تا به جواب برسد؛ با نوار پایین جلو و عقب ببر.</p>}
-      {done && kind === "day" && <p className={styles.hint}>روی تقویم: پرش‌های آبی هفته‌های کامل‌اند (همان روز هفته)، پرش‌های خط‌چین قرمز روزهای باقی‌مانده.</p>}
+      {done && !p.exam && kind === "time" && <p className={styles.hint}>روی صفحه، ساعت درست کار می‌کند تا به جواب برسد؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && kind === "day" && <p className={styles.hint}>روی تقویم: پرش‌های آبی هفته‌های کامل‌اند (همان روز هفته)، پرش‌های خط‌چین قرمز روزهای باقی‌مانده.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

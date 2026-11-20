@@ -706,3 +706,14 @@ button:disabled {
   font-weight: 700;
   border-bottom: none;
 }
+
+/* In a practice session the practice bar sits above the tool. */
+:global(html[data-practice="on"]) .layout {
+  height: calc(100vh - var(--practice-bar));
+}
+
+:global(html[data-practice="on"]) .tabs,
+:global(html[data-practice="on"]) .teacher,
+:global(html[data-practice="on"]) .back {
+  display: none;
+}

@@ -242,3 +242,12 @@
   color: #fff;
   font-weight: 700;
 }
+
+/* Practice session: the session picks the question. Mock exam: no feedback until the end. */
+:global(html[data-practice="on"]) .next {
+  display: none;
+}
+
+:global(html[data-exam="on"]) .feedback {
+  display: none;
+}

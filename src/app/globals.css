@@ -68,3 +68,18 @@ a {
     margin: 0;
   }
 }
+
+/* Practice sessions (src/practice): a tool page shows one set question, so
+   its own mode tabs, level and type choices and "new example" are hidden. */
+:root {
+  --practice-bar: 60px;
+}
+
+html[data-practice="on"] [data-practice-hide] {
+  display: none !important;
+}
+
+/* Mock exam: no feedback until the end. */
+html[data-exam="on"] [data-exam-hide] {
+  display: none !important;
+}

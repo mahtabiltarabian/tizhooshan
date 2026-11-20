@@ -23,11 +23,13 @@ import {
   type Level,
 } from "@/generators/clock";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { CLOCK_TYPE_LABEL, ClockTryPanel } from "./ClockTryPanel";
+import { CLOCK_ADAPTER } from "./adapter";
 import { CLOCK_GUIDE } from "./guide";
 import { ClockG, timeFa, WeekG, weekHeight } from "./Pictures";
 
@@ -114,6 +116,18 @@ export function ClockTool() {
   const [answerTime, setAnswerTime] = useState(0);
   const [checked, setChecked] = useState<number | null>(null);
   const question = useMemo(() => makeClockQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(CLOCK_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in CLOCK_TYPE_LABEL) setTryType(type as ClockQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setAnswerTime(0);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
 
   const showMs = area === "clock" ? 9000 : Math.min(9000, 1200 + 350 * (Math.floor(Math.abs(jump) / 7) + (Math.abs(jump) % 7)));
   const tryMs = (q: ClockQuestion) => (answerKind(q.type) === "day" ? Math.min(9000, 1200 + 350 * (Math.floor(Math.abs(calendarOf(q)!.target) / 7) + (Math.abs(calendarOf(q)!.target) % 7))) : 4000);
@@ -303,7 +317,8 @@ export function ClockTool() {
   );
 
   const inTry = mode === "try";
-  const showSlider = mode === "show" || (inTry && checked !== null);
+  // In a mock exam the answer is not played back until the end.
+  const showSlider = mode === "show" || (inTry && checked !== null && !practice.exam);
 
   return (
     <main className={styles.layout}>
@@ -516,9 +531,11 @@ export function ClockTool() {
             time={answerTime}
             onTime={setAnswerTime}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs(question));
+              void practiceCheck(CLOCK_ADAPTER, v);
+              if (!practice.exam) animate(tryMs(question));
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}

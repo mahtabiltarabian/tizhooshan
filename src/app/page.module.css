@@ -127,3 +127,21 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.header .practice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: 0 0 24px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+.header .practice strong {
+  font-size: 1.3rem;
+}
