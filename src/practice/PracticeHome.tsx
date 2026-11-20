@@ -337,7 +337,7 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
             <Avatar index={p.avatar} size={40} />
             <strong>{p.nickname}</strong>
             <span className={styles.small}>
-              پایه {fa(p.grade)} · {fa(p.dailyLimitMin)} دقیقه در روز
+              پایه {fa(p.grade)}، {fa(p.dailyLimitMin)} دقیقه در روز
             </span>
             <span className={styles.grow} />
             <Link className={styles.linkButton} href={`/practice/report/#child=${p.id}`}>

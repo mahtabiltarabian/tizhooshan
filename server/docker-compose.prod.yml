@@ -1,0 +1,41 @@
+# Production on a rented Linux server: PostgreSQL + the API.
+#   cp server/.env.production.example server/.env.production   (fill in secrets)
+#   docker compose -f server/docker-compose.prod.yml --env-file server/.env.production up -d --build
+# The API listens on 127.0.0.1:3200 only; put a TLS reverse proxy (Caddy/nginx) in front.
+name: tizhooshan-prod
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tizhooshan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: tizhooshan
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tizhooshan -d tizhooshan"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tizhooshan:${POSTGRES_PASSWORD}@db:5432/tizhooshan?schema=public
+      PORT: 3200
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
+      SMS_SENDER: ${SMS_SENDER:-dev}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      OTP_SECRET: ${OTP_SECRET:?set OTP_SECRET}
+      TRUST_PROXY: "1"
+      TZ: Asia/Tehran
+    ports:
+      - "127.0.0.1:3200:3200"
+volumes:
+  pgdata:

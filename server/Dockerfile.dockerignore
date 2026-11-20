@@ -1,0 +1,11 @@
+# Used by `docker build -f server/Dockerfile .` (context = repository root).
+**/node_modules
+**/.next
+out
+server/dist
+server/.env
+**/.env*
+!server/.env.example
+.git
+coverage
+public

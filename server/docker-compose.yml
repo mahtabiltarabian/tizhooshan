@@ -1,0 +1,25 @@
+name: tizhooshan
+# Local PostgreSQL for the API (host port 5434; 5432/5433 belong to other projects).
+# Creates two databases: tizhooshan (development) and tizhooshan_test (e2e tests).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tizhooshan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tizhooshan
+      POSTGRES_PASSWORD: tizhooshan
+      POSTGRES_DB: tizhooshan
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - tizhooshan-pg:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tizhooshan -d tizhooshan"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  tizhooshan-pg:

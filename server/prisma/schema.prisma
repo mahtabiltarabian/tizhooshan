@@ -1,0 +1,170 @@
+// Tizhooshan API data. Deleting a user or a child cascades to everything
+// recorded about them (plan v3, section 12). A question is never stored,
+// only how to rebuild it: tool, type, level, seed and generator version.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  parent
+  teacher
+}
+
+model User {
+  id         String      @id @default(uuid()) @db.Uuid
+  role       Role
+  /// Normalised 09xxxxxxxxx.
+  phone      String      @unique
+  createdAt  DateTime    @default(now()) @map("created_at")
+  tokens     AuthToken[]
+  children   Child[]
+  classrooms Classroom[]
+
+  @@map("users")
+}
+
+model OtpCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  phone      String
+  /// HMAC-SHA256 of the code; the code itself is never stored.
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  tries      Int       @default(0)
+  /// Set when the code was used to sign in; a code works once.
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([phone, createdAt])
+  @@map("otp_codes")
+}
+
+model AuthToken {
+  /// SHA-256 of the random bearer token, hex. The token itself is never stored.
+  tokenHash  String   @id @map("token_hash")
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+
+  @@index([userId])
+  @@map("auth_tokens")
+}
+
+model Child {
+  /// Made on the device (uuid), so the same child is one record everywhere.
+  id            String        @id @db.Uuid
+  parentId      String        @map("parent_id") @db.Uuid
+  parent        User          @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  nickname      String
+  avatar        Int
+  grade         Int
+  birthYear     Int           @map("birth_year")
+  dailyLimitMin Int           @map("daily_limit_min")
+  createdAt     DateTime      @map("created_at")
+  attempts      Attempt[]
+  skills        SkillState[]
+  reviews       ReviewItem[]
+  memberships   Membership[]
+
+  @@index([parentId])
+  @@map("children")
+}
+
+model Classroom {
+  id          String       @id @default(uuid()) @db.Uuid
+  teacherId   String       @map("teacher_id") @db.Uuid
+  teacher     User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  name        String
+  joinCode    String       @unique @map("join_code")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  memberships Membership[]
+  assignments Assignment[]
+
+  @@index([teacherId])
+  @@map("classrooms")
+}
+
+model Membership {
+  classroomId String    @map("classroom_id") @db.Uuid
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  childId     String    @map("child_id") @db.Uuid
+  child       Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+
+  @@id([classroomId, childId])
+  @@index([childId])
+  @@map("memberships")
+}
+
+model Assignment {
+  id          String    @id @default(uuid()) @db.Uuid
+  classroomId String    @map("classroom_id") @db.Uuid
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  title       String
+  skills      String[]
+  due         DateTime  @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([classroomId, due])
+  @@map("assignments")
+}
+
+model Attempt {
+  /// Made on the device (uuid), so sending twice is safe.
+  id               String   @id @db.Uuid
+  childId          String   @map("child_id") @db.Uuid
+  child            Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  tool             String
+  type             String
+  level            Int
+  seed             Int
+  generatorVersion String   @map("generator_version")
+  response         Json?
+  /// As graded on the device.
+  tag              String
+  score            Float
+  hintsUsed        Int      @map("hints_used")
+  durationMs       Int      @map("duration_ms")
+  mode             String
+  createdAt        DateTime @map("created_at")
+  receivedAt       DateTime @default(now()) @map("received_at")
+  /// As graded again on the server, from (tool, type, level, seed).
+  serverTag        String?  @map("server_tag")
+  serverScore      Float?   @map("server_score")
+
+  @@index([childId, createdAt])
+  @@map("attempts")
+}
+
+model SkillState {
+  childId   String   @map("child_id") @db.Uuid
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  skill     String
+  theta     Float
+  n         Int
+  updatedAt DateTime @map("updated_at")
+
+  @@id([childId, skill])
+  @@map("skill_states")
+}
+
+model ReviewItem {
+  /// The attempt that was wrong.
+  attemptId String   @id @map("attempt_id") @db.Uuid
+  childId   String   @map("child_id") @db.Uuid
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  skill     String
+  level     Int
+  step      Int
+  dueAt     DateTime @map("due_at")
+
+  @@index([childId])
+  @@map("review_items")
+}

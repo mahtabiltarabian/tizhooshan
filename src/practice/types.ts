@@ -9,6 +9,7 @@ export interface Profile {
   /** Index into AVATARS. */
   avatar: number;
   grade: 4 | 5 | 6;
+  /** Solar Hijri year (1393), never a full date. */
   birthYear: number;
   /** Minutes of practice a day; after that the session ends with a summary. */
   dailyLimitMin: number;
