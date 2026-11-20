@@ -149,32 +149,34 @@ interface Props {
   onBlank: (b: BlankChoice) => void;
   onBig: (big: boolean) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function SequenceTryPanel(p: Props) {
   const { question: q, checked } = p;
   const [num, setNum] = useState(!q.letters && checked !== null ? String(checked) : "");
   const [letter, setLetter] = useState<number | null>(q.letters ? checked : null);
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله">
+      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله" data-practice-hide>
         {(Object.keys(SEQ_TYPE_LABEL) as SeqTryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {SEQ_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="جای جمله خالی">
+      <div className={styles.chips} role="radiogroup" aria-label="جای جمله خالی" data-practice-hide>
         {(Object.keys(BLANK_LABEL) as BlankChoice[]).map((b) => (
           <button key={b} role="radio" aria-checked={p.blank === b} onClick={() => p.onBlank(b)}>
             {BLANK_LABEL[b]}
@@ -182,7 +184,7 @@ export function SequenceTryPanel(p: Props) {
         ))}
       </div>
       {!q.letters && (
-        <div className={styles.chips} role="radiogroup" aria-label="اندازه عددها">
+        <div className={styles.chips} role="radiogroup" aria-label="اندازه عددها" data-practice-hide>
           <button role="radio" aria-checked={!p.big} onClick={() => p.onBig(false)}>
             عددهای کوچک
           </button>
@@ -212,7 +214,7 @@ export function SequenceTryPanel(p: Props) {
 
       {done && (
         <output className={styles.bigNumber} aria-live="polite">
-          {checked === q.answer ? "✓" : "✗"} {answerFa(q, checked)}
+          {p.exam ? "" : checked === q.answer ? "✓" : "✗"} {answerFa(q, checked)}
         </output>
       )}
 
@@ -227,7 +229,7 @@ export function SequenceTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>{rowsHint(q.rule)} با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && <p className={styles.hint}>{rowsHint(q.rule)} با نوار پایین جلو و عقب ببر.</p>}
       {!done && <p className={styles.hint}>یک قانون باید با همه جمله‌ها جور باشد؛ پس فقط یک جواب درست است.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

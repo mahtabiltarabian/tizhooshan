@@ -398,6 +398,8 @@ interface Props {
   type: MotionQuestionType;
   level: Level;
   checked: number | null;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onCheck: (v: number) => void;
   onType: (t: MotionQuestionType) => void;
   onLevel: (l: Level) => void;
@@ -409,20 +411,22 @@ export function MotionTryPanel(p: Props) {
   const kind = answerKind(q);
   const [num, setNum] = useState(kind === "number" && checked !== null ? String(checked) : "");
   const [choice, setChoice] = useState<number | null>(kind !== "number" ? checked : null);
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
-  const mark = (i: number) => (done && i === q.answer ? "✓ " : done && i === checked ? "✗ " : "");
+  // Mock exam: no ✓ / ✗ on the choices until the end.
+  const reveal = done && !p.exam;
+  const mark = (i: number) => (reveal && i === q.answer ? "✓ " : reveal && i === checked ? "✗ " : "");
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(MOTION_TYPE_LABEL) as MotionQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {MOTION_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -495,7 +499,7 @@ export function MotionTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>{simHint(q)}</p>}
+      {reveal && <p className={styles.hint}>{simHint(q)}</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

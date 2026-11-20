@@ -31,12 +31,14 @@ import {
 } from "@/generators/logic";
 import { ifSteps, type IfStep } from "@/generators/if-then";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { countsAfter, countSteps, refMask, stepRegion, type CountStep, type VennCountQuestion } from "@/generators/venn-count";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
+import { LOGIC_ADAPTER } from "./adapter";
 import { LOGIC_GUIDE } from "./guide";
 import {
   clueText,
@@ -331,6 +333,22 @@ export function LogicTool() {
   const cur: TryEntry = entry?.key === key ? entry : blankEntry(question);
   const setCur = (e: TryEntry) => setEntry({ ...e, key });
 
+  // Practice sessions: the next question of this tool arrives through the address,
+  // as the page builds it by default (the level's own grid size, no extra clues).
+  const practice = usePractice(LOGIC_ADAPTER, (type, level, sd) => {
+    const l: Level = level === 2 || level === 3 ? level : 1;
+    setMode("try");
+    if (type in LOGIC_TYPE_LABEL) setTryType(type as LogicType);
+    setTryLevel(l);
+    setSize(defaultSize(l));
+    setExtra(false);
+    setSeed(sd);
+    setEntry(null);
+  });
+  // Mock exam: nothing on the board tells right from wrong, and the first check is final.
+  const exam = practice.exam;
+  const locked = exam && cur.checked;
+
   // Shareable links: #try=grid&level=2&seed=7&size=3&extra=1(&a=v_x…), #try=liars…&a=rd_, #try=venn…&a=2,
   // #try=vennNum&level=2&seed=7(&a=15), #try=ifThen&level=2&seed=7(&a=3), #show=venn&level=3&seed=5&step=4,
   // #explore=venn (or vennNum, ifThen), #classroom
@@ -509,7 +527,7 @@ export function LogicTool() {
         boardLabel = "حل قدم‌به‌قدم";
         board = <GridFigure n={q.size} people={q.people} items={itemsOf(q)} marks={marksAfter(q.size, st, k)} clues={texts} clueState={state} focus={stepCells(last)} />;
       } else {
-        const check = cur.checked ? gridCheck(q, cur.marks) : null;
+        const check = cur.checked && !exam ? gridCheck(q, cur.marks) : null;
         boardLabel = "جدول منطقی؛ روی خانه‌ها بزن";
         board = (
           <GridFigure
@@ -520,7 +538,7 @@ export function LogicTool() {
             clues={texts}
             clueState={(j) => (check?.clue === j ? "broken" : null)}
             bad={check}
-            onCell={check?.tag === "right" ? undefined : (c) => setCur({ ...cur, checked: false, marks: cur.marks.map((m, i) => (i === c ? nextMark(m) : m)) })}
+            onCell={check?.tag === "right" || locked ? undefined : (c) => setCur({ ...cur, checked: false, marks: cur.marks.map((m, i) => (i === c ? nextMark(m) : m)) })}
           />
         );
       }
@@ -545,7 +563,7 @@ export function LogicTool() {
           />
         );
       } else {
-        const bad = cur.checked && cur.liar.every((l) => l !== null) ? clashes(q.says, cur.liar as boolean[]) : null;
+        const bad = cur.checked && !exam && cur.liar.every((l) => l !== null) ? clashes(q.says, cur.liar as boolean[]) : null;
         boardLabel = "راستگو و دروغگو؛ روی برچسب هر نفر بزن";
         board = (
           <LiarsFigure
@@ -553,7 +571,7 @@ export function LogicTool() {
             texts={texts}
             known={cur.liar}
             status={bad ? q.says.map((s, p) => (s ? (bad.includes(p) ? "clash" : "fits") : null)) : []}
-            onToggle={bad && bad.length === 0 ? undefined : (p) => setCur({ ...cur, checked: false, liar: cur.liar.map((x, i) => (i === p ? nextLiar(x) : x)) })}
+            onToggle={(bad && bad.length === 0) || locked ? undefined : (p) => setCur({ ...cur, checked: false, liar: cur.liar.map((x, i) => (i === p ? nextLiar(x) : x)) })}
           />
         );
       }
@@ -564,14 +582,14 @@ export function LogicTool() {
         board = countBoard(q, { steps: steps as CountStep[], k }, [], false, null);
       } else {
         const c = cur.count ?? blankCount(q);
-        const solved = cur.checked && c.value !== "" && Number(c.value) === q.answer;
+        const solved = cur.checked && !exam && c.value !== "" && Number(c.value) === q.answer;
         boardLabel = "نمودار ون با عدد؛ برای یادداشت، روی یک بخش بزن و عددش را بنویس";
         board = countBoard(q, null, c.scratch, solved, c.target, !solved ? (r) => setCur({ ...cur, count: { ...c, target: r } }) : undefined);
       }
     } else if (q.type === "ifThen") {
       view = ifView(q, upright);
       boardLabel = mode === "show" ? "نمودار پیکان، قدم‌به‌قدم" : "نمودار پیکان: هر جمله «اگر… آنگاه» یک پیکان است";
-      board = mode === "show" ? ifBoard(q, { steps: steps as IfStep[], k }, null, false, upright) : ifBoard(q, null, cur.pick, cur.checked && cur.pick !== null, upright);
+      board = mode === "show" ? ifBoard(q, { steps: steps as IfStep[], k }, null, false, upright) : ifBoard(q, null, cur.pick, cur.checked && cur.pick !== null && !exam, upright);
     } else {
       view = vennView(q);
       const chain = chainOf(q);
@@ -587,7 +605,7 @@ export function LogicTool() {
         const dots = opt && last?.kind === "option" && last.tag !== "right" ? exampleModel([...chain, negate(opt)], q.terms.length) : null;
         boardLabel = "نمودار ون قدم‌به‌قدم";
         board = <VennBoard q={q} stmts={stmts} dots={dots} />;
-      } else if (cur.checked && cur.pick !== null) {
+      } else if (cur.checked && cur.pick !== null && !exam) {
         const opt = q.options[cur.pick];
         const stmts = q.level === 3 ? [chain.slice(0, 2), [q.middle!, chain[2]]] : [chain];
         const dots = opt && q.tags[cur.pick] !== "right" ? exampleModel([...chain, negate(opt)], q.terms.length) : null;
@@ -918,10 +936,17 @@ export function LogicTool() {
             size={size}
             extra={extra}
             entry={cur}
+            exam={exam}
+            practice={practice.active}
             onLiar={(p, l) => setCur({ ...cur, checked: false, liar: cur.liar.map((x, i) => (i === p ? l : x)) })}
             onPick={(i) => setCur({ ...cur, pick: i })}
             onCount={(c, answerChanged) => setCur({ ...cur, count: c, checked: answerChanged ? false : cur.checked })}
-            onCheck={() => setCur({ ...cur, checked: true })}
+            onCheck={() => {
+              setCur({ ...cur, checked: true });
+              // Grids, liars and numbers can be fixed and checked again; the first check counts.
+              const q = question;
+              void practiceCheck(LOGIC_ADAPTER, q.type === "grid" ? cur.marks : q.type === "liars" ? cur.liar : q.type === "vennNum" ? Number(cur.count?.value) : cur.pick);
+            }}
             onClear={() => setCur(blankEntry(question))}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l, defaultSize(l))}

@@ -38,6 +38,8 @@ const VIEW_NAME = { top: "بالا", front: "روبرو", side: "کنار" } as 
 
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
+/** The child's pick in a mock exam: marked, but not as right or wrong. */
+const PICKED = "● انتخاب تو";
 
 /** What the 3D stage shows for the current question. */
 export type TowerDisplay =
@@ -145,6 +147,10 @@ interface Props {
   onNew: () => void;
   onAnswered: () => void;
   onDisplay: (d: TowerDisplay) => void;
+  /** «بررسی» or a tap on an option: the option's index, or the built tower's heights. */
+  onCheck?: (response: number | number[][]) => void;
+  /** Mock exam: record the answer, show nothing about it (no marks, no camera move, no playback). */
+  exam?: boolean;
 }
 
 export function TowerTryPanel(p: Props) {
@@ -152,7 +158,8 @@ export function TowerTryPanel(p: Props) {
   const [picked, setPicked] = useState<number | null>(p.initialPick ?? null);
   const [checked, setChecked] = useState(false);
   const [remove, setRemove] = useState(false);
-  const answered = picked !== null || checked;
+  // In a mock exam the scene stays as it was: it would show the answer.
+  const answered = (picked !== null || checked) && !p.exam;
 
   const display = useMemo<TowerDisplay>(() => {
     switch (q.type) {
@@ -182,11 +189,12 @@ export function TowerTryPanel(p: Props) {
   const pick = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    p.onAnswered();
+    p.onCheck?.(i);
+    if (!p.exam) p.onAnswered();
   };
 
-  let fb: { tone: Tone; text: string } | null = picked !== null ? feedback(q, picked) : null;
-  if (q.type === "build" && checked) {
+  let fb: { tone: Tone; text: string } | null = picked !== null && !p.exam ? feedback(q, picked) : null;
+  if (q.type === "build" && checked && !p.exam) {
     const ok = matchesViews(build, q.views);
     if (ok)
       fb = {
@@ -203,7 +211,7 @@ export function TowerTryPanel(p: Props) {
   }
 
   const mark = (i: number): Tone | null => {
-    if (picked === null || q.type === "build") return null;
+    if (picked === null || q.type === "build" || p.exam) return null;
     if (i === q.answer) return "good";
     if (i === picked) {
       if (q.type === "solid") return solidFeedback(q, q.options[i]).tone === "turned" ? "turned" : "bad";
@@ -214,14 +222,14 @@ export function TowerTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(TOWER_TYPE_LABEL) as TowerQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {TOWER_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -244,9 +252,10 @@ export function TowerTryPanel(p: Props) {
             const m = mark(i);
             return (
               <li key={i}>
-                <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null}>
+                <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null} aria-pressed={picked === i}>
                   <span className={styles.bigNumber}>{fa(v)}</span>
                   {m && <span className={styles.optionNum}>{ICON[m]}</span>}
+                  {p.exam && picked === i && <span className={styles.optionNum}>{PICKED}</span>}
                 </button>
               </li>
             );
@@ -261,10 +270,11 @@ export function TowerTryPanel(p: Props) {
             const m = mark(i);
             return (
               <li key={i}>
-                <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null} aria-label={`گزینه ${fa(i + 1)}`}>
+                <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null} aria-pressed={picked === i} aria-label={`گزینه ${fa(i + 1)}`}>
                   <ViewSvg pic={pic} size={96} />
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {m && ICON[m]}
+                    {p.exam && picked === i && PICKED}
                   </span>
                 </button>
               </li>
@@ -312,7 +322,7 @@ export function TowerTryPanel(p: Props) {
               setChecked(false);
             }}
           />
-          {checked && !matchesViews(build, q.views) && (
+          {checked && !p.exam && !matchesViews(build, q.views) && (
             <div className={styles.viewRow}>
               {q.views.top && (
                 <figure>
@@ -335,7 +345,8 @@ export function TowerTryPanel(p: Props) {
             disabled={!countCubes(build)}
             onClick={() => {
               setChecked(true);
-              p.onAnswered();
+              p.onCheck?.(build.h);
+              if (!p.exam) p.onAnswered();
             }}
           >
             بررسی

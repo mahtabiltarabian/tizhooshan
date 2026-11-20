@@ -31,14 +31,14 @@ export function TopicPicker({ topic, onTopic }: { topic: Topic; onTopic: (t: Top
 export function TypeLevelPicker({ labels, type, level, onType, onLevel }: { labels: Record<ShapeQuestionType, string>; type: ShapeQuestionType; level: Level; onType: (t: ShapeQuestionType) => void; onLevel: (l: Level) => void }) {
   return (
     <>
-      <div className={tryStyles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={tryStyles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(labels) as ShapeQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
             {labels[t]}
           </button>
         ))}
       </div>
-      <div className={tryStyles.chips} role="radiogroup" aria-label="سطح">
+      <div className={tryStyles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
             سطح {fa(l)}
@@ -98,17 +98,18 @@ export function StepBar({ steps, label }: { steps: ReturnType<typeof useSteps>; 
 export type Tone = "good" | "turned" | "bad";
 export const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
-/** Four numbered choice buttons; after a pick, the right one and the picked one get a mark. */
-export function ChoiceButtons({ labels, picked, answer, toneOf, onPick }: { labels: string[]; picked: number | null; answer: number; toneOf: (i: number) => Tone; onPick: (i: number) => void }) {
+/** Four numbered choice buttons; after a pick, the right one and the picked one get a mark (in a mock exam only the pick is named). */
+export function ChoiceButtons({ labels, picked, answer, toneOf, onPick, exam }: { labels: string[]; picked: number | null; answer: number; toneOf: (i: number) => Tone; onPick: (i: number) => void; exam?: boolean }) {
   return (
     <ul className={tryStyles.options} aria-label="گزینه‌ها">
       {labels.map((l, i) => {
-        const tone: Tone | null = picked === null ? null : i === answer ? "good" : i === picked ? toneOf(i) : null;
+        const tone: Tone | null = picked === null || exam ? null : i === answer ? "good" : i === picked ? toneOf(i) : null;
         return (
           <li key={i}>
             <button className={`${tryStyles.option} ${tone ? tryStyles[tone] : ""}`} onClick={() => onPick(i)} disabled={picked !== null} style={{ minHeight: 48 }}>
               <span className={tryStyles.optionNum}>
                 {l} {tone && ICON[tone]}
+                {exam && i === picked && " · انتخاب تو"}
               </span>
             </button>
           </li>

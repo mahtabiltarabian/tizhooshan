@@ -235,3 +235,40 @@ describe("catalog", () => {
     expect(practiceHref({ tool: "clock", type: "angle", level: 2, seed: 7 })).toBe("/tools/clock/#practice&try=angle&level=2&seed=7");
   });
 });
+
+describe("parent report", () => {
+  it("stages, trend and the two most frequent mistakes, without θ", async () => {
+    const { buildReport } = await import("./report");
+    const list: Attempt[] = [];
+    let n = 0;
+    const add = (days: number, tag: string, score: number, type = "angle") => list.push(attempt({ id: String(n++), createdAt: NOW - days * DAY, tag, score, type }));
+    for (let i = 0; i < 4; i++) add(9, "hourStill", 0); // last week: wrong
+    for (let i = 0; i < 4; i++) add(1, "right", 1); // this week: right
+    add(2, "reflex", 0);
+    add(3, "reflex", 0, "angle");
+    add(2, "same", 0, "mirror");
+    const skills: SkillState[] = [
+      { childId: "c1", skill: "clock:angle", theta: 0.8, n: 10, updatedAt: NOW },
+      { childId: "c1", skill: "clock:mirror", theta: -1, n: 1, updatedAt: NOW },
+    ];
+    const r = buildReport(list, skills, NOW);
+    const rows = r.areas.flatMap((a) => a.skills);
+    expect(rows.find((s) => s.skill === "clock:angle")).toMatchObject({ stage: 2, trend: "up", answers: 10 });
+    expect(rows.find((s) => s.skill === "clock:mirror")).toMatchObject({ stage: 0, trend: "new" });
+    expect(r.mistakes.map((m) => m.count)).toEqual([4, 2]);
+    expect(r.mistakes[0].text).toContain("عقربه ساعت");
+    expect(r.week).toHaveLength(7);
+    expect(r.answersThisWeek).toBe(7);
+    expect(JSON.stringify(r)).not.toContain("theta");
+  });
+});
+
+describe("mock exam", () => {
+  it("one question per tool, in order, a step above comfort", async () => {
+    const { planExam } = await import("./session");
+    const cat: SkillInfo[] = [...CAT, { key: "other:x", tool: "other", type: "x", levels: [1, 2, 3] }];
+    const plan = planExam({ catalog: cat, states: new Map(), seed: 4, toolOrder: ["other", "tool", "missing"] });
+    expect(plan.map((i) => i.tool)).toEqual(["other", "tool"]);
+    expect(plan.every((i) => i.mode === "exam" && i.level === 2)).toBe(true);
+  });
+});

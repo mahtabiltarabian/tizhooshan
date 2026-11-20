@@ -45,14 +45,14 @@ export const TRY_TYPE_LABEL: Record<TryType, string> = { ...MACHINE_TYPE_LABEL, 
 export function TypeLevelChips({ type, level, onType, onLevel }: { type: TryType; level: Level; onType: (t: TryType) => void; onLevel: (l: Level) => void }) {
   return (
     <>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(TRY_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
             {TRY_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
             سطح {fa(l)}
@@ -254,6 +254,8 @@ interface Props {
   onExamples: (n: 2 | 3 | 4) => void;
   onDivision: (on: boolean) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 function initialSlots(q: MachineQuestion, checked: Answer | null): Slot[] {
@@ -278,7 +280,7 @@ export function MachineTryPanel(p: Props) {
   const [sel, setSel] = useState(0);
 
   const isOpBuild = q.type === "build" && q.machine.kind === "op";
-  const fb = !done ? null : q.type === "build" ? buildFeedback(q, checked as Machine) : numberFeedback(q, checked as number);
+  const fb = !done || p.exam ? null : q.type === "build" ? buildFeedback(q, checked as Machine) : numberFeedback(q, checked as number);
   const usesSteps = q.type !== "operator" && !(q.type !== "run" && q.type !== "reverse" && p.level === 3);
   const usesExamples = q.type === "guess" || q.type === "build";
 
@@ -293,7 +295,7 @@ export function MachineTryPanel(p: Props) {
     <div className={styles.panel}>
       <TypeLevelChips type={p.type} level={p.level} onType={p.onType} onLevel={p.onLevel} />
       {(usesExamples || usesSteps) && (
-        <div className={styles.chips} aria-label="تنظیم نمونه تازه">
+        <div className={styles.chips} aria-label="تنظیم نمونه تازه" data-practice-hide>
           {usesExamples &&
             ([2, 3, 4] as const).map((n) => (
               <button key={n} role="radio" aria-checked={p.examples === n} disabled={p.level === 3 && n === 2} onClick={() => p.onExamples(n)} title={p.level === 3 && n === 2 ? "عملگر دست‌کم ۳ مثال لازم دارد" : undefined}>
@@ -368,12 +370,12 @@ export function MachineTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && q.type === "build" && (
+      {done && !p.exam && q.type === "build" && (
         <p className={styles.hint}>
           در جدول، ستون «ماشین تو» خروجی ماشین تو را برای هر مثال نشان می‌دهد ({ltr("✓")} جور، {ltr("✗")} ناجور).
         </p>
       )}
-      {done && (q.type === "run" || q.type === "reverse" || q.type === "guess") && <p className={styles.hint}>روی صفحه، عدد از ماشین رد می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && (q.type === "run" || q.type === "reverse" || q.type === "guess") && <p className={styles.hint}>روی صفحه، عدد از ماشین رد می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

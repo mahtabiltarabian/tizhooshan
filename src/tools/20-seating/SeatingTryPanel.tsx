@@ -48,6 +48,10 @@ interface Props {
   type: SeatingType;
   level: Level;
   entry: TryEntry;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
+  /** A practice question is on screen: "show me" waits until it is answered. */
+  practice?: boolean;
   onChoice: (c: number) => void;
   onCheck: () => void;
   onClear: () => void;
@@ -60,6 +64,8 @@ interface Props {
 export function SeatingTryPanel(p: Props) {
   const { question: q, entry: e } = p;
   const done = e.checked;
+  // In a mock exam nothing tells right from wrong until the end.
+  const shown = done && !p.exam;
 
   let fb: { tone: "good" | "turned" | "bad"; text: string } | null = null;
   let cards: Card[];
@@ -67,28 +73,28 @@ export function SeatingTryPanel(p: Props) {
   if (q.type === "family") {
     cards = q.facts.map((f) => ({ text: factText(q, f), state: null }));
     ready = e.choice !== null;
-    if (done && e.choice !== null) fb = familyFeedback(q, e.choice);
+    if (shown && e.choice !== null) fb = familyFeedback(q, e.choice);
   } else if (q.variant === "place") {
-    const m = done ? placeMistake(q, e.seatOf) : null;
+    const m = shown ? placeMistake(q, e.seatOf) : null;
     cards = q.conds.map((c, i) => ({ text: condText(q, c), state: m ? !m.bad.includes(i) : null }));
     ready = e.seatOf.every((s) => s >= 0);
     if (m) fb = placeFeedback(q, m.tag, m.bad);
   } else {
     cards = q.conds.map((c) => ({ text: condText(q, c), state: null }));
     ready = e.choice !== null;
-    if (done && e.choice !== null) fb = askFeedback(q, askMistake(q, e.choice), e.choice);
+    if (shown && e.choice !== null) fb = askFeedback(q, askMistake(q, e.choice), e.choice);
   }
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(SEATING_TYPE_LABEL) as SeatingType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {SEATING_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -97,7 +103,7 @@ export function SeatingTryPanel(p: Props) {
       </div>
 
       <p className={styles.prompt}>{seatingPrompt(q)}</p>
-      <CondCards cards={cards} label={q.type === "family" ? "جمله‌ها" : "شرط‌ها"} marks={done && q.type !== "family" && q.variant === "place"} />
+      <CondCards cards={cards} label={q.type === "family" ? "جمله‌ها" : "شرط‌ها"} marks={shown && q.type !== "family" && q.variant === "place"} />
 
       {q.type !== "family" && q.variant === "place" && !done && <p className={styles.hint}>روی یک نام بزن، بعد روی جایش (یا نام را بکش و رها کن). برای برداشتن، نام را بزن و بعد نوار نام‌های پایین را.</p>}
 
@@ -107,7 +113,7 @@ export function SeatingTryPanel(p: Props) {
           <div className={own.names} role="radiogroup" aria-label="جواب">
             {q.names.map((name, i) => (
               <button key={name} role="radio" aria-checked={e.choice === i} onClick={() => p.onChoice(i)} disabled={done}>
-                {done && i === q.answer ? "✓ " : done && i === e.choice ? "✗ " : ""}
+                {shown && i === q.answer ? "✓ " : shown && i === e.choice ? "✗ " : ""}
                 {name}
               </button>
             ))}
@@ -121,7 +127,7 @@ export function SeatingTryPanel(p: Props) {
           <div className={own.names} role="radiogroup" aria-label="گزینه‌ها" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             {q.options.map((o, i) => (
               <button key={i} role="radio" aria-checked={e.choice === i} onClick={() => p.onChoice(i)} disabled={done}>
-                {fa(i + 1)}. {done && i === q.answer ? "✓ " : done && i === e.choice ? "✗ " : ""}
+                {fa(i + 1)}. {shown && i === q.answer ? "✓ " : shown && i === e.choice ? "✗ " : ""}
                 {o.text}
               </button>
             ))}
@@ -145,12 +151,15 @@ export function SeatingTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && q.type !== "family" && q.variant === "place" && <p className={styles.hint}>روی صفحه، چیدمان درست است؛ ✓ یعنی آن جا را درست گذاشته بودی و ✗ یعنی نه («تو: …» جای تو را می‌گوید).</p>}
-      {done && q.type !== "family" && q.variant === "ask" && <p className={styles.hint}>روی صفحه، جاهایی که شرط‌ها حتماً معلوم می‌کنند پر شده‌اند؛ بقیه می‌توانند فرق کنند.</p>}
+      {shown && q.type !== "family" && q.variant === "place" && <p className={styles.hint}>روی صفحه، چیدمان درست است؛ ✓ یعنی آن جا را درست گذاشته بودی و ✗ یعنی نه («تو: …» جای تو را می‌گوید).</p>}
+      {shown && q.type !== "family" && q.variant === "ask" && <p className={styles.hint}>روی صفحه، جاهایی که شرط‌ها حتماً معلوم می‌کنند پر شده‌اند؛ بقیه می‌توانند فرق کنند.</p>}
 
-      <button className={styles.secondary} onClick={p.onShow}>
-        نشانم بده روی همین
-      </button>
+      {/* The worked solution would give the answer away before a practice question is answered (and in a mock exam at all). */}
+      {!p.exam && !(p.practice && !done) && (
+        <button className={styles.secondary} onClick={p.onShow}>
+          نشانم بده روی همین
+        </button>
+      )}
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه
       </button>

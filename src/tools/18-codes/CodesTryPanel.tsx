@@ -222,6 +222,8 @@ interface Props {
   onAnswer: (a: (number | null)[], active: number) => void;
   checked: number[] | null;
   onCheck: (v: number[]) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
   onLength: (n: number) => void;
@@ -233,7 +235,7 @@ export function CodesTryPanel(p: Props) {
   const { question: q, checked, answer, active } = p;
   const kind = answerKind(q);
   const done = checked !== null;
-  const fb = checked ? feedback(q, checked) : null;
+  const fb = checked && !p.exam ? feedback(q, checked) : null;
   const full = answer.every((t) => t !== null);
 
   const put = (t: number | null, advance: boolean) => {
@@ -254,14 +256,14 @@ export function CodesTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع رمز" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+      <div className={styles.types} role="radiogroup" aria-label="نوع رمز" data-practice-hide style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
         {(Object.keys(TRY_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {TRY_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -269,7 +271,7 @@ export function CodesTryPanel(p: Props) {
         ))}
       </div>
       {p.type !== "sentence" && (
-        <div className={css.knob}>
+        <div className={css.knob} data-practice-hide>
           <span>طول کلمه</span>
           <div className={styles.chips} role="radiogroup" aria-label="طول کلمه">
             {[0, 3, 4, 5, 6].map((n) => (
@@ -281,7 +283,7 @@ export function CodesTryPanel(p: Props) {
         </div>
       )}
       {p.level === 3 && (
-        <div className={css.knob}>
+        <div className={css.knob} data-practice-hide>
           <span>تعداد مثال</span>
           <div className={styles.chips} role="radiogroup" aria-label="تعداد مثال">
             {([2, 3] as const).map((n) => (
@@ -295,7 +297,7 @@ export function CodesTryPanel(p: Props) {
 
       <p className={styles.prompt}>{codePrompt(q)}</p>
 
-      <AnswerSlots tokens={done ? checked : answer} kind={kind} active={active} onSlot={(i) => p.onAnswer(answer, i)} marks={done ? slotMarks(q, checked) : undefined} />
+      <AnswerSlots tokens={done ? checked : answer} kind={kind} active={active} onSlot={(i) => p.onAnswer(answer, i)} marks={done && !p.exam ? slotMarks(q, checked) : undefined} />
 
       {!done && kind === "letter" && <LetterKeyboard onKey={(i) => put(i, true)} onBack={back} />}
       {!done && kind === "shape" && (
@@ -332,7 +334,7 @@ export function CodesTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>روی چرخ رمز، هر حرف به رمزش وصل می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && <p className={styles.hint}>روی چرخ رمز، هر حرف به رمزش وصل می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

@@ -350,3 +350,46 @@
 .stage i.on {
   background: var(--accent);
 }
+
+.weekChart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  height: 160px;
+}
+
+.weekChart div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.weekChart i {
+  width: 70%;
+  min-height: 2px;
+  border-radius: 6px 6px 0 0;
+  background: var(--accent);
+}
+
+@media print {
+  .top a,
+  .hello button {
+    display: none;
+  }
+
+  .card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+
+.okText {
+  color: #1f7a45;
+  font-weight: 700;
+}
+
+.okText::before {
+  content: "✓ ";
+}

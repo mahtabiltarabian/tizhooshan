@@ -21,11 +21,13 @@ import {
 } from "@/generators/number-machine";
 import { newSeed } from "@/generators/random";
 import { makeSortQuestion, passSteps } from "@/generators/sorting";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { chainFa, numFa, OP_WORD, opCalcFa, opLines, ruleFa, stepFa, SYM } from "./format";
+import { NUMBER_MACHINE_ADAPTER } from "./adapter";
 import { MACHINE_GUIDE } from "./guide";
 import { builtOutputs, MachineTryPanel, operatorLines, TRY_TYPE_LABEL, type Answer, type TryType } from "./MachineTryPanel";
 import { ExamplesG, LinesG, MachineG, OpMachineG } from "./Pictures";
@@ -128,6 +130,22 @@ export function MachineTool() {
   const sortQ = useMemo(() => (tryType === "sort" ? makeSortQuestion(tryLevel, seed) : null), [tryType, tryLevel, seed]);
   const sortEx = useSortExplore();
   const { load: loadRow } = sortEx;
+
+  // Practice sessions: the next question of this tool arrives through the address,
+  // with the default knobs (3 examples, ÷ allowed) the adapter grades with.
+  const practice = usePractice(NUMBER_MACHINE_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in TRY_TYPE_LABEL) setTryType(type as TryType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setExCount(3);
+    setDivision(true);
+    setSeed(sd);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
+  // In a mock exam nothing on the board tells whether the answer was right.
+  const revealed = checked !== null && !practice.exam;
 
   const op = exploreOp(form, opP, opQ);
   const showMs = area === "machine" ? 1300 * rule.length + 600 : area === "sort" ? MS_COMPARE * (sortEx.row.length - 1) : 900 * opLines(op, opA, opB).length;
@@ -234,7 +252,7 @@ export function MachineTool() {
   } else if (mode === "try" && sortQ) {
     board = (
       <Board view={VIEW} imageName="sorting" label="مرتب‌سازی و الگوریتم">
-        <SortQuestionG q={sortQ} done={checked !== null} f={f} />
+        <SortQuestionG q={sortQ} done={revealed} f={f} />
       </Board>
     );
   } else if (mode !== "try") {
@@ -260,7 +278,7 @@ export function MachineTool() {
     }
   } else {
     const q = question;
-    const done = checked !== null;
+    const done = revealed;
     const token = done ? f * stepsOf(q) : undefined;
     if (q.type === "run" || q.type === "reverse") {
       // Before the answer: the input (or "؟"), empty slots inside, "؟" (or the output) at the end.
@@ -310,7 +328,7 @@ export function MachineTool() {
   }
 
   const inTry = mode === "try";
-  const showSlider = mode === "show" || (inTry && checked !== null);
+  const showSlider = mode === "show" || (inTry && revealed);
   const valuesClean = clean(values);
   const opFlip = opValue(op, opB, opA);
 
@@ -610,9 +628,11 @@ export function MachineTool() {
             q={sortQ}
             level={tryLevel}
             checked={typeof checked === "number" ? checked : null}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs(question));
+              void practiceCheck(NUMBER_MACHINE_ADAPTER, v);
+              if (!practice.exam) animate(tryMs(question));
             }}
             onType={(t) => freshQuestion({ type: t })}
             onLevel={(l) => freshQuestion({ level: l })}
@@ -629,9 +649,11 @@ export function MachineTool() {
             examples={exCount}
             division={division}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs(question));
+              void practiceCheck(NUMBER_MACHINE_ADAPTER, v);
+              if (!practice.exam) animate(tryMs(question));
             }}
             onType={(t) => freshQuestion({ type: t })}
             onLevel={(l) => freshQuestion({ level: l })}

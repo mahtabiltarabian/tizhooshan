@@ -190,34 +190,37 @@ interface Props {
   onLevel: (l: Level) => void;
   onBig: (b: boolean) => void;
   onNew: () => void;
-  onShow: () => void;
+  /** Absent in practice sessions. */
+  onShow?: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function PuzzleTryPanel(p: Props) {
   const { question: q, vals, checked, selected } = p;
   const blanks = blankCells(q);
   const full = blanks.every((i) => vals[i] !== null);
-  const fb = checked ? feedback(q, vals) : null;
+  const fb = checked && !p.exam ? feedback(q, vals) : null;
   const right = fb?.tone === "good";
   const sel = selected !== null && blanks.includes(selected) ? selected : null;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع معما">
+      <div className={styles.types} role="radiogroup" aria-label="نوع معما" data-practice-hide>
         {(Object.keys(PUZZLE_TYPE_LABEL) as PuzzleType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {PUZZLE_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="اندازه اعداد">
+      <div className={styles.chips} role="radiogroup" aria-label="اندازه اعداد" data-practice-hide>
         <button role="radio" aria-checked={!p.big} onClick={() => p.onBig(false)}>
           اعداد کوچک
         </button>
@@ -246,9 +249,11 @@ export function PuzzleTryPanel(p: Props) {
         </p>
       )}
 
-      <button className={styles.secondary} onClick={p.onShow}>
-        نشانم بده چطور حل می‌شود
-      </button>
+      {p.onShow && (
+        <button className={styles.secondary} onClick={p.onShow}>
+          نشانم بده چطور حل می‌شود
+        </button>
+      )}
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه
       </button>

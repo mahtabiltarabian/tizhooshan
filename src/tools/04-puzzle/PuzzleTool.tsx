@@ -21,10 +21,12 @@ import {
   type PuzzleQuestionType,
 } from "@/generators/puzzle";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { buildResponse, PUZZLE_ADAPTER } from "./adapter";
 import { PUZZLE_GUIDE } from "./guide";
 import { guidesOf, movePlacement, SMALL_SPOT, SMALL_TRAY, SMALL_VIEW, targetSpot, trayPoses, VIEW } from "./layout";
 import { blendPose, flipPose, PieceG, pieceColor, poseOf, posePt, SheetG, turnPose, type Pose } from "./Pictures";
@@ -167,6 +169,28 @@ export function PuzzleTool() {
   }, [question]);
   // Poses belong to the question only once the tray has been laid out for it.
   const buildStatus = question.type === "build" && buildTarget && buildPoses.length === question.kinds.length ? buildCheck(question.kinds, buildPoses, buildTarget.set) : null;
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(PUZZLE_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in PUZZLE_TYPE_LABEL) setTryType(type as PuzzleQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setPicked(null);
+    setRun(null);
+    setF(0);
+  });
+  const { exam } = practice;
+  const reportBuild = () => {
+    if (buildTarget && buildPoses.length) void practiceCheck(PUZZLE_ADAPTER, buildResponse(buildPoses, buildTarget.spot));
+  };
+  // A finished shadow is an answer even without «بررسی» (the panel says «آفرین» on its own).
+  const buildDone = mode === "try" && !!buildStatus?.done;
+  useEffect(() => {
+    if (buildDone) reportBuild();
+    // Only the moment it is finished; reportBuild reads the poses of that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildDone]);
 
   // Shareable links: #try=build&level=2&seed=7(&pick=1)(&solve), #show=puzzle-2, #show=simple-2 or #show=sheets, #f=0.5, #classroom
   useEffect(() => {
@@ -330,7 +354,8 @@ export function PuzzleTool() {
     );
   } else {
     const q = question;
-    const done = picked !== null;
+    // In a mock exam the board does not play the answer.
+    const done = picked !== null && !exam;
     showMs = 5000;
     if (q.type === "build" && buildTarget) {
       const solved = matchSolution(q.kinds, q.solution).map((p) => (p ? poseOf(movePlacement(p, buildTarget.spot)) : null));
@@ -403,7 +428,7 @@ export function PuzzleTool() {
   };
 
   const inTry = mode === "try";
-  const playing = mode === "show" || (inTry && picked !== null) || (inTry && buildShow !== null);
+  const playing = mode === "show" || (inTry && picked !== null && !exam) || (inTry && buildShow !== null);
   const canFlip = !(inTry && question.type === "build" && !question.allowFlip);
 
   return (
@@ -635,10 +660,17 @@ export function PuzzleTool() {
             picked={picked}
             onPick={(i) => {
               setPicked(i);
-              animate(5000);
+              void practiceCheck(PUZZLE_ADAPTER, i);
+              if (!exam) animate(5000);
             }}
             buildStatus={buildStatus && (buildStatus.done || buildChecked) ? buildStatus : null}
-            onCheckBuild={() => setBuildChecked(true)}
+            onCheckBuild={() => {
+              setBuildChecked(true);
+              reportBuild();
+            }}
+            buildChecked={buildChecked}
+            hideShowBuild={practice.active && (exam || !buildChecked)}
+            exam={exam}
             onShowBuild={() => {
               setBuildShow(buildPoses);
               animate(question.type === "build" ? 1200 * question.kinds.length : 5000);

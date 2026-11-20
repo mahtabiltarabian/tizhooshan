@@ -14,6 +14,11 @@ export default function Home() {
           <strong>تمرین</strong>
           <span>بازی امروز، چالش روزانه و مرور اشتباه‌ها، به اندازه هر کودک</span>
         </Link>
+        {process.env.NEXT_PUBLIC_API_URL && (
+          <p>
+            معلم هستید؟ <Link href="/panel/">پنل معلم</Link>
+          </p>
+        )}
       </header>
 
       <ul className={styles.grid}>

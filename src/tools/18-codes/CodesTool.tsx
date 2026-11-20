@@ -26,6 +26,7 @@ import {
 } from "@/generators/codes";
 import { makeBinaryQuestion, MAX as BIN_MAX } from "@/generators/binary-code";
 import { mulberry32, newSeed, shuffle } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
@@ -45,6 +46,7 @@ import {
   useBinaryExplore,
   type BinaryEntry,
 } from "./Binary";
+import { CODES_ADAPTER } from "./adapter";
 import { CodesTryPanel, givenKind, ruleFa, ruleShort, tokensFa, type TryType } from "./CodesTryPanel";
 import { CODES_GUIDE } from "./guide";
 import { LetterKeyboard } from "./Inputs";
@@ -303,6 +305,25 @@ export function CodesTool() {
   const answer = answerRaw.length === question.answer.length ? answerRaw : blankFor(question);
   const activeSlot = answer[active] === SPACE || active >= answer.length ? Math.max(0, answer.indexOf(null)) : active;
 
+  // Practice sessions: the next question of this tool arrives through the address,
+  // built with the page's default options (any length, two examples).
+  const practice = usePractice(CODES_ADAPTER, (type, level, sd) => {
+    const t: TryType = type === "binary" || (CODE_TYPES as string[]).includes(type) ? (type as TryType) : "shift";
+    const lv: Level = level === 2 || level === 3 ? level : 1;
+    setMode("try");
+    setTryType(t);
+    setTryLevel(lv);
+    setLength(0);
+    setExamples(2);
+    setSeed(sd);
+    if (t === "binary") setBin(null);
+    else setAnswerRaw(blankFor(makeCodeQuestion(t, lv, sd, { length: 0, examples: 2 })));
+    setActive(0);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
+
   const showMs = binary ? 5400 : 1800 + 700 * letterCount;
   const tryMs = 1800 + 600 * question.plain.filter((x) => x !== SPACE).length;
 
@@ -445,7 +466,7 @@ export function CodesTool() {
   } else if (inTry && tryType === "binary") {
     board = (
       <Board view={VIEW} imageName="binary" label="پرسش کد دودویی">
-        <BinaryTryBoard q={binQ} entry={binEntry} onEntry={setBin} />
+        <BinaryTryBoard q={binQ} entry={binEntry} onEntry={setBin} exam={practice.exam} />
       </Board>
     );
   } else if (!inTry) {
@@ -466,7 +487,8 @@ export function CodesTool() {
         />
       </Board>
     );
-  } else if (!done) {
+  } else if (!done || practice.exam) {
+    // In a mock exam the wheel with the answer waits until the end.
     board = (
       <Board view={VIEW} imageName="codes" label="پرسش رمز">
         <TryBoard q={question} answer={answer} active={activeSlot} onSlot={setActive} />
@@ -500,7 +522,7 @@ export function CodesTool() {
     .map((x, i) => ({ x, i }))
     .filter(({ x }) => x !== SPACE)
     .map(({ x, i }) => ({ plain: x, code: coded[i] }));
-  const showSlider = mode === "show" || (inTry && done && tryType !== "binary");
+  const showSlider = mode === "show" || (inTry && done && tryType !== "binary" && !practice.exam);
   const distinct = [...new Set(typed.filter((x) => x !== SPACE))];
 
   return (
@@ -740,7 +762,14 @@ export function CodesTool() {
         )}
 
         {mode === "try" && tryType === "binary" && (
-          <BinaryTryPanel q={binQ} level={tryLevel} entry={binEntry} onEntry={setBin} onType={(t) => freshQuestion({ type: t })} onLevel={(l) => freshQuestion({ level: l })} onNew={() => freshQuestion()} />
+          <BinaryTryPanel
+            q={binQ}
+            level={tryLevel}
+            entry={binEntry}
+            onEntry={setBin}
+            exam={practice.exam}
+            onCheck={(v) => void practiceCheck(CODES_ADAPTER, v)}
+            onType={(t) => freshQuestion({ type: t })} onLevel={(l) => freshQuestion({ level: l })} onNew={() => freshQuestion()} />
         )}
         {mode === "try" && tryType !== "binary" && (
           <CodesTryPanel
@@ -757,9 +786,11 @@ export function CodesTool() {
               setActive(i);
             }}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs);
+              void practiceCheck(CODES_ADAPTER, v);
+              if (!practice.exam) animate(tryMs);
             }}
             onType={(t) => freshQuestion({ type: t })}
             onLevel={(l) => freshQuestion({ level: l })}

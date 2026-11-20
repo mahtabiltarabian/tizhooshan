@@ -23,7 +23,7 @@ export const splitSkill = (key: SkillKey) => {
   return { tool: key.slice(0, i), type: key.slice(i + 1) };
 };
 
-export type AttemptMode = "practice" | "review" | "challenge" | "daily" | "exam" | "speed";
+export type AttemptMode = "practice" | "review" | "challenge" | "daily" | "exam";
 
 /** One answered question. `id` is made on the device, so sending twice is safe. */
 export interface Attempt {

@@ -371,6 +371,10 @@ interface Props {
   size: 3 | 4;
   extra: boolean;
   entry: TryEntry;
+  /** Mock exam: record the answer, show nothing about it; the first check is final. */
+  exam?: boolean;
+  /** A practice question is on screen: "show me" waits until it is answered. */
+  practice?: boolean;
   onLiar: (p: number, liar: boolean) => void;
   onPick: (i: number) => void;
   /** Venn with numbers: the pad changed (answerChanged: the answer itself, not a note on the diagram). */
@@ -388,7 +392,7 @@ interface Props {
 export function LogicTryPanel(p: Props) {
   const { question: q, entry } = p;
   const kind = answerKind(q.type);
-  const fb = !entry.checked
+  const fb = !entry.checked || p.exam
     ? null
     : q.type === "grid"
       ? gridFeedback(q, entry.marks)
@@ -407,18 +411,19 @@ export function LogicTryPanel(p: Props) {
               : vennFeedback(q, entry.pick);
   const right = fb?.tone === "good";
   const ticks = entry.marks.filter((m) => m === 1).length;
-  const done = kind === "choice" ? entry.pick !== null && entry.checked : right;
+  const locked = !!p.exam && entry.checked;
+  const done = (kind === "choice" ? entry.pick !== null && entry.checked : right) || locked;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع مسئله">
+      <div className={styles.types} role="radiogroup" aria-label="نوع مسئله" data-practice-hide>
         {(Object.keys(LOGIC_TYPE_LABEL) as LogicType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {LOGIC_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -426,7 +431,7 @@ export function LogicTryPanel(p: Props) {
         ))}
       </div>
       {q.type === "grid" && (
-        <div className={styles.chips} role="group" aria-label="اندازه جدول و تعداد سرنخ">
+        <div className={styles.chips} role="group" aria-label="اندازه جدول و تعداد سرنخ" data-practice-hide>
           {([3, 4] as const).map((s) => (
             <button key={s} role="radio" aria-checked={p.size === s} onClick={() => p.onSize(s)}>
               {sizeFa(s)}
@@ -442,7 +447,7 @@ export function LogicTryPanel(p: Props) {
 
       {q.type === "grid" && (
         <p className={styles.hint}>
-          {fa(ticks)} ✓ از {fa(q.size)}. سرنخ‌ها کنار جدول‌اند. {entry.checked && !right ? "خانه یا سطر هاشورخورده تناقض دارد؛ درستش کن و دوباره بررسی کن." : ""}
+          {fa(ticks)} ✓ از {fa(q.size)}. سرنخ‌ها کنار جدول‌اند. {entry.checked && !right && !p.exam ? "خانه یا سطر هاشورخورده تناقض دارد؛ درستش کن و دوباره بررسی کن." : ""}
         </p>
       )}
 
@@ -453,7 +458,7 @@ export function LogicTryPanel(p: Props) {
               <div className={styles.chips} role="radiogroup" aria-label={name}>
                 <span style={{ alignSelf: "center", minWidth: "4.5em", fontWeight: 700 }}>{name}</span>
                 {[false, true].map((l) => (
-                  <button key={String(l)} role="radio" aria-checked={entry.liar[k] === l} onClick={() => p.onLiar(k, l)} disabled={right}>
+                  <button key={String(l)} role="radio" aria-checked={entry.liar[k] === l} onClick={() => p.onLiar(k, l)} disabled={right || locked}>
                     {entry.liar[k] === l ? "● " : ""}
                     {kindWord(l)}
                   </button>
@@ -468,7 +473,7 @@ export function LogicTryPanel(p: Props) {
         <ul className={styles.options} style={{ gridTemplateColumns: "1fr" }}>
           {q.options.map((_, i) => {
             const wrongTone = q.type === "ifThen" ? ifTone(q.tags[i]) : q.tags[i] === "notSure" ? "bad" : "turned";
-            const m = entry.checked && entry.pick !== null ? (i === q.answer ? "good" : i === entry.pick ? wrongTone : null) : null;
+            const m = entry.checked && !p.exam && entry.pick !== null ? (i === q.answer ? "good" : i === entry.pick ? wrongTone : null) : null;
             const icon = m === "good" ? "✓" : m ? "✗" : "";
             return (
               <li key={i}>
@@ -490,7 +495,7 @@ export function LogicTryPanel(p: Props) {
         </ul>
       )}
 
-      {q.type === "vennNum" && entry.count && <CountAnswer q={q} entry={entry.count} right={right} onChange={p.onCount} />}
+      {q.type === "vennNum" && entry.count && <CountAnswer q={q} entry={entry.count} right={right || locked} onChange={p.onCount} />}
 
       {!done && (
         <button
@@ -508,14 +513,17 @@ export function LogicTryPanel(p: Props) {
         </p>
       )}
 
-      {q.type === "grid" && !right && (
+      {q.type === "grid" && !right && !locked && (
         <button className={styles.secondary} onClick={p.onClear} disabled={!entry.marks.some((m) => m !== 0)}>
           پاک کردن جدول
         </button>
       )}
-      <button className={styles.secondary} onClick={p.onShow}>
-        نشانم بده چطور حل می‌شود
-      </button>
+      {/* The worked solution would give the answer away before a practice question is answered (and in a mock exam at all). */}
+      {!p.exam && !(p.practice && !entry.checked) && (
+        <button className={styles.secondary} onClick={p.onShow}>
+          نشانم بده چطور حل می‌شود
+        </button>
+      )}
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه
       </button>

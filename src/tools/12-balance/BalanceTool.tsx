@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { BLOCKS, blocksFor, SYMBOLS, type FillQuestion, type Level } from "@/generators/balance";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { BALANCE_ADAPTER } from "./adapter";
 import { BALANCE_TYPE_LABEL, BalanceTryPanel, balancePrompt, LEVEL_LABEL } from "./BalanceTryPanel";
 import { ColumnsG, columnsView } from "./Columns";
 import { useExchangeExplore } from "./ExploreExchange";
@@ -156,11 +158,24 @@ export function BalanceTool() {
   const placedItems: ItemView[] = useMemo(() => (fillQ ? placed.map((b) => ({ item: fillQ.fillWith === null ? { w: b } : { sym: fillQ.fillWith }, mine: true })) : []), [fillQ, placed]);
   const onPan = fillQ ? fillValue(fillQ, placedItems) : 0;
 
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(BALANCE_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if ((TYPES as string[]).includes(type)) setTryType(type as TryType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setChecked(null);
+    setPlaced([]);
+    setRun(null);
+    setF(0);
+  });
+
+  // In a mock exam the worked solution (and the released scale tipping) waits for the end.
   const frames = useMemo(() => {
     if (mode === "show") return framesOf(showQ);
-    if (mode === "try" && checked !== null) return framesOf(question, question.type === "fill" ? checked : undefined);
+    if (mode === "try" && checked !== null && !practice.exam) return framesOf(question, question.type === "fill" ? checked : undefined);
     return [];
-  }, [mode, showQ, question, checked]);
+  }, [mode, showQ, question, checked, practice.exam]);
   const at = frames.length ? Math.min(frames.length - 1, Math.round(f * (frames.length - 1))) : 0;
   const frameMs = Math.max(1, frames.length - 1) * FRAME_MS;
 
@@ -343,7 +358,7 @@ export function BalanceTool() {
       view = [0, 0, 16, h + 1.3];
       board = (
         <>
-          <ScalesScene scales={scales} onItem={(_, side, i) => side === "right" && setPlaced((p) => p.filter((__, j) => j !== i))} />
+          <ScalesScene scales={scales} onItem={(_, side, i) => side === "right" && checked === null && setPlaced((p) => p.filter((__, j) => j !== i))} />
           {items.map((item, i) => paletteItem(item, Math.round((cx + (i - (items.length - 1) / 2) * 0.95) * 1000) / 1000, py, null, `p${i}`))}
         </>
       );
@@ -436,7 +451,7 @@ export function BalanceTool() {
           </>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {inTry ? "اول فکر کن، بعد جواب بده" : topic === "mean" ? meanEx.status : topic === "exchange" ? "در کفه‌ی چپ مبادله کن؛ کفه‌ی راست ثابت است" : `${ltr(`${itemsFa(pans.left)} ${exDiff === 0 ? "=" : exDiff > 0 ? "<" : ">"} ${itemsFa(pans.right)}`)} · ${exDiff === 0 ? "ترازو متعادل است" : `کفه ${exDiff > 0 ? "راست" : "چپ"} سنگین‌تر است`}`}
+            {inTry ? (checked !== null && practice.exam ? "جوابت ثبت شد" : "اول فکر کن، بعد جواب بده") : topic === "mean" ? meanEx.status : topic === "exchange" ? "در کفه‌ی چپ مبادله کن؛ کفه‌ی راست ثابت است" : `${ltr(`${itemsFa(pans.left)} ${exDiff === 0 ? "=" : exDiff > 0 ? "<" : ">"} ${itemsFa(pans.right)}`)} · ${exDiff === 0 ? "ترازو متعادل است" : `کفه ${exDiff > 0 ? "راست" : "چپ"} سنگین‌تر است`}`}
           </p>
         )}
       </section>
@@ -570,9 +585,11 @@ export function BalanceTool() {
             onUndo={() => setPlaced((p) => p.slice(0, -1))}
             onEmpty={() => setPlaced([])}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(Math.max(1, framesOf(question, question.type === "fill" ? v : undefined).length - 1) * FRAME_MS);
+              void practiceCheck(BALANCE_ADAPTER, v);
+              if (!practice.exam) animate(Math.max(1, framesOf(question, question.type === "fill" ? v : undefined).length - 1) * FRAME_MS);
             }}
             onType={(t) => freshTry(t, tryLevel)}
             onLevel={(l) => freshTry(tryType, l)}

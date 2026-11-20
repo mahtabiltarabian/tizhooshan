@@ -23,11 +23,13 @@ import {
 } from "@/generators/digits";
 import { isMoreType, type CryptQuestion, type MoreQuestion, type MoreType } from "@/generators/digits-more";
 import { mulberry32, newSeed, shuffle } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import own from "./Digits.module.css";
+import { DIGITS_ADAPTER } from "./adapter";
 import { COND_FA, COND_RULE, DIGITS_TYPE_LABEL, DigitsTryPanel, equationFa, ltr, numFa } from "./DigitsTryPanel";
 import { DIGITS_GUIDE } from "./guide";
 import { CryptBoard, cryptCheckFa, MoreBoard, stepOf } from "./MoreBoards";
@@ -179,6 +181,25 @@ export function DigitsTool() {
   const [active, setActive] = useState(0);
   const question = useMemo(() => makeDigitsQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const tryEntry = entry.length ? entry : blankEntry(question);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(DIGITS_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in DIGITS_TYPE_LABEL) setTryType(type as DigitsQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setBuilt([]);
+    setTrySticks(null);
+    setLifted(null);
+    setStickMsg(null);
+    setChecked(null);
+    setEntry([]);
+    setActive(0);
+    setRun(null);
+    setF(0);
+  });
+  // In a mock exam the board keeps the question as it was: no answer, no worked solution.
+  const shownChecked = practice.exam ? null : checked;
 
   // Show me and explore: a question of a later topic.
   const moreQ = useMemo(() => (isMoreType(area) ? moreOf(area, exLevel, exSeed) : null), [area, exLevel, exSeed]);
@@ -409,16 +430,16 @@ export function DigitsTool() {
     board = (
       <MoreBoard
         q={question}
-        step={checked !== null ? stepOf(f, moreSteps(question).length) : 0}
+        step={shownChecked !== null ? stepOf(f, moreSteps(question).length) : 0}
         entry={tryEntry}
         active={checked === null ? active : null}
         onSlot={checked === null && question.type === "signs" ? setActive : undefined}
       />
     );
-  else board = <TryBoard q={question} built={built} sticks={trySticks ?? (question.type === "match" ? question.start : [])} checked={checked} f={f} lifted={lifted} onBuilt={setBuilt} onTapStick={tapStick} onTapSpot={(s) => question.type === "match" && tapSpot(s, question.start, trySticks ?? question.start, setTrySticks, question.moves)} />;
+  else board = <TryBoard q={question} built={built} sticks={trySticks ?? (question.type === "match" ? question.start : [])} checked={shownChecked} f={f} lifted={lifted} onBuilt={(b) => checked === null && setBuilt(b)} onTapStick={(s) => checked === null && tapStick(s)} onTapSpot={(s) => checked === null && question.type === "match" && tapSpot(s, question.start, trySticks ?? question.start, setTrySticks, question.moves)} />;
 
   const inTry = mode === "try";
-  const animated = (inTry && checked !== null && (question.type === "match" || question.type === "count" || isMore(question))) || mode === "show";
+  const animated = (inTry && shownChecked !== null && (question.type === "match" || question.type === "count" || isMore(question))) || mode === "show";
   const stepQ = inTry ? (isMore(question) ? question : null) : moreQ;
   const stepCount = stepQ ? moreSteps(stepQ).length : 0;
   const counts = placeCounts(countD, countN);
@@ -486,7 +507,7 @@ export function DigitsTool() {
           </label>
         ) : (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {inTry ? (checked === null ? "اول فکر کن، بعد جواب بده" : "جواب و راه‌حل روی صفحه است؛ «نمونه تازه» را بزن") : area === "cards" ? (builtStr ? <>عدد: {numFa(builtStr)}</> : "یک کارت را بزن تا در اولین خانه خالی بنشیند") : caption}
+            {inTry ? (checked === null ? "اول فکر کن، بعد جواب بده" : practice.exam ? "جوابت ثبت شد" : "جواب و راه‌حل روی صفحه است؛ «نمونه تازه» را بزن") : area === "cards" ? (builtStr ? <>عدد: {numFa(builtStr)}</> : "یک کارت را بزن تا در اولین خانه خالی بنشیند") : caption}
           </p>
         )}
       </section>
@@ -726,9 +747,12 @@ export function DigitsTool() {
               setStickMsg(null);
             }}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
               setLifted(null);
+              void practiceCheck(DIGITS_ADAPTER, v);
+              if (practice.exam) return;
               if (question.type === "match" || question.type === "count" || isMore(question)) animate(tryMs(question));
               else setF(1);
             }}

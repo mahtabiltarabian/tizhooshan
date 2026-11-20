@@ -27,10 +27,12 @@ import {
 } from "@/generators/paper-folding";
 import { newSeed } from "@/generators/random";
 import { Stage, type Look } from "@/engine-3d/Stage";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { PAPER_ADAPTER } from "./adapter";
 import { PAPER_GUIDE } from "./guide";
 import { PaperScene } from "./PaperScene";
 import { PaperSvg } from "./Pictures";
@@ -131,6 +133,21 @@ export function PaperTool() {
   const [initialPick, setInitialPick] = useState<number | undefined>(undefined);
   const question = useMemo(() => makePaperQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const [display, setDisplay] = useState<PaperDisplay | null>(null);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(PAPER_ADAPTER, (type, level, sd) => {
+    const ty = type in PAPER_TYPE_LABEL ? (type as PaperQuestionType) : tryType;
+    setMode("try");
+    setTryType(ty);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setInitialPick(undefined);
+    setDisplay(null);
+    setRun(null);
+    setF(startsFolded(ty) ? 1 : 0);
+    flyTo("corner");
+  });
+  const { exam } = practice;
 
   // Show me: one fold opened per step.
   const [step, setStep] = useState(0);
@@ -322,11 +339,17 @@ export function PaperTool() {
     flyTo("corner");
   };
 
-  const onAnswered = useCallback(() => {
-    const k = question.folds.length;
-    if (startsFolded(question.type)) animate(1, 0, k);
-    else animate(0, 1, k);
-  }, [question, animate]);
+  const onAnswered = useCallback(
+    (response: number | number[] | string[]) => {
+      void practiceCheck(PAPER_ADAPTER, response);
+      // In a mock exam the paper is not opened (or folded) until the end.
+      if (exam) return;
+      const k = question.folds.length;
+      if (startsFolded(question.type)) animate(1, 0, k);
+      else animate(0, 1, k);
+    },
+    [question, animate, exam],
+  );
 
   const play = () => {
     if (run) return setRun(null);
@@ -380,24 +403,27 @@ export function PaperTool() {
           <button onClick={() => flyTo("top")}>از بالا</button>
           <button onClick={() => flyTo("corner")}>کج</button>
         </div>
-        <label className={styles.slider}>
-          <button className={styles.playSmall} onClick={play} aria-label={run ? "توقف" : "پخش"}>
-            {run ? "⏸" : "▶"}
-          </button>
-          <span>باز ↔ تا</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={f}
-            onChange={(e) => {
-              setRun(null);
-              setF(Number(e.target.value));
-            }}
-            aria-label="میزان تا شدن"
-          />
-        </label>
+        {/* In a mock exam opening the paper would show the answer; in practice, not before the answer. */}
+        {!(mode === "try" && (exam || (practice.active && !practice.answered))) && (
+          <label className={styles.slider}>
+            <button className={styles.playSmall} onClick={play} aria-label={run ? "توقف" : "پخش"}>
+              {run ? "⏸" : "▶"}
+            </button>
+            <span>باز ↔ تا</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={f}
+              onChange={(e) => {
+                setRun(null);
+                setF(Number(e.target.value));
+              }}
+              aria-label="میزان تا شدن"
+            />
+          </label>
+        )}
       </section>
 
       <aside className={styles.side}>
@@ -575,6 +601,7 @@ export function PaperTool() {
             onNew={() => freshQuestion()}
             onAnswered={onAnswered}
             onDisplay={setDisplay}
+            exam={exam}
           />
         )}
       </aside>

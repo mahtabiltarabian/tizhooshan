@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import {
   candidates,
   checkCond,
@@ -28,6 +29,7 @@ import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
+import { SEATING_ADAPTER } from "./adapter";
 import { SEATING_GUIDE } from "./guide";
 import { Backdrop, familyGeometry, geometryOf, LegendShapes, PlaceFigure, TreeLines, TW, type Geometry } from "./Pictures";
 import own from "./Seating.module.css";
@@ -141,6 +143,15 @@ export function SeatingTool() {
   const qKey = `${tryType}-${tryLevel}-${seed}`;
   const [entry, setEntry] = useState<TryEntry | null>(null);
   const cur: TryEntry = entry?.key === qKey ? entry : { key: qKey, seatOf: startSeats(question), sel: null, choice: null, checked: false };
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(SEATING_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in SEATING_TYPE_LABEL) setTryType(type as SeatingType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setEntry(null);
+  });
 
   const shown: Arrangement | FamilyQuestion = showFromTry ? question : puzzle;
   const steps = isFamily(shown) ? shown.facts.length + 1 : shown.conds.length;
@@ -332,9 +343,11 @@ export function SeatingTool() {
   } else {
     const q = question;
     const done = cur.checked;
+    // The solution on the board; in a mock exam the child's own answer stays, read-only.
+    const reveal = done && !practice.exam;
     const setSeats = (seatOf: number[], sel: number | null = null) => setEntry({ ...cur, seatOf, sel, checked: false });
     if (q.type === "family") {
-      const geo = familyGeometry(q.people, !done);
+      const geo = familyGeometry(q.people, !reveal);
       view = geo.view;
       label = "شجره‌نامه";
       const target = q.ask.k === "rel" ? [q.ask.x, q.ask.y] : [q.options[q.answer].person, q.ask.y];
@@ -342,11 +355,11 @@ export function SeatingTool() {
         <PlaceFigure
           geo={geo}
           names={q.people.map((p) => p.name)}
-          seatOf={done ? q.people.map((_, i) => i) : cur.seatOf}
+          seatOf={reveal ? q.people.map((_, i) => i) : cur.seatOf}
           selected={done ? null : cur.sel}
           onSelect={done ? undefined : (p) => setEntry({ ...cur, sel: p })}
           onPlace={done ? undefined : (p, s) => setSeats(placeInto(cur.seatOf, p, s, () => false))}
-          focus={done ? target : []}
+          focus={reveal ? target : []}
           maleOf={(p) => q.people[p].male}
         >
           <TreeLines people={q.people} geo={geo} />
@@ -356,7 +369,7 @@ export function SeatingTool() {
     } else {
       const locked = (p: number) => p === q.fixed;
       view = [0, 0, 0, 0];
-      if (done && q.variant === "place") {
+      if (reveal && q.variant === "place") {
         const geo = geometryOf(q, false);
         view = geo.view;
         board = (
@@ -371,7 +384,7 @@ export function SeatingTool() {
             <Backdrop q={q} geo={geo} fixedSeat={q.fixed !== null ? 0 : null} />
           </PlaceFigure>
         );
-      } else if (done) {
+      } else if (reveal) {
         const cand = candidates(q.n, survivors(q, q.conds.length));
         const seatOf = q.names.map((_, p) => cand.findIndex((c) => c.size === 1 && c.has(p)));
         const geo = geometryOf(q, false);
@@ -390,9 +403,9 @@ export function SeatingTool() {
             names={q.names}
             seatOf={cur.seatOf}
             locked={locked}
-            selected={cur.sel}
-            onSelect={(p) => setEntry({ ...cur, sel: p })}
-            onPlace={(p, s) => setSeats(placeInto(cur.seatOf, p, s, locked))}
+            selected={done ? null : cur.sel}
+            onSelect={done ? undefined : (p) => setEntry({ ...cur, sel: p })}
+            onPlace={done ? undefined : (p, s) => setSeats(placeInto(cur.seatOf, p, s, locked))}
             asked={q.ask?.rel === "at" ? q.ask.p : null}
           >
             <Backdrop q={q} geo={geo} fixedSeat={q.fixed !== null ? 0 : null} />
@@ -582,8 +595,13 @@ export function SeatingTool() {
         type={tryType}
         level={tryLevel}
         entry={cur}
+        exam={practice.exam}
+        practice={practice.active}
         onChoice={(c) => setEntry({ ...cur, choice: c })}
-        onCheck={() => setEntry({ ...cur, checked: true, sel: null })}
+        onCheck={() => {
+          setEntry({ ...cur, checked: true, sel: null });
+          void practiceCheck(SEATING_ADAPTER, question.type !== "family" && question.variant === "place" ? cur.seatOf : cur.choice);
+        }}
         onClear={() => setEntry({ key: qKey, seatOf: startSeats(question), sel: null, choice: null, checked: false })}
         onType={(t) => freshQuestion(t, tryLevel)}
         onLevel={(l) => freshQuestion(tryType, l)}

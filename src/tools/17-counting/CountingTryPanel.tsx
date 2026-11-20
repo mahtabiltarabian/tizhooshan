@@ -105,6 +105,8 @@ interface Props {
   level: Level;
   checked: Answer | null;
   onCheck: (v: Answer) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onType: (t: CountingQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
@@ -118,21 +120,21 @@ export function CountingTryPanel(p: Props) {
   const [top, setTop] = useState(done && typeof checked === "object" ? String(checked.n) : "");
   const [bottom, setBottom] = useState(done && typeof checked === "object" ? String(checked.d) : "");
   const [slot, setSlot] = useState<"n" | "d">("n");
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
 
   const ready = kind === "number" ? !!num : !!top && !!bottom && Number(bottom) > 0;
   const value = (): Answer => (kind === "number" ? Number(num) : { n: Number(top), d: Number(bottom) });
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(COUNTING_TYPE_LABEL) as CountingQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {COUNTING_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -183,7 +185,7 @@ export function CountingTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && (
+      {done && !p.exam && (
         <p className={styles.hint}>
           {q.type === "pigeonhole"
             ? "روی صفحه، بدترین حالت رنگ‌به‌رنگ برداشته می‌شود؛ با نوار پایین جلو و عقب ببر."

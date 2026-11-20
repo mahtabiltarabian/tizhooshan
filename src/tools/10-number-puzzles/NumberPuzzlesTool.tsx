@@ -22,12 +22,14 @@ import {
   type Step,
 } from "@/generators/number-puzzles";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
+import { NUMBER_PUZZLES_ADAPTER } from "./adapter";
 import { PUZZLES_GUIDE } from "./guide";
 import { figureView, PuzzleFigure } from "./Pictures";
 import { firstHint, linesRight, PUZZLE_TYPE_LABEL, PuzzleTryPanel, setFa, stepText } from "./PuzzleTryPanel";
@@ -166,6 +168,19 @@ export function NumberPuzzlesTool() {
   const [entry, setEntry] = useState<{ key: string; vals: Vals; sel: number | null; checked: boolean } | null>(null);
   const blanks = useMemo(() => blankCells(question), [question]);
   const cur = entry?.key === qKey ? entry : { key: qKey, vals: givenValues(question), sel: blanks[0] ?? null, checked: false };
+
+  // Practice sessions: the next question of this tool arrives through the address,
+  // with small numbers, as the adapter grades it.
+  const practice = usePractice(NUMBER_PUZZLES_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in PUZZLE_TYPE_LABEL) setTryType(type as PuzzleType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setBig(false);
+    setSeed(sd);
+    setEntry(null);
+  });
+  // In a mock exam the wrong lines are not marked.
+  const marked = cur.checked && !practice.exam;
 
   // Shareable links: #try=magic&level=2&seed=7&big=1(&a=4,_,9), #show=pyramid&level=3&seed=5&step=2, #explore=triangle, #explore=ring(&star=1), #classroom
   useEffect(() => {
@@ -343,8 +358,8 @@ export function NumberPuzzlesTool() {
         onDrop={(from, to, v) => setTry(dropInto(cur.vals.map((x, i) => (from === null && x === v && tryEditable(i) ? null : x)), from, to, v), to ?? cur.sel)}
         onTile={tryTile}
         bank={bank}
-        sums={cur.checked ? "marks" : null}
-        bad={cur.checked ? badLines(question, cur.vals) : []}
+        sums={marked ? "marks" : null}
+        bad={marked ? badLines(question, cur.vals) : []}
       />
     );
   }
@@ -699,12 +714,17 @@ export function NumberPuzzlesTool() {
             selected={cur.sel}
             onValue={tryValue}
             checked={cur.checked}
-            onCheck={() => setEntry({ ...cur, checked: true })}
+            exam={practice.exam}
+            onCheck={() => {
+              setEntry({ ...cur, checked: true });
+              void practiceCheck(NUMBER_PUZZLES_ADAPTER, cur.vals);
+            }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
             onBig={(b) => freshQuestion(tryType, tryLevel, b)}
             onNew={() => freshQuestion()}
-            onShow={showThis}
+            // In a session the mode tabs are hidden: "show me" would leave no way back to the question.
+            onShow={practice.active ? undefined : showThis}
           />
         )}
         {mode === "try" && <p className={styles.note} style={{ marginTop: 8 }}>{tryNote(question)}</p>}

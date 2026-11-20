@@ -6,6 +6,7 @@ import { analyzeShape, CUBE_NETS, oppositePairs, pairReason, shapeKey, type Cell
 import { makeQuestion, type Level, type QuestionType } from "@/generators/cube-questions";
 import { DIR_STEP, makeDiceQuestion, rollAll, STANDARD, type DiceQuestion, type DieState, type Dir } from "@/generators/dice";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { isDiceType, TYPE_LABEL, TryPanel, type Display, type NetsType } from "./TryPanel";
 import { DiceTryPanel, type DieDisplay } from "./DiceTryPanel";
 import { DiceExplorePanel, DiceShowPanel } from "./DicePanels";
@@ -13,6 +14,7 @@ import { DieScene } from "./DieScene";
 import { useRollPlayer } from "./useRollPlayer";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
+import { CUBE_NETS_ADAPTER } from "./adapter";
 import { CUBE_NETS_GUIDE } from "./guide";
 import { Stage } from "@/engine-3d/Stage";
 import { fa } from "@/tools/registry";
@@ -159,6 +161,22 @@ export function CubeNetsTool() {
   );
   // What the try-it panel wants the 3D net to show (a blank face, the child's own placement…).
   const [tryDisplay, setTryDisplay] = useState<Display | null>(null);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(CUBE_NETS_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in TYPE_LABEL) setTryType(type as NetsType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setInitialPick(undefined);
+    setTryDisplay(null);
+    setDieDisplay(null);
+    rollJump(0);
+    setPlaying(false);
+    setT(0);
+  });
+  // Mock exam: no folding or rolling on the stage; it would solve the question.
+  const stageLocked = mode === "try" && practice.exam;
 
   const status = useMemo(() => analyzeShape(drawn), [drawn]);
   const info = describe(status, lastNew);
@@ -393,7 +411,7 @@ export function CubeNetsTool() {
       </section>
 
       <section className={styles.controls}>
-        {diePath && mode !== "explore" && (
+        {diePath && mode !== "explore" && !stageLocked && (
           <div className={styles.player} dir="ltr" role="group" aria-label="غلتاندن گام‌به‌گام">
             <button onClick={() => rollTo(Math.max(0, Math.ceil(roller.p - 1e-6) - 1))} disabled={roller.p <= 0} aria-label="غلت قبل">
               ⏮
@@ -412,7 +430,7 @@ export function CubeNetsTool() {
         {diePath && mode === "explore" && (
           <p className={styles.note}>تاس را با دکمه‌های کنار صفحه بغلتان؛ صحنه را هم می‌توانی بچرخانی.</p>
         )}
-        {!diePath && mode !== "explore" && (
+        {!diePath && mode !== "explore" && !stageLocked && (
           // Media controls keep the usual left-to-right order, as in Persian video players.
           <div className={styles.player} dir="ltr" role="group" aria-label="پخش گام‌به‌گام">
             <button onClick={() => stepTo(-1)} disabled={t <= 0} aria-label="گام قبل">
@@ -432,7 +450,7 @@ export function CubeNetsTool() {
             </button>
           </div>
         )}
-        {!diePath && (
+        {!diePath && !stageLocked && (
         <label className={styles.slider}>
           <span>تا کردن</span>
           <input
@@ -497,6 +515,8 @@ export function CubeNetsTool() {
             onAnswered={onAnswered}
             onNetDisplay={setTryDisplay}
             onDieDisplay={onDieDisplay}
+            exam={practice.exam}
+            onCheck={(v) => void practiceCheck(CUBE_NETS_ADAPTER, v)}
           />
         ) : mode === "explore" && explorePart === "dice" ? (
           <DiceExplorePanel
@@ -529,6 +549,8 @@ export function CubeNetsTool() {
             onAnswered={onAnswered}
             onEdit={onEdit}
             onDisplay={setTryDisplay}
+            exam={practice.exam}
+            onCheck={(r) => void practiceCheck(CUBE_NETS_ADAPTER, r)}
           />
         ) : mode === "explore" ? (
           <>

@@ -8,14 +8,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { endRun, getRun, startRun, useRun, type RunKind } from "./bridge";
-import { SKILLS } from "./catalog";
+import { EXAM_ORDER, SKILLS } from "./catalog";
 import { db, newId } from "./db";
+import { AccountPanel } from "./AccountPanel";
+import { assignmentsOf, deleteChildRemote, syncNow } from "./sync";
+import type { AssignmentDto } from "./api";
 import { CONSENT_POINTS, checkPin, getParent, setParent, toLatinDigits, validPin } from "./parent";
 import { openItem, RUN_TITLE } from "./PracticeBar";
 import { dailyChallenge, dayNumber } from "./rewards";
-import { planSession, type SessionItem } from "./session";
+import { EXAM_MINUTES_PER_QUESTION, planExam, planSession, type SessionItem } from "./session";
 import { summarize, timeLeftToday, type ChildSummary } from "./summary";
-import type { Profile } from "./types";
+import type { Profile, SkillState } from "./types";
 import { fa } from "@/tools/registry";
 import styles from "./Practice.module.css";
 
@@ -67,6 +70,10 @@ export function PracticeHome() {
     list.sort((a, b) => a.createdAt - b.createdAt);
     setProfiles(list);
     return { parent, list };
+  }, []);
+
+  useEffect(() => {
+    syncNow().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -129,6 +136,7 @@ export function PracticeHome() {
       {screen.name === "child" && (
         <ChildHome
           profile={profiles.find((p) => p.id === screen.id)!}
+          asParent={asParent}
           onSwitch={() => {
             rememberChild(null);
             setScreen({ name: "choose" });
@@ -342,6 +350,7 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
               className={styles.danger}
               onClick={async () => {
                 if (!confirm(`همه داده‌های ${p.nickname} برای همیشه پاک شود؟ این کار برگشت ندارد.`)) return;
+                await deleteChildRemote(p.id);
                 await db.deleteChild(p.id);
                 if (getRun()?.childId === p.id) endRun();
                 onDeleted();
@@ -360,6 +369,8 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
           بازگشت
         </button>
       </div>
+      <AccountPanel profiles={profiles} />
+
       <h3>حریم خصوصی</h3>
       <ul className={styles.points}>
         {CONSENT_POINTS.map((t) => (
@@ -381,7 +392,7 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
   );
 }
 
-function ChildHome({ profile, onSwitch, onParent }: { profile: Profile; onSwitch: () => void; onParent: () => void }) {
+function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile; onSwitch: () => void; onParent: () => void; asParent: (then: () => void) => void }) {
   const router = useRouter();
   const run = useRun();
   const [sum, setSum] = useState<ChildSummary | null>(null);
@@ -418,6 +429,14 @@ function ChildHome({ profile, onSwitch, onParent }: { profile: Profile; onSwitch
     const items = planSession({ catalog: SKILLS, states, reviews: state.reviews, now: Date.now(), seed: Math.floor(Math.random() * 1e9), size: 9 }).filter((i) => i.mode === "review");
     begin("practice", items, Date.now() + left);
   };
+
+  // The mock exam is a sitting of its own: a parent starts it, and it does not count against the daily limit.
+  const exam = () =>
+    asParent(() => {
+      const states = new Map(state.skills.map((s) => [s.skill, s]));
+      const items = planExam({ catalog: SKILLS, states, seed: Math.floor(Math.random() * 1e9), toolOrder: EXAM_ORDER });
+      begin("exam", items, Date.now() + items.length * EXAM_MINUTES_PER_QUESTION * 60_000);
+    });
 
   return (
     <section>
@@ -473,6 +492,32 @@ function ChildHome({ profile, onSwitch, onParent }: { profile: Profile; onSwitch
         </div>
       )}
 
+      {state.assignments.length > 0 && left > 0 && (
+        <section>
+          <h3>تکلیف‌های کلاس</h3>
+          <div className={styles.actions}>
+            {state.assignments.map((a: AssignmentDto) => (
+              <button key={a.id} className={styles.big} onClick={() => startAssignment(a, profile.id, state.skills, left, router.push)}>
+                <strong>{a.title}</strong>
+                <span>تا {new Date(a.due).toLocaleDateString("fa-IR")}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className={`${styles.card} ${styles.row}`}>
+        <div className={styles.grow}>
+          <strong>آزمون شبیه‌سازی</strong>
+          <p className={styles.small}>
+            یک سؤال از هر ابزار، {fa(EXAM_MINUTES_PER_QUESTION)} دقیقه برای هر سؤال، بدون بازخورد تا آخر؛ بعد کارنامه هر محور. با حضور والدین شروع می‌شود.
+          </p>
+        </div>
+        <button className={styles.quiet} onClick={exam}>
+          شروع آزمون
+        </button>
+      </div>
+
       <h3>نشان‌ها</h3>
       <ul className={styles.badges}>
         {sum.badges.map((b) => (
@@ -499,7 +544,17 @@ function ChildHome({ profile, onSwitch, onParent }: { profile: Profile; onSwitch
   );
 }
 
+/** A teacher's assignment: a practice session drawn only from its skills. */
+function startAssignment(a: AssignmentDto, childId: string, skills: SkillState[], left: number, push: (href: string) => void) {
+  const states = new Map(skills.map((s) => [s.skill, s]));
+  const only = a.skills.filter((k) => SKILLS.some((s) => s.key === k));
+  if (!only.length) return;
+  const items = planSession({ catalog: SKILLS, states, reviews: [], now: Date.now(), seed: Math.floor(Math.random() * 1e9), only });
+  const r = startRun({ childId, kind: "assignment", items, endsAt: Date.now() + left, assignmentId: a.id });
+  openItem(r, 0, push);
+}
+
 async function loadChild(id: string) {
-  const [attempts, skills, reviews] = await Promise.all([db.attempts(id), db.skills(id), db.reviews(id)]);
-  return { attempts, skills, reviews };
+  const [attempts, skills, reviews, assignments] = await Promise.all([db.attempts(id), db.skills(id), db.reviews(id), assignmentsOf(id)]);
+  return { attempts, skills, reviews, assignments };
 }

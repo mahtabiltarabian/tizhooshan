@@ -204,6 +204,8 @@ interface Props {
   onUndo: () => void;
   onEmpty: () => void;
   checked: number | null;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onCheck: (v: number) => void;
   onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
@@ -214,20 +216,20 @@ export function BalanceTryPanel(p: Props) {
   const { question: q, checked } = p;
   const kind = kindOf(q.type);
   const [num, setNum] = useState(kind === "number" && checked !== null ? String(checked) : "");
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
   const fillQ = q.type === "fill" ? (q as FillQuestion) : null;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }} data-practice-hide>
         {(Object.keys(BALANCE_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {BALANCE_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)} title={LEVEL_LABEL[p.type][l - 1]}>
             سطح {fa(l)}
@@ -279,7 +281,7 @@ export function BalanceTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>روی صفحه، راه‌حل قدم‌به‌قدم پخش می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && <p className={styles.hint}>روی صفحه، راه‌حل قدم‌به‌قدم پخش می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

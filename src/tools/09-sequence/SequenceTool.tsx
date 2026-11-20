@@ -6,12 +6,14 @@ import { Board } from "@/engine-2d/Board";
 import { newSeed } from "@/generators/random";
 import { divide, itemAt, makeCycleQuestion, SYMBOLS, type CycleSet } from "@/generators/cycle";
 import { makeNthQuestion } from "@/generators/nth-term";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { diffsOf, makeSequenceQuestion, termsOf, type BlankChoice, type Level, type Rule } from "@/generators/sequence";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { decodeBuild, DEFAULT_BUILD, LIMITS, PRESETS, ruleOf, TOO_BIG, type Build, type BuildKind } from "./build";
+import { SEQUENCE_ADAPTER } from "./adapter";
 import { SEQUENCE_GUIDE } from "./guide";
 import css from "./Sequence.module.css";
 import { CycleG, cycleBoardProps, cycleLayout, cycleView, ltr as ltrC, rowWords, SymbolIcon, symbolWord } from "./Cycle";
@@ -154,6 +156,22 @@ export function SequenceTool() {
   const nthQ = useMemo(() => makeNthQuestion(tryLevel, seed), [tryLevel, seed]);
   const isNth = tryType === "nth";
 
+  // Practice sessions: the next question of this tool arrives through the address,
+  // with the default gap and small numbers the adapter grades with.
+  const practice = usePractice(SEQUENCE_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in SEQ_TYPE_LABEL) setTryType(type as SeqTryType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setBlank("auto");
+    setBig(false);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
+  // In a mock exam the board does not show the answer or whether it was right.
+  const revealed = checked !== null && !practice.exam;
+
   const buildMs = 600 + 350 * build.n;
   const showMs = 1500 + 450 * build.n * rowsFor(rule).length;
   const tryMs = isCycle || isNth ? 6000 : 1200 + 400 * question.terms.length * rowsFor(question.rule).length;
@@ -294,10 +312,10 @@ export function SequenceTool() {
       </Board>
     );
   } else if (isNth) {
-    board = <NthTryBoard q={nthQ} checked={checked} f={checked === null ? 0 : f} />;
+    board = <NthTryBoard q={nthQ} checked={revealed ? checked : null} f={revealed ? f : 0} />;
   } else if (isCycle) {
     const q = cycleQ;
-    const done = checked !== null;
+    const done = revealed;
     const { view, given } = cycleBoardProps(q, done);
     board = (
       <Board view={view} imageName="cycle" label="الگوی تکرارشونده">
@@ -318,7 +336,7 @@ export function SequenceTool() {
     );
   } else {
     const q = question;
-    const done = checked !== null;
+    const done = revealed;
     board = (
       <Board view={trainView(q.terms.length)} imageName="sequence" label="قطار دنباله با یک واگن خالی">
         <TrainG
@@ -337,7 +355,7 @@ export function SequenceTool() {
   }
 
   const inTry = mode === "try";
-  const showSlider = mode !== "try" || checked !== null;
+  const showSlider = mode !== "try" || revealed;
 
   return (
     <main className={styles.layout}>
@@ -681,9 +699,11 @@ export function SequenceTool() {
             question={cycleQ}
             level={tryLevel}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs);
+              void practiceCheck(SEQUENCE_ADAPTER, v);
+              if (!practice.exam) animate(tryMs);
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
@@ -697,9 +717,11 @@ export function SequenceTool() {
             question={nthQ}
             level={tryLevel}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs);
+              void practiceCheck(SEQUENCE_ADAPTER, v);
+              if (!practice.exam) animate(tryMs);
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
@@ -716,9 +738,11 @@ export function SequenceTool() {
             blank={blank}
             big={big}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(tryMs);
+              void practiceCheck(SEQUENCE_ADAPTER, v);
+              if (!practice.exam) animate(tryMs);
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}

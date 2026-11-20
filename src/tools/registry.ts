@@ -1,13 +1,14 @@
-// The 20 tools from the tools map (docs/tizhooshan-tools-map.md).
-// `href` is set only for tools that are built.
+// The 20 tools from the tools map (docs/tizhooshan-tools-map.md), and tool
+// 21 from phase 2 (docs/phase2-plan.md). `href` is set only for built tools.
 
-export type Area = "visual" | "computational" | "logical";
+export type Area = "visual" | "computational" | "logical" | "speed";
 
 export interface ToolInfo {
   id: number;
   title: string;
   area: Area;
-  wave: 1 | 2 | 3;
+  /** Build wave of phase 1; 4 = phase 2. */
+  wave: 1 | 2 | 3 | 4;
   href?: string;
 }
 
@@ -15,6 +16,7 @@ export const AREA_LABEL: Record<Area, string> = {
   visual: "تصویری",
   computational: "محاسباتی",
   logical: "منطقی",
+  speed: "سرعتی",
 };
 
 export const TOOLS: ToolInfo[] = [
@@ -38,6 +40,7 @@ export const TOOLS: ToolInfo[] = [
   { id: 18, title: "کدگذاری", area: "logical", wave: 3, href: "/tools/codes" },
   { id: 19, title: "تخته استدلال", area: "logical", wave: 3, href: "/tools/logic" },
   { id: 20, title: "میز چیدمان و شجره‌نامه", area: "logical", wave: 3, href: "/tools/seating" },
+  { id: 21, title: "سرعت و دقت", area: "speed", wave: 4, href: "/tools/speed" },
 ];
 
 /** Western digits to Persian digits. */

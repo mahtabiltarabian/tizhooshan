@@ -43,14 +43,14 @@ export const TYPE_LABEL: Record<NetsType, string> = {
 export function TypeLevelPicker({ type, level, onType, onLevel }: { type: NetsType; level: Level; onType: (t: NetsType) => void; onLevel: (l: Level) => void }) {
   return (
     <>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(TYPE_LABEL) as NetsType[]).map((t) => (
           <button key={t} role="radio" aria-checked={type === t} onClick={() => onType(t)}>
             {TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
             سطح {fa(l)}
@@ -65,6 +65,8 @@ const SLOT_LABEL: Record<Slot, string> = { top: "بالا", right: "راست", l
 
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };
+/** The child's pick in a mock exam: marked, but not as right or wrong. */
+export const PICKED = "● انتخاب تو";
 
 /** What the 3D stage should show for the current question. */
 export interface Display {
@@ -193,10 +195,14 @@ interface TryPanelProps {
   /** The child changed their placement: unfold. */
   onEdit: () => void;
   onDisplay: (d: Display) => void;
+  /** «بررسی» or a tap: the response the practice adapter grades (see adapter.ts). */
+  onCheck?: (response: unknown) => void;
+  /** Mock exam: record the answer, show nothing about it (no marks, no folding, no solution). */
+  exam?: boolean;
 }
 
 export function TryPanel(props: TryPanelProps) {
-  const { question: q, type, level, initialPick, onType, onLevel, onNew, onAnswered, onEdit, onDisplay } = props;
+  const { question: q, type, level, initialPick, onType, onLevel, onNew, onAnswered, onEdit, onDisplay, onCheck, exam } = props;
 
   // One-tap questions
   const [picked, setPicked] = useState<number | null>(initialPick ?? null);
@@ -216,13 +222,18 @@ export function TryPanel(props: TryPanelProps) {
   const pick = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    onAnswered();
+    onCheck?.(i);
+    if (!exam) onAnswered();
   };
+  // In a mock exam the stage and the marks stay as before the answer.
+  const shownPick = exam ? null : picked;
+  // A mock exam takes the first placement only: no second try, no solution.
+  const placeLocked = !!exam && tries > 0;
 
   // What the 3D stage shows.
   const display = useMemo<Display>(() => {
     const cells = q.net.cells;
-    if (q.type === "missing" && picked === null) {
+    if (q.type === "missing" && shownPick === null) {
       const symbols = [...q.net.symbols];
       symbols[q.blank] = "؟";
       const turns = [...q.net.turns];
@@ -235,12 +246,12 @@ export function TryPanel(props: TryPanelProps) {
     }
     if (q.type === "netMakes" || q.type === "netCannot") {
       // Nothing to fold until the child chooses; then fold the net they chose.
-      if (picked === null) return { cells: [], symbols: [], turns: [] };
-      const n = q.nets[picked].net;
+      if (shownPick === null) return { cells: [], symbols: [], turns: [] };
+      const n = q.nets[shownPick].net;
       return { cells: n.cells, symbols: n.symbols, turns: n.turns };
     }
     return { cells, symbols: q.net.symbols, turns: q.net.turns };
-  }, [q, picked, placed, reveal, result]);
+  }, [q, shownPick, placed, reveal, result]);
 
   const displayKey = JSON.stringify(display);
   useEffect(() => {
@@ -249,7 +260,7 @@ export function TryPanel(props: TryPanelProps) {
 
   // ----- place -----
   const tapPlaceCell = (i: number) => {
-    if (result?.solved || tries >= 2) return;
+    if (result?.solved || tries >= 2 || placeLocked) return;
     const symbols = [...placed.symbols];
     const turns = [...placed.turns];
     if (armed) {
@@ -275,7 +286,8 @@ export function TryPanel(props: TryPanelProps) {
     const r = scorePlacement(q.net.cells, q.faces, placed);
     setResult(r);
     setTries((n) => n + 1);
-    onAnswered();
+    onCheck?.(placed);
+    if (!exam) onAnswered();
   };
 
   // ----- touch -----
@@ -286,8 +298,8 @@ export function TryPanel(props: TryPanelProps) {
 
   // ----- feedback -----
   let fb: { tone: Tone; text: string } | null = null;
-  if (picked !== null) fb = singleFeedback(q, picked);
-  if (q.type === "touch" && touchChecked) {
+  if (shownPick !== null) fb = singleFeedback(q, shownPick);
+  if (q.type === "touch" && touchChecked && !exam) {
     const s = q.net.symbols;
     const exact = selected.length === 4 && selected.every((i) => q.answers.includes(i));
     const opp = [0, 1, 2, 3, 4, 5].find((i) => i !== q.target && !q.answers.includes(i))!;
@@ -295,7 +307,7 @@ export function TryPanel(props: TryPanelProps) {
       ? { tone: "good", text: `درست است! این چهار وجه دور «${s[q.target]}» قرار می‌گیرند و «${s[opp]}» روبروی آن است.` }
       : { tone: "bad", text: `همه وجه‌ها جز روبرویی با «${s[q.target]}» ضلع مشترک دارند. روبروی آن «${s[opp]}» است.` };
   }
-  if (q.type === "place" && result) {
+  if (q.type === "place" && result && !exam) {
     const correct = result.status.filter((st) => st === "correct").length;
     const turned = result.status.filter((st) => st === "turned").length;
     if (result.solved) fb = { tone: "good", text: "آفرین! همه نمادها سر جای درست و با جهت درست هستند." };
@@ -314,20 +326,22 @@ export function TryPanel(props: TryPanelProps) {
   const marks: Partial<Record<number, CellMark>> = {};
   if (q.type === "opposite" || q.type === "hidden") {
     if (q.type === "opposite") marks[q.target] = "target";
-    if (picked !== null) {
+    if (exam && picked !== null) marks[picked] = "selected";
+    else if (picked !== null) {
       marks[q.answer] = "correct";
       if (picked !== q.answer) marks[picked] = "wrong";
     }
   }
   if (q.type === "touch") {
     marks[q.target] = "target";
-    for (const i of selected) marks[i] = touchChecked ? (q.answers.includes(i) ? "correct" : "wrong") : "selected";
-    if (touchChecked) for (const i of q.answers) if (!selected.includes(i)) marks[i] = "missed";
+    const judged = touchChecked && !exam;
+    for (const i of selected) marks[i] = judged ? (q.answers.includes(i) ? "correct" : "wrong") : "selected";
+    if (judged) for (const i of q.answers) if (!selected.includes(i)) marks[i] = "missed";
   }
-  if (q.type === "place" && result && !reveal) result.status.forEach((st, i) => (marks[i] = st));
+  if (q.type === "place" && result && !reveal && !exam) result.status.forEach((st, i) => (marks[i] = st));
 
   const optionMark = (i: number, turnedMistake: boolean): Tone | null => {
-    if (picked === null || !("answer" in q)) return null;
+    if (picked === null || exam || !("answer" in q)) return null;
     if (i === q.answer) return "good";
     if (i === picked) return turnedMistake ? "turned" : "bad";
     return null;
@@ -385,18 +399,18 @@ export function TryPanel(props: TryPanelProps) {
                 aria-pressed={armed === s}
                 className={placed.symbols.includes(s) ? styles.used : ""}
                 onClick={() => setArmed(armed === s ? null : s)}
-                disabled={!!result?.solved || tries >= 2}
+                disabled={!!result?.solved || tries >= 2 || placeLocked}
               >
                 {s}
               </button>
             ))}
           </div>
-          {!result?.solved && tries < 2 && (
+          {!result?.solved && tries < 2 && !placeLocked && (
             <button className={styles.secondary} onClick={checkPlace} disabled={placed.symbols.some((s) => !s)}>
               تا کن و بررسی کن ({fa(2 - tries)} فرصت)
             </button>
           )}
-          {!result?.solved && tries >= 2 && (
+          {!result?.solved && tries >= 2 && !exam && (
             <button className={styles.secondary} onClick={() => setReveal(true)}>
               جواب را نشانم بده
             </button>
@@ -411,7 +425,8 @@ export function TryPanel(props: TryPanelProps) {
           disabled={!selected.length}
           onClick={() => {
             setTouchChecked(true);
-            onAnswered();
+            onCheck?.(selected);
+            if (!exam) onAnswered();
           }}
         >
           بررسی
@@ -428,6 +443,7 @@ export function TryPanel(props: TryPanelProps) {
                 <button className={`${styles.option} ${mark ? styles[mark] : ""}`} onClick={() => pick(k)} disabled={picked !== null} aria-label={`جهت ${fa(k + 1)}`}>
                   <TurnTile symbol={q.net.symbols[q.blank]} turns={k} size={56} />
                   {mark && <span className={styles.optionNum}>{ICON[mark]}</span>}
+                  {exam && picked === k && <span className={styles.optionNum}>{PICKED}</span>}
                 </button>
               </li>
             );
@@ -446,6 +462,7 @@ export function TryPanel(props: TryPanelProps) {
                   <IsoCube view={o.view} size={104} />
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {mark && ICON[mark]}
+                    {exam && picked === i && PICKED}
                   </span>
                 </button>
               </li>
@@ -465,6 +482,7 @@ export function TryPanel(props: TryPanelProps) {
                   <SymbolNet net={o.net} size={112} label={`گسترده ${fa(i + 1)}`} />
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {mark && ICON[mark]}
+                    {exam && picked === i && PICKED}
                   </span>
                 </button>
               </li>

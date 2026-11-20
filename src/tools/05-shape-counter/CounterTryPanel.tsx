@@ -99,27 +99,32 @@ interface Props {
   onType: (t: ShapeQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
-  onAnswered: () => void;
+  /** «بررسی» pressed: the number typed in. */
+  onAnswered: (n: number) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function CounterTryPanel(p: Props) {
-  const { question: q } = p;
+  const { question: q, exam } = p;
   const [value, setValue] = useState(p.initialAnswer !== undefined ? String(p.initialAnswer) : "");
   const [checked, setChecked] = useState(p.initialAnswer !== undefined);
-  const fb = checked && value ? feedback(q, Number(value), p.shapes) : null;
+  // In a mock exam a checked answer shows nothing about itself.
+  const shown = checked && !exam;
+  const fb = shown && value ? feedback(q, Number(value), p.shapes) : null;
   const ids = new Set(p.marked.map((s) => s.pts.join()));
   const missedMarks = p.marked.length ? p.shapes.filter((s) => !ids.has(s.pts.join())).length : 0;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(COUNT_TYPE_LABEL) as ShapeQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {COUNT_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -142,7 +147,7 @@ export function CounterTryPanel(p: Props) {
           disabled={!value}
           onClick={() => {
             setChecked(true);
-            p.onAnswered();
+            p.onAnswered(Number(value));
           }}
         >
           بررسی
@@ -154,12 +159,13 @@ export function CounterTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {checked && missedMarks > 0 && (
+      {checked && exam && <p className={styles.hint}>جوابت ثبت شد.</p>}
+      {shown && missedMarks > 0 && (
         <p className={styles.hint}>
           تو {fa(p.marked.length)} تا را علامت زده بودی؛ {fa(missedMarks)} تای دیگر روی صفحه با خط‌چین قرمز می‌آیند.
         </p>
       )}
-      {checked && <p className={styles.hint}>روی صفحه همه {KIND_NAME[q.kind]}‌ها یکی‌یکی می‌آیند، اول کوچک‌ها؛ با نوار پایین جلو و عقب ببر.</p>}
+      {shown && <p className={styles.hint}>روی صفحه همه {KIND_NAME[q.kind]}‌ها یکی‌یکی می‌آیند، اول کوچک‌ها؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

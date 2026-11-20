@@ -672,18 +672,19 @@ export function MiniRow({ row }: { row: readonly number[] }) {
   );
 }
 
-export function SortAnswer({ q, checked, onCheck }: { q: SortQuestion; checked: number | null; onCheck: (v: number) => void }) {
+/** `exam`: a mock exam question; the answer is recorded and nothing about it is shown. */
+export function SortAnswer({ q, checked, onCheck, exam }: { q: SortQuestion; checked: number | null; onCheck: (v: number) => void; exam?: boolean }) {
   const done = checked !== null;
   const [num, setNum] = useState(done && !isChoice(q) ? String(checked) : "");
   const [pick, setPick] = useState<number | null>(done && isChoice(q) ? checked : null);
-  const fb = done ? sortFeedback(q, checked) : null;
+  const fb = done && !exam ? sortFeedback(q, checked) : null;
   return (
     <>
       <p className={tryStyles.prompt}>{sortPrompt(q)}</p>
       {isChoice(q) ? (
         <ul className={tryStyles.options} style={{ gridTemplateColumns: "1fr" }}>
           {(q.variant === "pass" ? (q as PassQuestion).options : (q as ProgramQuestion).options).map((o, i) => {
-            const mark = done ? (i === q.answer ? "good" : i === checked ? (q.tags[i] === "other" ? "bad" : "turned") : null) : null;
+            const mark = done && !exam ? (i === q.answer ? "good" : i === checked ? (q.tags[i] === "other" ? "bad" : "turned") : null) : null;
             return (
               <li key={i}>
                 <button
@@ -716,17 +717,17 @@ export function SortAnswer({ q, checked, onCheck }: { q: SortQuestion; checked: 
           <span className={tryStyles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={tryStyles.hint}>{"row" in q ? "روی صفحه، مقایسه‌ها یکی‌یکی پخش می‌شوند؛ با نوار پایین جلو و عقب ببر." : "روی صفحه، برنامه دوربه‌دور اجرا می‌شود؛ با نوار پایین جلو و عقب ببر."}</p>}
+      {done && !exam && <p className={tryStyles.hint}>{"row" in q ? "روی صفحه، مقایسه‌ها یکی‌یکی پخش می‌شوند؛ با نوار پایین جلو و عقب ببر." : "روی صفحه، برنامه دوربه‌دور اجرا می‌شود؛ با نوار پایین جلو و عقب ببر."}</p>}
     </>
   );
 }
 
 /** The try panel for «مرتب‌سازی و الگوریتم»: the same type and level chips, the question and its answer. */
-export function SortTryPanel(p: { q: SortQuestion; level: Level; checked: number | null; onCheck: (v: number) => void; onType: (t: TryType) => void; onLevel: (l: Level) => void; onNew: () => void }) {
+export function SortTryPanel(p: { q: SortQuestion; level: Level; checked: number | null; exam?: boolean; onCheck: (v: number) => void; onType: (t: TryType) => void; onLevel: (l: Level) => void; onNew: () => void }) {
   return (
     <div className={tryStyles.panel}>
       <TypeLevelChips type="sort" level={p.level} onType={p.onType} onLevel={p.onLevel} />
-      <SortAnswer q={p.q} checked={p.checked} onCheck={p.onCheck} />
+      <SortAnswer q={p.q} checked={p.checked} onCheck={p.onCheck} exam={p.exam} />
       <button className={tryStyles.next} onClick={p.onNew}>
         نمونه تازه
       </button>

@@ -370,6 +370,8 @@ interface Props {
   level: Level;
   checked: number | null;
   onCheck: (v: number) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   /** Build: pegs of the band so far. Divide: the chosen pegs. */
   band: Pt[];
   onUndo: () => void;
@@ -388,8 +390,10 @@ export function GeometryTryPanel(p: Props) {
   const [choice, setChoice] = useState<number | null>(kind === "choice" ? checked : null);
   const done = checked !== null;
 
+  // In a mock exam nothing tells right from wrong until the end.
+  const shown = done && !p.exam;
   let fb: { tone: Tone; text: string } | null = null;
-  if (done) {
+  if (shown) {
     if (q.type === "build") fb = buildFeedback(q, p.band);
     else if (q.type === "divide") fb = p.band.length === 2 ? cutFeedback(q, p.band) : null;
     else fb = numberFeedback(q, checked);
@@ -400,14 +404,14 @@ export function GeometryTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(GEOMETRY_TYPE_LABEL) as GeometryQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {GEOMETRY_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)} style={{ fontSize: "0.8rem" }}>
             {fa(l)}. {LEVEL_LABEL[p.type][l - 1]}
@@ -438,12 +442,12 @@ export function GeometryTryPanel(p: Props) {
       {kind === "choice" && (
         <ul className={styles.options} style={{ gridTemplateColumns: "1fr" }}>
           {choicesOf(q.level).map((label, i) => {
-            const mark = done ? (i === q.answer ? "good" : i === checked ? "bad" : null) : choice === i ? "turned" : null;
+            const mark = shown ? (i === q.answer ? "good" : i === checked ? "bad" : null) : choice === i ? "turned" : null;
             return (
               <li key={i}>
                 <button className={`${styles.option} ${mark ? styles[mark] : ""}`} onClick={() => setChoice(i)} disabled={done} aria-pressed={choice === i}>
                   <span className={styles.optionNum}>
-                    {done && i === q.answer ? "✓ " : done && i === checked ? "✗ " : choice === i ? "● " : ""}
+                    {shown && i === q.answer ? "✓ " : shown && i === checked ? "✗ " : choice === i ? "● " : ""}
                     {label}
                   </span>
                 </button>
@@ -484,8 +488,8 @@ export function GeometryTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && (q.type === "area" || q.type === "perimeter" || q.type === "parallel" || decimal) && <p className={styles.hint}>روی صفحه، {decimal || q.type === "parallel" ? "راه‌حل" : "شمارش"} قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
-      {done && (q.type === "build" || q.type === "divide") && fb?.tone !== "good" && <p className={styles.hint}>روی صفحه، کش تو نارنجی و پررنگ است و یک جواب درست سبز و خط‌چین.</p>}
+      {shown && (q.type === "area" || q.type === "perimeter" || q.type === "parallel" || decimal) && <p className={styles.hint}>روی صفحه، {decimal || q.type === "parallel" ? "راه‌حل" : "شمارش"} قدم‌به‌قدم نشان داده می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {shown && (q.type === "build" || q.type === "divide") && fb?.tone !== "good" && <p className={styles.hint}>روی صفحه، کش تو نارنجی و پررنگ است و یک جواب درست سبز و خط‌چین.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

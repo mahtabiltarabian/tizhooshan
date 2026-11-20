@@ -657,8 +657,10 @@ export function binaryFromLink(q: BinaryQuestion, a: string): BinaryEntry | null
 }
 
 /** The board of a binary question, before or after the check. */
-export function BinaryTryBoard({ q, entry, onEntry }: { q: BinaryQuestion; entry: BinaryEntry; onEntry: (e: BinaryEntry) => void }) {
-  const done = entry.checked !== null;
+export function BinaryTryBoard({ q, entry, onEntry, exam = false }: { q: BinaryQuestion; entry: BinaryEntry; onEntry: (e: BinaryEntry) => void; exam?: boolean }) {
+  // Checked: no more changes. Done: the answer and the marks show, except in a mock exam.
+  const locked = entry.checked !== null;
+  const done = locked && !exam;
   switch (q.kind) {
     case "read":
       return (
@@ -667,17 +669,18 @@ export function BinaryTryBoard({ q, entry, onEntry }: { q: BinaryQuestion; entry
           <Caption y={7.4} size={0.55}>
             {done ? sumFa(q.n) : "این لامپ‌ها چه عددی را نشان می‌دهند؟"}
           </Caption>
-          {done && <Caption y={8.35} size={0.42}>{`جواب تو: ${fa(entry.checked as number)} ${entry.checked === q.answer ? "✓" : "✗"}`}</Caption>}
+          {locked && <Caption y={8.35} size={0.42}>{`جواب تو: ${fa(entry.checked as number)}${done ? (entry.checked === q.answer ? " ✓" : " ✗") : ""}`}</Caption>}
         </>
       );
     case "show":
     case "next": {
-      const flip = (bit: number) => onEntry({ ...entry, lamps: entry.lamps ^ (1 << bit) });
+      const flip = locked ? undefined : (bit: number) => onEntry({ ...entry, lamps: entry.lamps ^ (1 << bit) });
+      const lamps = locked ? (entry.checked as number) : entry.lamps;
       if (!done)
         return q.kind === "show" ? (
           <>
             <Caption y={0.45} size={0.5}>{`عدد ${fa(q.n)} را نشان بده`}</Caption>
-            <CardRow mask={entry.lamps} cx={8} y={1.6} onFlip={flip} />
+            <CardRow mask={lamps} cx={8} y={1.6} onFlip={flip} />
             <Caption y={7.75} size={0.4}>
               روی کارت‌ها بزن تا برگردند
             </Caption>
@@ -685,7 +688,7 @@ export function BinaryTryBoard({ q, entry, onEntry }: { q: BinaryQuestion; entry
         ) : (
           <>
             <CardRow mask={q.n} cx={8} y={0.75} w={1.15} gap={0.25} label="این عدد" noDigits />
-            <CardRow mask={entry.lamps} cx={8} y={3.5} w={1.9} gap={0.35} onFlip={flip} label="عدد بعدی" />
+            <CardRow mask={lamps} cx={8} y={3.5} w={1.9} gap={0.35} onFlip={flip} label="عدد بعدی" />
           </>
         );
       const mine = entry.checked as number;
@@ -725,19 +728,19 @@ export function BinaryTryBoard({ q, entry, onEntry }: { q: BinaryQuestion; entry
           <Caption y={7.4} size={0.5}>
             {done ? allOnFa(k) : `بزرگ‌ترین عدد با ${fa(k)} کارت؟`}
           </Caption>
-          {done && <Caption y={8.35} size={0.42}>{`جواب تو: ${fa(entry.checked as number)} ${entry.checked === q.answer ? "✓" : "✗"}`}</Caption>}
+          {locked && <Caption y={8.35} size={0.42}>{`جواب تو: ${fa(entry.checked as number)}${done ? (entry.checked === q.answer ? " ✓" : " ✗") : ""}`}</Caption>}
         </>
       );
     }
     case "word": {
-      const letters = done ? (entry.checked as (number | null)[]) : entry.letters;
+      const letters = locked ? (entry.checked as (number | null)[]) : entry.letters;
       return (
         <WordRows
           q={q}
           letters={letters}
           marks={done ? letterMarks(q, letters) : undefined}
-          active={done ? undefined : entry.active}
-          onSlot={done ? undefined : (i) => onEntry({ ...entry, active: i })}
+          active={locked ? undefined : entry.active}
+          onSlot={locked ? undefined : (i) => onEntry({ ...entry, active: i })}
         />
       );
     }
@@ -752,12 +755,16 @@ interface PanelProps {
   onType: (t: TryType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
+  /** Told the answer on «بررسی» (practice sessions grade it). */
+  onCheck?: (v: BinaryValue) => void;
 }
 
-export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNew }: PanelProps) {
+export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNew, exam = false, onCheck }: PanelProps) {
   const kind = answerKindOf(q.kind);
   const done = entry.checked !== null;
-  const fb = done ? binaryFeedback(q, entry.checked!) : null;
+  const fb = done && !exam ? binaryFeedback(q, entry.checked!) : null;
   const full = kind === "number" ? entry.num !== "" : kind === "letters" ? entry.letters.every((x) => x !== null) : true;
   const value: BinaryValue = kind === "number" ? Number(entry.num) : kind === "lamps" ? entry.lamps : entry.letters;
 
@@ -777,14 +784,14 @@ export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNe
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع رمز" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+      <div className={styles.types} role="radiogroup" aria-label="نوع رمز" data-practice-hide style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
         {(Object.keys(TRY_TYPE_LABEL) as TryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={t === "binary"} onClick={() => onType(t)}>
             {TRY_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={level === l} onClick={() => onLevel(l)}>
             سطح {fa(l)}
@@ -808,7 +815,7 @@ export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNe
             kind="letter"
             active={entry.active}
             onSlot={(i) => onEntry({ ...entry, active: i })}
-            marks={done ? letterMarks(q, entry.checked as (number | null)[]) : undefined}
+            marks={done && !exam ? letterMarks(q, entry.checked as (number | null)[]) : undefined}
           />
           {!done && <LetterKeyboard onKey={(i) => putLetter(i, true)} onBack={back} />}
         </>
@@ -818,12 +825,11 @@ export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNe
         <button
           className={styles.secondary}
           disabled={!full}
-          onClick={() =>
-            onEntry({
-              ...entry,
-              checked: kind === "letters" ? [...entry.letters] : value,
-            })
-          }
+          onClick={() => {
+            const v = kind === "letters" ? [...entry.letters] : value;
+            onEntry({ ...entry, checked: v });
+            onCheck?.(v);
+          }}
         >
           بررسی
         </button>
@@ -835,7 +841,7 @@ export function BinaryTryPanel({ q, level, entry, onEntry, onType, onLevel, onNe
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && fb?.tone !== "good" && (
+      {done && !exam && fb?.tone !== "good" && (
         <button className={styles.secondary} onClick={() => onEntry({ ...blankBinary(q) })}>
           دوباره امتحان کن
         </button>

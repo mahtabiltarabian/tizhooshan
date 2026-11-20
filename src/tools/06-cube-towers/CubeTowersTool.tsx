@@ -18,10 +18,12 @@ import {
 } from "@/generators/cube-towers";
 import { newSeed } from "@/generators/random";
 import { Stage, type Look } from "@/engine-3d/Stage";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { CUBE_TOWERS_ADAPTER } from "./adapter";
 import { CUBE_TOWERS_GUIDE } from "./guide";
 import { PaintScene } from "./PaintScene";
 import { HeightGrid, ViewSvg } from "./Pictures";
@@ -124,6 +126,20 @@ export function CubeTowersTool() {
   const question = useMemo(() => makeTowerQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const [build, setBuild] = useState<Tower>(() => emptyTower(3, 3));
   const [display, setDisplay] = useState<TowerDisplay | null>(null);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(CUBE_TOWERS_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in TOWER_TYPE_LABEL) setTryType(type as TowerQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setInitialPick(undefined);
+    setBuild(emptyTower(3, 3));
+    setDisplay(null);
+    setPlaying(false);
+    setT(0);
+    flyTo("corner");
+  });
 
   // Shareable links: #try=count&level=2&seed=7(&pick=n), #show=paint, #show=solids&solid=3, #solid=3, #classroom
   useEffect(() => {
@@ -504,6 +520,8 @@ export function CubeTowersTool() {
             onNew={() => freshQuestion()}
             onAnswered={onAnswered}
             onDisplay={setDisplay}
+            exam={practice.exam}
+            onCheck={(r) => void practiceCheck(CUBE_TOWERS_ADAPTER, r)}
           />
         )}
       </aside>

@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { endRun, useRun } from "./bridge";
+import { syncNow } from "./sync";
 import { tagText, toolArea, toolTitle, typeLabel, catalogTool } from "./catalog";
 import { RUN_TITLE, starText } from "./PracticeBar";
 import { starsOf } from "./rewards";
@@ -38,6 +39,7 @@ export function PracticeResult() {
   const right = answered.filter((a) => a!.tag === "right").length;
   const done = () => {
     endRun();
+    syncNow().catch(() => {});
     router.push("/practice/");
   };
 

@@ -23,6 +23,7 @@ import {
 } from "@/generators/shape-count";
 import { NAMED, type NamedFigure } from "@/generators/one-stroke";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
@@ -31,6 +32,7 @@ import { COUNT_TYPE_LABEL, CounterTryPanel, groupsOf, groupSum, KIND_NAME, PIECE
 import { SHAPE_COUNTER_GUIDE } from "./guide";
 import type { Look } from "./Pictures";
 import { CountScene, GrowingScene } from "./Scene";
+import { SHAPE_COUNTER_ADAPTER } from "./adapter";
 import { HiddenLab } from "./HiddenLab";
 import { StrokeLab } from "./StrokeLab";
 import { TopicPicker, TypeLevelPicker, type Topic } from "./labKit";
@@ -154,6 +156,23 @@ export function ShapeCounterTool() {
   const qShapes = useMemo(() => listShapes(qFig, question.kind), [qFig, question.kind]);
   const tryMark = useMarking(qFig, question.kind);
 
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(SHAPE_COUNTER_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in COUNT_TYPE_LABEL) setTryType(type as ShapeQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setInitialAnswer(undefined);
+    setAnswered(false);
+    tryMark.reset();
+    setRun(null);
+    setF(0);
+  });
+  const { exam } = practice;
+  const report = (response: number) => void practiceCheck(SHAPE_COUNTER_ADAPTER, response);
+  // In a mock exam the board does not play the shapes after «بررسی».
+  const shown = answered && !exam;
+
   // Shareable links: #try=triangle&level=2&seed=7(&n=12), #show=grid-3-2-rectangle, #f=0.5, #classroom.
   // Hidden figure and one stroke: #try=hidden|stroke&level&seed(&n = answer or option 1–4),
   // #show=hidden-2-17 (level-seed), #show=stroke-house or #show=stroke-1234 (a random figure's seed).
@@ -251,7 +270,7 @@ export function ShapeCounterTool() {
   } else if (mode === "show") board = <CountScene fig={fig} origin={kind === "angle"} shapes={shapes.length ? [{ shape: shapes[current], look: "current", label: current + 1 }] : []} />;
   else {
     const marked = new Set(tryMark.found.map(shapeId));
-    const playMarks = answered && qShapes.length
+    const playMarks = shown && qShapes.length
       ? [
           ...tryMark.found.filter((s) => shapeId(s) !== shapeId(qShapes[current])).map((s) => ({ shape: s, look: "found" as Look })),
           { shape: qShapes[current], look: (tryMark.found.length && !marked.has(shapeId(qShapes[current])) ? "missed" : "current") as Look, label: current + 1 },
@@ -264,9 +283,9 @@ export function ShapeCounterTool() {
           kind={question.kind}
           counts={question.counts}
           ask={question.ask}
-          answered={answered}
+          answered={shown}
           answer={question.answer}
-          shapes={answered && qShapes.length ? [{ shape: qShapes[current], look: "current", label: current + 1 }] : undefined}
+          shapes={shown && qShapes.length ? [{ shape: qShapes[current], look: "current", label: current + 1 }] : undefined}
           kindName={KIND_NAME[question.kind]}
         />
       ) : (
@@ -304,9 +323,9 @@ export function ShapeCounterTool() {
   const labKey = mode === "try" ? `try-${tryLevel}-${seed}` : `ex-${mode}`;
   let lab: React.ReactNode = null;
   if (labTopic === "stroke")
-    lab = <StrokeLab key={labKey} mode={mode} topicPicker={topicPicker} figure={strokeFig} onFigure={setStrokeFig} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} />;
+    lab = <StrokeLab key={labKey} mode={mode} topicPicker={topicPicker} figure={strokeFig} onFigure={setStrokeFig} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} onCheck={report} exam={exam} />;
   else if (labTopic === "hidden")
-    lab = <HiddenLab key={labKey} mode={mode} topicPicker={topicPicker} ex={hiddenEx} onEx={setHiddenEx} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} />;
+    lab = <HiddenLab key={labKey} mode={mode} topicPicker={topicPicker} ex={hiddenEx} onEx={setHiddenEx} level={tryLevel} seed={seed} picker={picker} initialN={initialAnswer} onNew={() => freshQuestion()} onCheck={report} exam={exam} />;
 
   const groups = groupsOf(shapes);
   const shownGroups = groupsOf(shapes.slice(0, current + 1));
@@ -356,9 +375,9 @@ export function ShapeCounterTool() {
       </section>
 
       <section className={styles.controls}>
-        {mode === "explore" || (mode === "try" && !answered) ? (
+        {mode === "explore" || (mode === "try" && !shown) ? (
           <p className={styles.stepText} style={{ margin: 0 }}>
-            {mode === "explore" ? `${fa(mark.found.length)} ${KIND_NAME[kind]} پیدا کردی` : "اول بشمار، بعد عدد را بنویس"}
+            {mode === "explore" ? `${fa(mark.found.length)} ${KIND_NAME[kind]} پیدا کردی` : answered ? "جوابت ثبت شد." : "اول بشمار، بعد عدد را بنویس"}
           </p>
         ) : (
           <label className={styles.slider}>
@@ -527,9 +546,11 @@ export function ShapeCounterTool() {
             onType={(ty) => freshQuestion(ty, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
             onNew={() => freshQuestion()}
-            onAnswered={() => {
+            exam={exam}
+            onAnswered={(n) => {
               setAnswered(true);
-              animate(qShapes.length);
+              report(n);
+              if (!exam) animate(qShapes.length);
             }}
           />
         )}

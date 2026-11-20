@@ -17,10 +17,12 @@ import {
   type Why,
 } from "@/generators/patterns";
 import { mulberry32, newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { PATTERNS_ADAPTER } from "./adapter";
 import { PATTERNS_GUIDE } from "./guide";
 import { PATTERN_TYPE_LABEL, PatternTryPanel, tileWords } from "./PatternTryPanel";
 import { PatternScene } from "./Scene";
@@ -121,10 +123,26 @@ export function PatternsTool() {
   const [dropHover, setDropHover] = useState(false);
   const question = useMemo(() => makePatternQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
   const trySteps = useMemo(() => stepsOf(question), [question]);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(PATTERNS_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in PATTERN_TYPE_LABEL) setTryType(type as PatternQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setPicked(null);
+    setDropHover(false);
+    setRun(null);
+    setF(1);
+  });
+  const { exam } = practice;
+
   const pickAnswer = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    animate(trySteps.length);
+    void practiceCheck(PATTERNS_ADAPTER, i);
+    // In a mock exam the rules are not played until the end.
+    if (!exam) animate(trySteps.length);
   };
 
   // Shareable links: #try=matrix3&level=2&seed=7(&pick=n), #show, #f=0.5, #classroom
@@ -186,7 +204,8 @@ export function PatternsTool() {
     board = <PatternScene rows={rows} cols={cols} cells={pattern.cells.map((t, i) => (i === blank && !reveal ? null : t))} highlight={steps[stepAt].cells} label="الگو، سطر به سطر" />;
   } else {
     const q = question;
-    const answered = picked !== null;
+    // In a mock exam the board keeps its «؟» and marks nothing.
+    const answered = picked !== null && !exam;
     const hl = answered ? trySteps[stepAt].cells : [];
     if (q.type === "odd")
       board = (
@@ -194,9 +213,9 @@ export function PatternsTool() {
           rows={1}
           cols={5}
           cells={q.tiles}
-          labels={q.tiles.map((_, i) => `${fa(i + 1)}${answered && i === q.answer ? " ✓" : answered && i === picked ? " ✗" : ""}`)}
+          labels={q.tiles.map((_, i) => `${fa(i + 1)}${answered && i === q.answer ? " ✓" : answered && i === picked ? " ✗" : exam && i === picked ? " ●" : ""}`)}
           highlight={hl}
-          onCell={answered ? undefined : pickAnswer}
+          onCell={picked !== null ? undefined : pickAnswer}
           label="کدام فرق دارد؟"
         />
       );
@@ -223,7 +242,7 @@ export function PatternsTool() {
     } else board = <PatternScene rows={q.rows} cols={q.cols} cells={q.cells.map((t, i) => (i === q.blank && !answered ? null : t))} signs={q.signs} highlight={hl} dropHover={dropHover && !answered} label="الگو" />;
   }
 
-  const showControls = mode === "show" || (mode === "try" && picked !== null);
+  const showControls = mode === "show" || (mode === "try" && picked !== null && !exam);
 
   return (
     <main className={styles.layout}>
@@ -410,6 +429,7 @@ export function PatternsTool() {
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}
             onNew={() => freshQuestion()}
+            exam={exam}
           />
         )}
       </aside>

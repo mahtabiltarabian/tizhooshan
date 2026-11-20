@@ -133,6 +133,8 @@ interface Props {
   shadedCount: number;
   onClearShade: () => void;
   checked: Answer | null;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onCheck: (v: Answer) => void;
   onType: (t: RatioQuestionType) => void;
   onLevel: (l: Level) => void;
@@ -148,21 +150,22 @@ export function RatioTryPanel(p: Props) {
   const [bottom, setBottom] = useState(kind === "fraction" && done && typeof checked === "object" ? String(checked.d) : "");
   const [slot, setSlot] = useState<"n" | "d">("n");
   const [choice, setChoice] = useState<number | null>(kind === "choice" && typeof checked === "number" ? checked : null);
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
+  const reveal = done && !p.exam;
 
   const ready = kind === "number" ? !!num : kind === "fraction" ? !!top && !!bottom && Number(bottom) > 0 : kind === "choice" ? choice !== null : p.shadedCount > 0;
   const value = (): Answer => (kind === "number" ? Number(num) : kind === "fraction" ? { n: Number(top), d: Number(bottom) } : kind === "choice" ? choice! : p.shadedCount);
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(RATIO_TYPE_LABEL) as RatioQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {RATIO_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -209,7 +212,7 @@ export function RatioTryPanel(p: Props) {
         <div className={own.choice} role="radiogroup" aria-label="کدام بزرگ‌تر است؟">
           {[0, 1, 2].map((i) => (
             <button key={i} role="radio" aria-checked={choice === i} onClick={() => setChoice(i)} disabled={done} aria-label={i === 2 ? "برابرند" : `کسر ${fa(i + 1)}`}>
-              {done && i === q.answer ? "✓ " : done && i === checked ? "✗ " : ""}
+              {reveal && i === q.answer ? "✓ " : reveal && i === checked ? "✗ " : ""}
               {i === 2 ? "برابرند" : <FracH f={q.fracs[i]} big />}
             </button>
           ))}
@@ -242,7 +245,7 @@ export function RatioTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> <Rich segs={fb.segs} />
         </p>
       )}
-      {done && <p className={styles.hint}>روی صفحه، مدل نواری قدم‌به‌قدم کامل می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {reveal && <p className={styles.hint}>روی صفحه، مدل نواری قدم‌به‌قدم کامل می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

@@ -11,7 +11,7 @@ import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
 import { DieFaceSvg, DieIso, dieCaption, DieNetSvg, RollBoardSvg } from "./DiceSvg";
 import { diceFeedback, dicePrompt, type DiceTone } from "./diceText";
-import { TypeLevelPicker, type Display, type NetsType } from "./TryPanel";
+import { PICKED, TypeLevelPicker, type Display, type NetsType } from "./TryPanel";
 
 const ICON: Record<DiceTone, string> = { good: "✓", turned: "↻", bad: "✗" };
 
@@ -47,12 +47,17 @@ interface Props {
   onAnswered: () => void;
   onNetDisplay: (d: Display | null) => void;
   onDieDisplay: (d: DieDisplay | null) => void;
+  /** A tap: the number picked (1 … 6), or the net index for "which net". */
+  onCheck?: (value: number) => void;
+  /** Mock exam: record the answer, show nothing about it (no marks, no roll, no fold). */
+  exam?: boolean;
 }
 
 export function DiceTryPanel(p: Props) {
   const { question: q } = p;
   const [picked, setPicked] = useState<number | null>(p.initialPick ?? null);
-  const answered = picked !== null;
+  // In a mock exam the stage stays as before the answer.
+  const answered = picked !== null && !p.exam;
   const isNet = q.type === "die" && q.kind === "validNet";
   /** Number picked (1–6), or the net index for "validNet". */
   const value = picked === null ? null : isNet ? picked : picked + 1;
@@ -60,7 +65,8 @@ export function DiceTryPanel(p: Props) {
   const pick = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    p.onAnswered();
+    p.onCheck?.(isNet ? i : i + 1);
+    if (!p.exam) p.onAnswered();
   };
 
   // What the stage shows: a net to fold, or the die on its board.
@@ -82,8 +88,8 @@ export function DiceTryPanel(p: Props) {
       if (!answered) symbols[q.ask] = "؟";
       return { die: null, net: { cells: q.net.cells, symbols, turns: Array(6).fill(0) } as Display };
     }
-    if (picked === null) return { die: null, net: { cells: [], symbols: [], turns: [] } as Display };
-    const n = q.nets[picked];
+    if (!answered) return { die: null, net: { cells: [], symbols: [], turns: [] } as Display };
+    const n = q.nets[picked!];
     return { die: null, net: { cells: n.cells, symbols: digitsOf(n.values), turns: Array(6).fill(0) } as Display };
   }, [q, answered, picked]);
   const key = JSON.stringify(shown);
@@ -93,10 +99,10 @@ export function DiceTryPanel(p: Props) {
     onDieDisplay(s.die);
   }, [key, onNetDisplay, onDieDisplay]);
 
-  const fb = value !== null ? diceFeedback(q, value) : null;
+  const fb = value !== null && !p.exam ? diceFeedback(q, value) : null;
   const correctIndex = isNet ? q.answer : q.answer - 1;
   const mark = (i: number): DiceTone | null => {
-    if (picked === null) return null;
+    if (picked === null || p.exam) return null;
     if (i === correctIndex) return "good";
     if (i === picked) return fb?.tone === "turned" ? "turned" : "bad";
     return null;
@@ -142,6 +148,7 @@ export function DiceTryPanel(p: Props) {
                   <DieNetSvg net={n} size={120} label={`گسترده ${fa(i + 1)}`} />
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {m && ICON[m]}
+                    {p.exam && picked === i && PICKED}
                   </span>
                 </button>
               </li>
@@ -158,6 +165,7 @@ export function DiceTryPanel(p: Props) {
                   <DieFaceSvg n={v} size={46} />
                   <span className={styles.optionNum}>
                     {fa(v)} {m && ICON[m]}
+                    {p.exam && picked === i && PICKED}
                   </span>
                 </button>
               </li>

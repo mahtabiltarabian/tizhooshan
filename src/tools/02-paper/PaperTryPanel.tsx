@@ -160,12 +160,15 @@ interface Props {
   onType: (t: PaperQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
-  onAnswered: () => void;
+  /** The child answered: the picked option's index, the tapped hole cells, or the pictures' positions in the order tapped. */
+  onAnswered: (response: number | number[] | string[]) => void;
   onDisplay: (d: PaperDisplay) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function PaperTryPanel(p: Props) {
-  const { question: q } = p;
+  const { question: q, exam } = p;
   const [picked, setPicked] = useState<number | null>(q.type === "holes" || q.type === "order" ? null : (p.initialPick ?? null));
   const [mine, setMine] = useState<string[]>([]);
   const [checked, setChecked] = useState(false);
@@ -178,7 +181,7 @@ export function PaperTryPanel(p: Props) {
   const pick = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    p.onAnswered();
+    p.onAnswered(i);
   };
 
   const before = shapes(q.S, q.folds);
@@ -189,9 +192,12 @@ export function PaperTryPanel(p: Props) {
   if (q.type === "holes" && checked) fb = holesFeedback(q, mine);
   const orderDone = q.type === "order" && seq.length === q.shown.length;
   if (q.type === "order" && orderDone) fb = orderFeedback(q, seq);
+  if (exam) fb = null;
+  // What the panel shows of a checked answer: nothing in a mock exam.
+  const reveal = checked && !exam;
 
   const mark = (i: number): Tone | null => {
-    if (picked === null || q.type === "holes" || q.type === "order") return null;
+    if (picked === null || q.type === "holes" || q.type === "order" || exam) return null;
     if (i === q.answer) return "good";
     if (i === picked) return q.mistakes[i] === "missingFold" || q.mistakes[i] === "wrongAxis" || q.mistakes[i] === "otherSide" ? "turned" : "bad";
     return null;
@@ -205,6 +211,7 @@ export function PaperTryPanel(p: Props) {
           {content}
           <span className={styles.optionNum}>
             {fa(i + 1)} {m && ICON[m]}
+            {exam && i === picked && " · انتخاب تو"}
           </span>
         </button>
       </li>
@@ -221,23 +228,23 @@ export function PaperTryPanel(p: Props) {
 
   const marks: Mark[] = useMemo(() => {
     if (q.type !== "holes") return [];
-    const cells = new Set([...mine, ...(checked ? q.answer : [])]);
+    const cells = new Set([...mine, ...(reveal ? q.answer : [])]);
     return [...cells].map((c) => {
       const [i, j] = c.split(",").map(Number) as [number, number];
-      return { cell: [i, j], mine: mine.includes(c), right: checked && q.answer.includes(c) };
+      return { cell: [i, j], mine: mine.includes(c), right: reveal && q.answer.includes(c) };
     });
-  }, [q, mine, checked]);
+  }, [q, mine, reveal]);
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(PAPER_TYPE_LABEL) as PaperQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {PAPER_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -264,7 +271,7 @@ export function PaperTryPanel(p: Props) {
             S={q.S}
             size={220}
             marks={marks}
-            creases={checked ? creases(q.S, q.folds) : []}
+            creases={reveal ? creases(q.S, q.folds) : []}
             onCell={
               checked
                 ? undefined
@@ -276,7 +283,7 @@ export function PaperTryPanel(p: Props) {
             label="کاغذ باز؛ روی خانه‌ها بزن"
           />
           <p className={styles.hint}>
-            {checked ? "نقطه سیاه: جایی که تو زدی · حلقه سبز: جای درست · ✗: اشتباه" : `سوراخ‌هایی که زدی: ${fa(mine.length)}. دوباره بزنی، پاک می‌شود.`}
+            {checked && exam ? "جوابت ثبت شد." : checked ? "نقطه سیاه: جایی که تو زدی · حلقه سبز: جای درست · ✗: اشتباه" : `سوراخ‌هایی که زدی: ${fa(mine.length)}. دوباره بزنی، پاک می‌شود.`}
           </p>
           {!checked && (
             <button
@@ -284,7 +291,7 @@ export function PaperTryPanel(p: Props) {
               disabled={!mine.length}
               onClick={() => {
                 setChecked(true);
-                p.onAnswered();
+                p.onAnswered(mine);
               }}
             >
               بررسی
@@ -318,6 +325,7 @@ export function PaperTryPanel(p: Props) {
                 <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null}>
                   <span className={styles.bigNumber}>{fa(v)}</span>
                   {m && <span className={styles.optionNum}>{ICON[m]}</span>}
+                  {exam && i === picked && <span className={styles.optionNum}>انتخاب تو</span>}
                 </button>
               </li>
             );
@@ -330,7 +338,7 @@ export function PaperTryPanel(p: Props) {
           <ul className={styles.options}>
             {q.shown.map((stepIdx, pos) => {
               const n = seq.indexOf(pos);
-              const tone: Tone | null = orderDone ? (q.shown[pos] === n ? "good" : "bad") : null;
+              const tone: Tone | null = orderDone && !exam ? (q.shown[pos] === n ? "good" : "bad") : null;
               return (
                 <li key={pos}>
                   <button
@@ -339,7 +347,7 @@ export function PaperTryPanel(p: Props) {
                     onClick={() => {
                       const next = [...seq, pos];
                       setSeq(next);
-                      if (next.length === q.shown.length) p.onAnswered();
+                      if (next.length === q.shown.length) p.onAnswered(next);
                     }}
                     aria-label={`شکل ${STEP_NAMES[pos]}`}
                   >
@@ -365,7 +373,7 @@ export function PaperTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {(fb || orderDone) && <p className={styles.hint}>صحنه سه‌بعدی را ببین: کاغذ {startsFolded(q.type) ? "باز" : "تا"} می‌شود. با نوار پایین صحنه جلو و عقب ببر.</p>}
+      {(fb || (orderDone && !exam)) && <p className={styles.hint}>صحنه سه‌بعدی را ببین: کاغذ {startsFolded(q.type) ? "باز" : "تا"} می‌شود. با نوار پایین صحنه جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

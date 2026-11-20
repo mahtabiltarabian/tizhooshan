@@ -26,11 +26,13 @@ import {
   type ShapeKind,
 } from "@/generators/geometry";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import { areaFrames, degFa, ltr, num, perimeterFrames, approxDeg, type Frame } from "./frames";
+import { GEOMETRY_ADAPTER } from "./adapter";
 import { GEOMETRY_TYPE_LABEL, geometryPrompt, GeometryTryPanel, LEVEL_LABEL } from "./GeometryTryPanel";
 import { GEOMETRY_GUIDE } from "./guide";
 import {
@@ -172,14 +174,28 @@ export function GeometryTool() {
   const [tryBand, setTryBand] = useState<Pt[]>([]);
   const question = useMemo(() => makeGeometryQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
 
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(GEOMETRY_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if ((TYPES as string[]).includes(type)) setTryType(type as GeometryQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setChecked(null);
+    setTryBand([]);
+    setRun(null);
+    setF(0);
+  });
+  // In a mock exam the working (and the right shape or cut) waits until the end.
+  const reveal = checked !== null && !practice.exam;
+
   const frames = useMemo(() => {
     if (mode === "show") return showPar ? parallelFrames(showPar) : showMeasure ? measureFrames(showMeasure) : framesFor(showPoly);
-    if (mode === "try" && checked !== null && (question.type === "circle" || question.type === "composite")) return measureFrames(question);
-    if (mode === "try" && checked !== null && question.type === "parallel") return parallelFrames(question);
-    if (mode === "try" && checked !== null && question.type === "area") return areaFrames(question.poly);
-    if (mode === "try" && checked !== null && question.type === "perimeter") return perimeterFrames(question.poly);
+    if (mode === "try" && reveal && (question.type === "circle" || question.type === "composite")) return measureFrames(question);
+    if (mode === "try" && reveal && question.type === "parallel") return parallelFrames(question);
+    if (mode === "try" && reveal && question.type === "area") return areaFrames(question.poly);
+    if (mode === "try" && reveal && question.type === "perimeter") return perimeterFrames(question.poly);
     return [];
-  }, [mode, showPoly, showMeasure, showPar, question, checked]);
+  }, [mode, showPoly, showMeasure, showPar, question, reveal]);
   const at = frames.length ? Math.min(frames.length - 1, Math.round(f * (frames.length - 1))) : 0;
   const frameMs = Math.max(1, frames.length - 1) * FRAME_MS;
 
@@ -421,7 +437,8 @@ export function GeometryTool() {
     );
   } else {
     const q = question;
-    const done = checked !== null;
+    // What the answer shows on the board (labels, grid, the right shape); hidden in a mock exam.
+    const done = reveal;
     switch (q.type) {
       case "circle":
       case "composite":
@@ -502,8 +519,8 @@ export function GeometryTool() {
           <>
             <PegsG n={q.n} grid />
             {result && result.tag !== "right" && <BandG pts={q.example} color={EXAMPLE} dashed fill="none" />}
-            {!done && tryBand.length >= 3 && <BandG pts={[tryBand[tryBand.length - 1], tryBand[0]]} closed={false} color={MINE} dashed rings={false} width={3} />}
-            <BandG pts={tryBand} closed={done && tryBand.length >= 3} color={MINE} />
+            {checked === null && tryBand.length >= 3 && <BandG pts={[tryBand[tryBand.length - 1], tryBand[0]]} closed={false} color={MINE} dashed rings={false} width={3} />}
+            <BandG pts={tryBand} closed={checked !== null && tryBand.length >= 3} color={MINE} />
           </>
         );
         break;
@@ -788,9 +805,13 @@ export function GeometryTool() {
             type={tryType}
             level={tryLevel}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              if (question.type === "circle" || question.type === "composite") animate(Math.max(1, measureFrames(question).length - 1) * FRAME_MS);
+              // Build and divide report the band itself; the others the number or option.
+              void practiceCheck(GEOMETRY_ADAPTER, question.type === "build" || question.type === "divide" ? tryBand : v);
+              if (practice.exam) setF(1);
+              else if (question.type === "circle" || question.type === "composite") animate(Math.max(1, measureFrames(question).length - 1) * FRAME_MS);
               else if (question.type === "parallel") animate(Math.max(1, parallelFrames(question).length - 1) * FRAME_MS);
               else if (question.type === "area" || question.type === "perimeter") animate(Math.max(1, (question.type === "area" ? areaFrames(question.poly) : perimeterFrames(question.poly)).length - 1) * FRAME_MS);
               else setF(1);

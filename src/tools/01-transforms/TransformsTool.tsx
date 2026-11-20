@@ -17,10 +17,12 @@ import {
   type TransformQuestionType,
 } from "@/generators/transforms";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { TRANSFORMS_ADAPTER } from "./adapter";
 import { TRANSFORMS_GUIDE } from "./guide";
 import { countFrom, progress } from "./Pictures";
 import { TransformScene } from "./Scene";
@@ -165,6 +167,19 @@ export function TransformsTool() {
   const [scene, setScene] = useState<SceneSetup | null>(null);
   const [painted, setPainted] = useState<string[]>([]);
 
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(TRANSFORMS_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in TRANSFORM_TYPE_LABEL) setTryType(type as TransformQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setInitialPick(undefined);
+    setScene(null);
+    setPainted([]);
+    setRun(null);
+    setF(0);
+  });
+
   // Shareable links: #try=mirror&level=2&seed=7(&pick=n), #show=combo, #f=0.5, #classroom
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
@@ -213,9 +228,15 @@ export function TransformsTool() {
     setF(0);
   };
 
+  const { exam } = practice;
   const onAnswered = useCallback(
-    () => animate(0, 1, question.type === "combo" ? question.moves.length : question.type === "shift" ? (question.form === "draw" ? question.ops.length : shiftLegs(question.vec).length) : 1),
-    [question, animate],
+    (response: number | string[]) => {
+      void practiceCheck(TRANSFORMS_ADAPTER, response);
+      // In a mock exam the moves are not played until the end.
+      if (exam) return;
+      animate(0, 1, question.type === "combo" ? question.moves.length : question.type === "shift" ? (question.form === "draw" ? question.ops.length : shiftLegs(question.vec).length) : 1);
+    },
+    [question, animate, exam],
   );
 
   const steps =
@@ -308,26 +329,29 @@ export function TransformsTool() {
         {board}
       </section>
 
-      <section className={styles.controls}>
-        <label className={styles.slider}>
-          <button className={styles.playSmall} onClick={play} aria-label={run ? "توقف" : "پخش"}>
-            {run ? "⏸" : "▶"}
-          </button>
-          <span>انجام تبدیل</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={f}
-            onChange={(e) => {
-              setRun(null);
-              setF(Number(e.target.value));
-            }}
-            aria-label="میزان انجام تبدیل"
-          />
-        </label>
-      </section>
+      {/* In a mock exam the moves would show the answer, so there is nothing to play; in practice, not before the answer. */}
+      {!(mode === "try" && (exam || (practice.active && !practice.answered))) && (
+        <section className={styles.controls}>
+          <label className={styles.slider}>
+            <button className={styles.playSmall} onClick={play} aria-label={run ? "توقف" : "پخش"}>
+              {run ? "⏸" : "▶"}
+            </button>
+            <span>انجام تبدیل</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={f}
+              onChange={(e) => {
+                setRun(null);
+                setF(Number(e.target.value));
+              }}
+              aria-label="میزان انجام تبدیل"
+            />
+          </label>
+        </section>
+      )}
 
       <aside className={styles.side}>
         {mode === "explore" && (
@@ -489,6 +513,7 @@ export function TransformsTool() {
             onNew={() => freshQuestion()}
             onAnswered={onAnswered}
             onScene={setScene}
+            exam={exam}
           />
         )}
       </aside>

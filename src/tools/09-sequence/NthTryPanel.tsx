@@ -123,6 +123,8 @@ interface Props {
   onType: (t: SeqTryType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 const BOX: React.CSSProperties = {
@@ -145,7 +147,7 @@ export function NthTryPanel(p: Props) {
   const [num, setNum] = useState(done && !rule ? String(checked) : "");
   const [boxes, setBoxes] = useState<[string, string]>(start ? [String(start.coef), String(start.constant)] : ["", ""]);
   const [active, setActive] = useState<0 | 1>(0);
-  const fb = done ? feedback(q, checked) : null;
+  const fb = done && !p.exam ? feedback(q, checked) : null;
 
   const setBox = (v: string) => setBoxes((b) => (active === 0 ? [v, b[1]] : [b[0], v]));
   const ready = rule ? boxes[0] !== "" && boxes[1] !== "" : num !== "";
@@ -153,14 +155,14 @@ export function NthTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله">
+      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله" data-practice-hide>
         {(Object.keys(SEQ_TYPE_LABEL) as SeqTryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={t === "nth"} onClick={() => p.onType(t)}>
             {SEQ_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -197,7 +199,7 @@ export function NthTryPanel(p: Props) {
 
       {done && (
         <output className={styles.bigNumber} aria-live="polite">
-          {checked === q.answer ? "✓" : "✗"} {rule ? ltr(`${fa(ruleParts(checked).coef)} × n + ${fa(ruleParts(checked).constant)}`) : fa(checked)}
+          {p.exam ? "" : checked === q.answer ? "✓" : "✗"} {rule ? ltr(`${fa(ruleParts(checked).coef)} × n + ${fa(ruleParts(checked).constant)}`) : fa(checked)}
         </output>
       )}
 
@@ -212,7 +214,7 @@ export function NthTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && (
+      {done && !p.exam && (
         <p className={styles.hint}>
           {q.variant === "meet"
             ? "روی صفحه، فاصله دو دنباله زیر هر جمله نوشته می‌شود تا صفر شود؛ با نوار پایین جلو و عقب ببر."

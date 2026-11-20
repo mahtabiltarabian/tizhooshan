@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The server has its own build, lint and tests (server/).
+    "server/**",
   ]),
 ]);
 

@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { cases, comb, gridValues, makeCountingQuestion, PEOPLE, perm, routes, worstCase, type Answer, type CountingQuestionType, type Level } from "@/generators/counting";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
+import { COUNTING_ADAPTER } from "./adapter";
 import { CountingTryPanel } from "./CountingTryPanel";
 import { COUNTING_GUIDE } from "./guide";
 import { AfterG, GridG, SetupG, ShowG, SlotsG, TOKEN_FILL } from "./Pictures";
@@ -83,6 +85,19 @@ export function CountingTool() {
   const [seed, setSeed] = useState(1717);
   const [checked, setChecked] = useState<Answer | null>(null);
   const question = useMemo(() => makeCountingQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(COUNTING_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if ((TYPES as string[]).includes(type)) setTryType(type as CountingQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
+  // In a mock exam the cases (which show the answer) wait until the end.
+  const reveal = checked !== null && !practice.exam;
 
   const msFor = (steps: number) => Math.min(16000, 1600 * steps);
   /** Time to show every case after an answer. */
@@ -240,14 +255,14 @@ export function CountingTool() {
     );
   } else {
     board = (
-      <Board view={VIEW} imageName="counting" label={checked === null ? "صورت مسئله" : "همه حالت‌ها"}>
-        {checked === null ? <SetupG q={question} /> : <AfterG q={question} f={f} />}
+      <Board view={VIEW} imageName="counting" label={reveal ? "همه حالت‌ها" : "صورت مسئله"}>
+        {reveal ? <AfterG q={question} f={f} /> : <SetupG q={question} />}
       </Board>
     );
   }
 
   const inTry = mode === "try";
-  const showSlider = mode === "show" || (inTry && checked !== null);
+  const showSlider = mode === "show" || (inTry && reveal);
   const tryCount = afterCount();
   // After an answer: how far the cases (or the worst case, or the dice rows) have come.
   const afterLabel =
@@ -505,9 +520,11 @@ export function CountingTool() {
             type={tryType}
             level={tryLevel}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(msCases(tryCount));
+              void practiceCheck(COUNTING_ADAPTER, v);
+              if (!practice.exam) animate(msCases(tryCount));
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}

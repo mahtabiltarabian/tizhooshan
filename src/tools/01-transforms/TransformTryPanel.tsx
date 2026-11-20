@@ -325,8 +325,11 @@ interface Props {
   onType: (t: TransformQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
-  onAnswered: () => void;
+  /** The child answered: the picked option's index, or the coloured cells. */
+  onAnswered: (response: number | string[]) => void;
   onScene: (s: SceneSetup) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function TransformTryPanel(p: Props) {
@@ -335,21 +338,27 @@ export function TransformTryPanel(p: Props) {
   const [checked, setChecked] = useState(false);
   const answered = picked !== null || checked;
 
-  const scene = useMemo(() => sceneFor(q, answered), [q, answered]);
+  // In a mock exam the board keeps the question as it was (no solution, no
+  // green cells), only the colouring stops.
+  const { exam } = p;
+  const scene = useMemo(() => {
+    const s = sceneFor(q, answered && !exam);
+    return exam && answered ? { ...s, paint: false } : s;
+  }, [q, answered, exam]);
   const { onScene } = p;
   useEffect(() => onScene(scene), [scene, onScene]);
 
   const pick = (i: number) => {
     if (picked !== null) return;
     setPicked(i);
-    p.onAnswered();
+    p.onAnswered(i);
   };
 
-  let fb = picked !== null ? choiceFeedback(q, picked) : null;
-  if (isPaint(q) && checked) fb = paintFeedback(q, p.painted);
+  let fb = picked !== null && !exam ? choiceFeedback(q, picked) : null;
+  if (isPaint(q) && checked && !exam) fb = paintFeedback(q, p.painted);
 
   const mark = (i: number): Tone | null => {
-    if (picked === null || isPaint(q)) return null;
+    if (picked === null || isPaint(q) || exam) return null;
     if (i === q.answer) return "good";
     return i === picked ? choiceFeedback(q, i).tone : null;
   };
@@ -359,14 +368,14 @@ export function TransformTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(TRANSFORM_TYPE_LABEL) as TransformQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {TRANSFORM_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -385,7 +394,7 @@ export function TransformTryPanel(p: Props) {
                 <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null} aria-label={`گزینه ${fa(i + 1)}`}>
                   <FigureSvg fig={fig} box={box} size={104} />
                   <span className={styles.optionNum}>
-                    {fa(i + 1)} {m && ICON[m]}
+                    {fa(i + 1)} {m && ICON[m]}{exam && i === picked && " · انتخاب تو"}
                   </span>
                 </button>
               </li>
@@ -402,7 +411,7 @@ export function TransformTryPanel(p: Props) {
               <li key={i}>
                 <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null}>
                   <span className={styles.optionNum}>
-                    {MOVE_NAME[name]} {m && ICON[m]}
+                    {MOVE_NAME[name]} {m && ICON[m]}{exam && i === picked && " · انتخاب تو"}
                   </span>
                 </button>
               </li>
@@ -419,7 +428,7 @@ export function TransformTryPanel(p: Props) {
               <li key={i}>
                 <button className={`${styles.option} ${m ? styles[m] : ""}`} onClick={() => pick(i)} disabled={picked !== null}>
                   <span className={styles.optionNum}>
-                    {vecText(v)} {m && ICON[m]}
+                    {vecText(v)} {m && ICON[m]}{exam && i === picked && " · انتخاب تو"}
                   </span>
                 </button>
               </li>
@@ -431,7 +440,7 @@ export function TransformTryPanel(p: Props) {
       {isPaint(q) && (
         <>
           <p className={styles.hint}>
-            {checked ? "خانه راه‌راه: رنگ تو · مربع سبز: جای درست · ✗: اشتباه" : `روی خانه‌های صفحه بزن تا رنگ شوند (${fa(p.painted.length)} خانه). دوباره بزنی، پاک می‌شود.`}
+            {checked && exam ? "جوابت ثبت شد." : checked ? "خانه راه‌راه: رنگ تو · مربع سبز: جای درست · ✗: اشتباه" : `روی خانه‌های صفحه بزن تا رنگ شوند (${fa(p.painted.length)} خانه). دوباره بزنی، پاک می‌شود.`}
           </p>
           {!checked && (
             <div className={styles.chips}>
@@ -440,7 +449,7 @@ export function TransformTryPanel(p: Props) {
                 disabled={!p.painted.length}
                 onClick={() => {
                   setChecked(true);
-                  p.onAnswered();
+                  p.onAnswered(p.painted);
                 }}
               >
                 بررسی
@@ -458,7 +467,7 @@ export function TransformTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {answered && <p className={styles.hint}>روی صفحه، تبدیل انجام می‌شود؛ با نوار پایین صفحه جلو و عقب ببر.</p>}
+      {answered && !exam && <p className={styles.hint}>روی صفحه، تبدیل انجام می‌شود؛ با نوار پایین صفحه جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

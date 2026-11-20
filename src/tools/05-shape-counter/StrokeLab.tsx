@@ -167,6 +167,10 @@ interface Props {
   /** Answer from a link (#…&n=): the count, or the option number 1–4. */
   initialN?: number;
   onNew: () => void;
+  /** Try it: the child answered (the count typed in, or the picked option's index). */
+  onCheck?: (response: number) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function StrokeLab(p: Props) {
@@ -352,13 +356,19 @@ function StrokeExploreShow({ mode, topicPicker, figure, onFigure }: Props) {
   );
 }
 
-function StrokeTry({ level, seed, picker, initialN, onNew }: Props) {
+function StrokeTry({ level, seed, picker, initialN, onNew, onCheck, exam }: Props) {
   const q = useMemo(() => makeStrokeQuestion(level, seed), [level, seed]);
   const [picked, setPicked] = useState<number | null>(q.ask !== "count" && initialN !== undefined && initialN >= 1 && initialN <= 4 ? initialN - 1 : null);
   const [value, setValue] = useState(q.ask === "count" && initialN !== undefined ? String(initialN) : "");
   const [checked, setChecked] = useState(q.ask === "count" && initialN !== undefined);
-  const done = q.ask === "count" ? checked : picked !== null;
-  const fb = strokeFeedback(q, picked, q.ask === "count" && checked && value ? Number(value) : null);
+  const answered = q.ask === "count" ? checked : picked !== null;
+  // In a mock exam an answer shows nothing about itself.
+  const done = answered && !exam;
+  const fb = exam ? null : strokeFeedback(q, picked, q.ask === "count" && checked && value ? Number(value) : null);
+  const pick = (i: number) => {
+    setPicked(i);
+    onCheck?.(i);
+  };
   const names = pointNames(q);
 
   let board: ReactNode;
@@ -375,7 +385,7 @@ function StrokeTry({ level, seed, picker, initialN, onNew }: Props) {
                 {oddWord(oddPoints(q.options[i]).length)} {i === q.answer ? "✓" : "✗"}
               </text>
             )}
-            {!done && <rect x={f.x - 1} y={f.y - 1} width={f.w + 2} height={f.h + 2} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setPicked(i)} aria-label={`گزینه ${fa(i + 1)}`} />}
+            {!answered && <rect x={f.x - 1} y={f.y - 1} width={f.w + 2} height={f.h + 2} fill="transparent" style={{ cursor: "pointer" }} onClick={() => pick(i)} aria-label={`گزینه ${fa(i + 1)}`} />}
           </g>
         )}
       />
@@ -400,7 +410,7 @@ function StrokeTry({ level, seed, picker, initialN, onNew }: Props) {
       </section>
       <section className={layout.controls}>
         <p className={layout.stepText} style={{ margin: 0 }}>
-          {done ? "عدد هر رأس = درجه آن؛ مربع = رأس فرد" : "درجه رأس‌ها را بشمار، بعد جواب بده"}
+          {done ? "عدد هر رأس = درجه آن؛ مربع = رأس فرد" : answered ? "جوابت ثبت شد." : "درجه رأس‌ها را بشمار، بعد جواب بده"}
         </p>
       </section>
       <aside className={layout.side}>
@@ -411,15 +421,22 @@ function StrokeTry({ level, seed, picker, initialN, onNew }: Props) {
             <>
               <NumberPad value={value} onChange={setValue} disabled={checked} />
               {!checked && (
-                <button className={tryStyles.secondary} disabled={!value} onClick={() => setChecked(true)}>
+                <button
+                  className={tryStyles.secondary}
+                  disabled={!value}
+                  onClick={() => {
+                    setChecked(true);
+                    onCheck?.(Number(value));
+                  }}
+                >
                   بررسی
                 </button>
               )}
             </>
           ) : (
-            <ChoiceButtons labels={choiceLabels} picked={picked} answer={q.answer} toneOf={(i) => tagTone(q.mistakes[i])} onPick={setPicked} />
+            <ChoiceButtons labels={choiceLabels} picked={picked} answer={q.answer} toneOf={(i) => tagTone(q.mistakes[i])} onPick={pick} exam={exam} />
           )}
-          {!done && <p className={tryStyles.hint}>کمک: در هر نقطه بشمار چند سر خط به آن می‌رسد. اگر ۰ یا ۲ نقطه فرد باشد، می‌شود با یک خط کشید.</p>}
+          {!answered && <p className={tryStyles.hint}>کمک: در هر نقطه بشمار چند سر خط به آن می‌رسد. اگر ۰ یا ۲ نقطه فرد باشد، می‌شود با یک خط کشید.</p>}
           {fb && (
             <p className={`${tryStyles.feedback} ${tryStyles[fb.tone]}`} role="status" aria-live="polite">
               <span className={tryStyles.icon}>{ICON[fb.tone]}</span> {fb.text}

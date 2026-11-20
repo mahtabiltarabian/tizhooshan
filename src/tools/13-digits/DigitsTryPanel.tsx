@@ -268,6 +268,8 @@ interface Props {
   onActive: (i: number) => void;
   onClear: () => void;
   checked: string | null;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onCheck: (v: string) => void;
   onType: (t: DigitsQuestionType) => void;
   onLevel: (l: Level) => void;
@@ -288,7 +290,7 @@ export function DigitsTryPanel(p: Props) {
   const [choice, setChoice] = useState(kind === "choice" && checked !== null ? checked : "");
   const factors = kind === "factors" ? p.entry.filter((x): x is number => x !== null) : [];
   const shownFactors = kind === "factors" && checked !== null ? (readFactors(checked) ?? []) : factors;
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
   const moved = q.type === "match" ? stickDiff(q.start, p.sticks) : null;
   const need = kind === "cards" ? (q.type === "condition" ? q.use : (q as { cards: number[] }).cards.length) : 0;
@@ -325,21 +327,21 @@ export function DigitsTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={own.groups} role="radiogroup" aria-label="دسته پرسش">
+      <div className={own.groups} role="radiogroup" aria-label="دسته پرسش" data-practice-hide>
         {DIGITS_TYPE_GROUPS.map((g, i) => (
           <button key={g.label} role="radio" aria-checked={group === i} onClick={() => group !== i && p.onType(g.types[0])}>
             {g.label}
           </button>
         ))}
       </div>
-      <div className={own.subtypes} role="radiogroup" aria-label={`نوع پرسش در «${DIGITS_TYPE_GROUPS[group].label}»`}>
+      <div className={own.subtypes} role="radiogroup" aria-label={`نوع پرسش در «${DIGITS_TYPE_GROUPS[group].label}»`} data-practice-hide>
         {DIGITS_TYPE_GROUPS[group].types.map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {DIGITS_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -418,9 +420,9 @@ export function DigitsTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && q.type === "count" && <p className={styles.hint}>روی صفحه: یکان با مربع، دهگان با خط زیر، صدگان با دایره. با نوار پایین، دسته‌ها یکی‌یکی نشان داده می‌شوند.</p>}
-      {done && isMore(q) && <p className={styles.hint}>راه‌حل گام به گام روی صفحه است؛ با نوار پایین جلو و عقب ببر.</p>}
-      {done && q.type === "match" && <p className={styles.hint}>روی صفحه، {q.moves === 1 ? "چوب" : "چوب‌ها"} از جای قبلی به جای درست می‌روند؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && q.type === "count" && <p className={styles.hint}>روی صفحه: یکان با مربع، دهگان با خط زیر، صدگان با دایره. با نوار پایین، دسته‌ها یکی‌یکی نشان داده می‌شوند.</p>}
+      {done && !p.exam && isMore(q) && <p className={styles.hint}>راه‌حل گام به گام روی صفحه است؛ با نوار پایین جلو و عقب ببر.</p>}
+      {done && !p.exam && q.type === "match" && <p className={styles.hint}>روی صفحه، {q.moves === 1 ? "چوب" : "چوب‌ها"} از جای قبلی به جای درست می‌روند؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

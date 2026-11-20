@@ -223,19 +223,23 @@ interface Props {
   onType: (t: PatternQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function PatternTryPanel(p: Props) {
-  const { question: q, picked } = p;
+  const { question: q, picked, exam } = p;
   const [rulesOpen, setRulesOpen] = useState(false);
   // «شکل متفاوت» is chosen on the board itself; every other type can be dragged into the blank.
   const draggable = q.type !== "odd" && picked === null;
   const { ghost, props: dragProps, isDragClick } = useOptionDrag(draggable, p.onPick, (over) => p.onDropHover?.(over));
   const picture = (o: Tile | Tile[], size?: number) =>
     q.type === "missing" ? <PatchSvg tiles={o as Tile[]} size={size ?? 84} /> : <TileSvg tile={o as Tile} size={size ?? (q.type === "odd" ? 48 : 72)} />;
-  const fb = picked !== null ? feedback(q, picked) : null;
+  // In a mock exam a picked answer shows nothing about itself.
+  const reveal = picked !== null && !exam;
+  const fb = reveal ? feedback(q, picked) : null;
   const mark = (i: number): Tone | null => {
-    if (picked === null) return null;
+    if (!reveal) return null;
     if (i === q.answer) return "good";
     return i === picked ? feedback(q, i).tone : null;
   };
@@ -245,14 +249,14 @@ export function PatternTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(PATTERN_TYPE_LABEL) as PatternQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {PATTERN_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -280,6 +284,7 @@ export function PatternTryPanel(p: Props) {
                 {picture(o)}
                 <span className={styles.optionNum}>
                   {fa(i + 1)} {m && ICON[m]}
+                  {exam && i === picked && " · انتخاب تو"}
                 </span>
               </button>
             </li>
@@ -318,7 +323,7 @@ export function PatternTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {picked !== null && summaries.length > 0 && (
+      {reveal && summaries.length > 0 && (
         <>
           <button className={styles.secondary} onClick={() => setRulesOpen((o) => !o)} aria-expanded={rulesOpen}>
             {rulesOpen ? "پنهان کردن قانون‌ها" : "قانون‌ها چه بود؟"}
@@ -332,7 +337,7 @@ export function PatternTryPanel(p: Props) {
           )}
         </>
       )}
-      {picked !== null && q.type !== "odd" && <p className={styles.hint}>روی صفحه، قانون هر سطر و ستون جداگانه برجسته می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
+      {reveal && q.type !== "odd" && <p className={styles.hint}>روی صفحه، قانون هر سطر و ستون جداگانه برجسته می‌شود؛ با نوار پایین جلو و عقب ببر.</p>}
 
       <button className={styles.next} onClick={p.onNew}>
         نمونه تازه

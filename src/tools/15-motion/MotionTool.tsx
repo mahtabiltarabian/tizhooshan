@@ -27,10 +27,12 @@ import {
 } from "@/generators/motion";
 import { allDistances, dijkstraSteps, exploreMap, MAP_UNIT, roadBetween, TOWN_NAMES, traceBack, type RoadMap } from "@/generators/motion-map";
 import { mulberry32, newSeed, pick, randInt } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
+import { MOTION_ADAPTER } from "./adapter";
 import { MOTION_GUIDE } from "./guide";
 import { MOTION_TYPE_LABEL, MotionTryPanel, turnFa } from "./MotionTryPanel";
 import { CompassG, GraphG, GridG, linkEffect, linkWord, MachineG, MiniCompass, numFa, partialPath, ROT_ICON, ROT_WORD, TrackG, WHEEL_NAMES, type TrackMover } from "./Pictures";
@@ -257,6 +259,16 @@ export function MotionTool() {
   const [seed, setSeed] = useState(1515);
   const [checked, setChecked] = useState<number | null>(null);
   const question = useMemo(() => makeMotionQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(MOTION_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if (type in MOTION_TYPE_LABEL) setTryType(type as MotionQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setChecked(null);
+    play.set(0);
+  });
 
   const gearM = useMemo(() => gearMachine(teeth), [teeth]);
   const beltM = useMemo(() => beltMachine(pulleys, crossed), [pulleys, crossed]);
@@ -625,7 +637,8 @@ export function MotionTool() {
     }
   } else {
     const q = question;
-    const done = checked !== null;
+    // In a mock exam the board keeps the question as it was: no turning wheels, graph, path or count.
+    const done = checked !== null && !practice.exam;
     if (q.type === "gearDir" || q.type === "gearTurns") {
       const turns = q.type === "gearTurns" ? q.turns : 1;
       const qDriver = q.type === "gearDir" ? q.driver : 0;
@@ -1256,9 +1269,11 @@ export function MotionTool() {
             type={tryType}
             level={tryLevel}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              play.animate(0, 1, tryMs(question));
+              void practiceCheck(MOTION_ADAPTER, v);
+              if (!practice.exam) play.animate(0, 1, tryMs(question));
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}

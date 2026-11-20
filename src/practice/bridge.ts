@@ -163,7 +163,8 @@ export function usePractice(adapter: ToolAdapter, onQuestion?: (type: string, le
   }, [adapter]);
   const item = r && !r.finished ? r.items[r.index] : undefined;
   const active = !!item && item.tool === adapter.tool && new URLSearchParams(hash.slice(1)).has("practice");
-  return { active, exam: active && r?.kind === "exam" };
+  // `answered`: the question on screen is already recorded (tools hide answer-revealing aids until then).
+  return { active, exam: active && r?.kind === "exam", answered: active && !!r?.results[r.index] };
 }
 
 /**

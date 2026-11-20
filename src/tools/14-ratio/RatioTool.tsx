@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { cmpFrac, gcd, makeRatioQuestion, simplest, type Answer, type Level, type RatioQuestionType, type Shape } from "@/generators/ratio";
 import { newSeed } from "@/generators/random";
+import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { TeacherGuideButton } from "@/toolkit/TeacherGuide";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/ToolLayout.module.css";
 import tryStyles from "@/toolkit/TryPanel.module.css";
+import { RATIO_ADAPTER } from "./adapter";
 import { FracG, Rich } from "./Frac";
 import { RATIO_GUIDE } from "./guide";
 import { ModelG, Patterns, RowsG, SetupG, ShapeG, Tx, type BlockRow, type Kind } from "./Pictures";
@@ -80,6 +82,18 @@ export function RatioTool() {
   const [trySel, setTrySel] = useState<number[]>([]);
   const [checked, setChecked] = useState<Answer | null>(null);
   const question = useMemo(() => makeRatioQuestion(tryType, tryLevel, seed), [tryType, tryLevel, seed]);
+
+  // Practice sessions: the next question of this tool arrives through the address.
+  const practice = usePractice(RATIO_ADAPTER, (type, level, sd) => {
+    setMode("try");
+    if ((TYPES as string[]).includes(type)) setTryType(type as RatioQuestionType);
+    if (level === 1 || level === 2 || level === 3) setTryLevel(level);
+    setSeed(sd);
+    setTrySel([]);
+    setChecked(null);
+    setRun(null);
+    setF(0);
+  });
 
   const msFor = (steps: number) => Math.min(14000, 1500 * steps);
 
@@ -219,13 +233,15 @@ export function RatioTool() {
     );
   } else {
     const q = question;
-    const done = checked !== null;
+    // In a mock exam the bar model (the worked answer) waits for the end; the shape stays as shaded.
+    const done = checked !== null && !practice.exam;
+    const locked = checked !== null;
     board = (
       <Board view={VIEW} imageName="ratio" label={q.type === "shade" && !done ? "شکل؛ روی قسمت‌ها بزن تا رنگ شوند" : "مدل نواری"}>
         <Patterns />
         {q.type === "shade" && !done ? (
           <>
-            <ShapeG shape={q.shape} parts={q.parts} shaded={(i) => trySel.includes(i)} box={q.shape === "bar" ? [1.2, 3.2, 11.4, 1.8] : [3.6, 0.7, 7.6, 7.6]} onPart={(i) => setTrySel(toggle(trySel, i))} />
+            <ShapeG shape={q.shape} parts={q.parts} shaded={(i) => trySel.includes(i)} box={q.shape === "bar" ? [1.2, 3.2, 11.4, 1.8] : [3.6, 0.7, 7.6, 7.6]} onPart={(i) => !locked && setTrySel(toggle(trySel, i))} />
             <FracG f={q.frac} x={14.4} y={4.1} size={0.8} />
           </>
         ) : done ? (
@@ -238,7 +254,7 @@ export function RatioTool() {
   }
 
   const inTry = mode === "try";
-  const showSlider = mode === "show" || (inTry && checked !== null);
+  const showSlider = mode === "show" || (inTry && checked !== null && !practice.exam);
   const total = counts.reduce((s, c) => s + c, 0);
   const g = counts.reduce((a, b) => gcd(a, b), 0);
   const frac = { n: shaded.length, d: parts };
@@ -480,9 +496,11 @@ export function RatioTool() {
             shadedCount={trySel.length}
             onClearShade={() => setTrySel([])}
             checked={checked}
+            exam={practice.exam}
             onCheck={(v) => {
               setChecked(v);
-              animate(msFor(tryStepsCount));
+              void practiceCheck(RATIO_ADAPTER, v);
+              if (!practice.exam) animate(msFor(tryStepsCount));
             }}
             onType={(t) => freshQuestion(t, tryLevel)}
             onLevel={(l) => freshQuestion(tryType, l)}

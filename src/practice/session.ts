@@ -92,3 +92,20 @@ export function planSession(opts: {
   challenges.forEach((c) => out.splice(Math.max(1, out.length - 2), 0, c));
   return out;
 }
+
+export const EXAM_MINUTES_PER_QUESTION = 2;
+
+/**
+ * Mock exam: one question from every tool, in the exam's order of areas
+ * (visual, computational, logical), a step above the child's comfortable
+ * level, about 2 minutes a question. Time matters only here (plan v2, 7.1).
+ */
+export function planExam(opts: { catalog: readonly SkillInfo[]; states: ReadonlyMap<SkillKey, SkillState>; seed: number; toolOrder: readonly string[] }): SessionItem[] {
+  const rng = mulberry32(opts.seed);
+  return opts.toolOrder.flatMap((tool) => {
+    const skills = opts.catalog.filter((s) => s.tool === tool);
+    if (!skills.length) return [];
+    const s = skills[randInt(rng, skills.length)];
+    return [{ tool, type: s.type, level: challengeLevel(opts.states.get(s.key)?.theta ?? 0, s.levels), seed: freshSeed(rng), mode: "exam" as const }];
+  });
+}

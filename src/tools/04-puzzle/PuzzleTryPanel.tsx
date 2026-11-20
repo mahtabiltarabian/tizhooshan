@@ -96,16 +96,22 @@ interface Props {
   buildStatus?: { done: boolean; text: string } | null;
   onCheckBuild?: () => void;
   onShowBuild?: () => void;
+  /** «بررسی» was pressed on this build. */
+  buildChecked?: boolean;
+  /** Practice: «نشانم بده» would give the build away before the check. */
+  hideShowBuild?: boolean;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
   onType: (t: PuzzleQuestionType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
 }
 
 export function PuzzleTryPanel(p: Props) {
-  const { question: q, picked } = p;
-  const fb = q.type !== "build" && picked !== null ? feedback(q, picked) : null;
+  const { question: q, picked, exam } = p;
+  const fb = q.type !== "build" && picked !== null && !exam ? feedback(q, picked) : null;
   const mark = (i: number): Tone | null => {
-    if (picked === null || q.type === "build") return null;
+    if (picked === null || q.type === "build" || exam) return null;
     if (i === q.answer) return "good";
     return i === picked ? feedback(q, i).tone : null;
   };
@@ -134,14 +140,14 @@ export function PuzzleTryPanel(p: Props) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش">
+      <div className={styles.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
         {(Object.keys(PUZZLE_TYPE_LABEL) as PuzzleQuestionType[]).map((t) => (
           <button key={t} role="radio" aria-checked={p.type === t} onClick={() => p.onType(t)}>
             {PUZZLE_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -154,17 +160,21 @@ export function PuzzleTryPanel(p: Props) {
       {q.type === "build" ? (
         <>
           {q.name && <p className={styles.hint}>شکل: {q.name}</p>}
-          <button className={styles.secondary} onClick={p.onCheckBuild} disabled={p.buildStatus?.done}>
+          {/* In a mock exam a finished shadow must not show itself by a disabled button. */}
+          <button className={styles.secondary} onClick={p.onCheckBuild} disabled={exam ? p.buildChecked : p.buildStatus?.done}>
             بررسی
           </button>
-          {p.buildStatus && (
+          {exam && p.buildChecked && <p className={styles.hint}>جوابت ثبت شد.</p>}
+          {p.buildStatus && !exam && (
             <p className={`${styles.feedback} ${styles[p.buildStatus.done ? "good" : "turned"]}`} role="status" aria-live="polite">
               <span className={styles.icon}>{ICON[p.buildStatus.done ? "good" : "turned"]}</span> {p.buildStatus.text}
             </p>
           )}
-          <button className={styles.secondary} onClick={p.onShowBuild}>
-            نشانم بده
-          </button>
+          {!p.hideShowBuild && (
+            <button className={styles.secondary} onClick={p.onShowBuild}>
+              نشانم بده
+            </button>
+          )}
           <p className={styles.hint}>قطعه انتخاب‌شده را با دکمه‌های پایین صفحه هم می‌شود چرخاند{q.allowFlip ? " و برگرداند" : ""}.</p>
         </>
       ) : (
@@ -177,6 +187,7 @@ export function PuzzleTryPanel(p: Props) {
                   {o}
                   <span className={styles.optionNum}>
                     {fa(i + 1)} {m && ICON[m]}
+                    {exam && i === picked && " · انتخاب تو"}
                   </span>
                 </button>
               </li>

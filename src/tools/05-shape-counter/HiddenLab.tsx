@@ -119,6 +119,10 @@ interface Props {
   /** Option number 1–4 from a link (#…&n=). */
   initialN?: number;
   onNew: () => void;
+  /** Try it: the child picked an option (its index). */
+  onCheck?: (picked: number) => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function HiddenLab(p: Props) {
@@ -278,27 +282,32 @@ function HiddenShow({ topicPicker, ex, onEx }: Props) {
   );
 }
 
-function HiddenTry({ level, seed, picker, initialN, onNew }: Props) {
+function HiddenTry({ level, seed, picker, initialN, onNew, onCheck, exam }: Props) {
   const q = useMemo(() => makeHiddenQuestion(level, seed), [level, seed]);
   const [picked, setPicked] = useState<number | null>(initialN !== undefined && initialN >= 1 && initialN <= 4 ? initialN - 1 : null);
-  const done = picked !== null;
+  const pick = (i: number) => {
+    setPicked(i);
+    onCheck?.(i);
+  };
+  // In a mock exam a pick shows nothing about itself.
+  const done = picked !== null && !exam;
   const fb = done ? hiddenFeedback(q, picked) : null;
   return (
     <>
       <section className={layout.stageWrap} aria-label="صفحه شکل">
-        <QuestionBoard q={q} marks={(i) => (done ? optionMarks(q, i) : [])} onPick={done ? undefined : setPicked} captions={(i) => (done ? caption(q, i) : null)} />
+        <QuestionBoard q={q} marks={(i) => (done ? optionMarks(q, i) : [])} onPick={picked !== null ? undefined : pick} captions={(i) => (done ? caption(q, i) : exam && i === picked ? "انتخاب تو" : null)} />
       </section>
       <section className={layout.controls}>
         <p className={layout.stepText} style={{ margin: 0 }}>
-          {done ? "هاشور = شکل پنهان؛ خط‌چین = شبیه آن ولی قبول نیست" : "روی یکی از چهار شکل بزن"}
+          {done ? "هاشور = شکل پنهان؛ خط‌چین = شبیه آن ولی قبول نیست" : picked !== null ? "جوابت ثبت شد." : "روی یکی از چهار شکل بزن"}
         </p>
       </section>
       <aside className={layout.side}>
         <div className={tryStyles.panel}>
           {picker}
           <p className={tryStyles.prompt}>{hiddenPrompt(q)}</p>
-          <ChoiceButtons labels={[1, 2, 3, 4].map((i) => `گزینه ${fa(i)}`)} picked={picked} answer={q.answer} toneOf={(i) => (q.mistakes[i] ? "turned" : "bad")} onPick={setPicked} />
-          {!done && <p className={tryStyles.hint}>کمک: یک ضلع مشخص شکل (مثلاً ضلع پایین) را در هر گزینه پیدا کن، بعد ببین بقیه ضلع‌ها هم با همان جهت روی خط‌ها هستند یا نه.</p>}
+          <ChoiceButtons labels={[1, 2, 3, 4].map((i) => `گزینه ${fa(i)}`)} picked={picked} answer={q.answer} toneOf={(i) => (q.mistakes[i] ? "turned" : "bad")} onPick={pick} exam={exam} />
+          {picked === null && <p className={tryStyles.hint}>کمک: یک ضلع مشخص شکل (مثلاً ضلع پایین) را در هر گزینه پیدا کن، بعد ببین بقیه ضلع‌ها هم با همان جهت روی خط‌ها هستند یا نه.</p>}
           {fb && (
             <p className={`${tryStyles.feedback} ${tryStyles[fb.tone]}`} role="status" aria-live="polite">
               <span className={tryStyles.icon}>{ICON[fb.tone]}</span> {fb.text}

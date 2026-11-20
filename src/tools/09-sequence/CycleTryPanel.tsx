@@ -96,6 +96,8 @@ interface Props {
   onType: (t: SeqTryType) => void;
   onLevel: (l: Level) => void;
   onNew: () => void;
+  /** Mock exam: record the answer, show nothing about it. */
+  exam?: boolean;
 }
 
 export function CycleTryPanel(p: Props) {
@@ -103,20 +105,20 @@ export function CycleTryPanel(p: Props) {
   const isCount = cycleAnswerIsCount(q);
   const [num, setNum] = useState(isCount && checked !== null ? String(checked) : "");
   const [choice, setChoice] = useState<number | null>(!isCount ? checked : null);
-  const fb = checked !== null ? feedback(q, checked) : null;
+  const fb = checked !== null && !p.exam ? feedback(q, checked) : null;
   const done = checked !== null;
   const choices = cycleChoices(q);
 
   return (
     <div className={styles.panel}>
-      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله">
+      <div className={styles.types} role="radiogroup" aria-label="نوع دنباله" data-practice-hide>
         {(Object.keys(SEQ_TYPE_LABEL) as SeqTryType[]).map((t) => (
           <button key={t} role="radio" aria-checked={t === "cycle"} onClick={() => p.onType(t)}>
             {SEQ_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
-      <div className={styles.chips} role="radiogroup" aria-label="سطح">
+      <div className={styles.chips} role="radiogroup" aria-label="سطح" data-practice-hide>
         {([1, 2, 3] as Level[]).map((l) => (
           <button key={l} role="radio" aria-checked={p.level === l} onClick={() => p.onLevel(l)}>
             سطح {fa(l)}
@@ -140,7 +142,7 @@ export function CycleTryPanel(p: Props) {
               disabled={done}
               style={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: "0.85rem" }}
             >
-              {done && id === q.answer ? "✓ " : done && id === checked ? "✗ " : ""}
+              {done && !p.exam && id === q.answer ? "✓ " : done && !p.exam && id === checked ? "✗ " : ""}
               <SymbolIcon set={q.set} id={id} />
               {q.set === "days" ? SYMBOL_NAMES.days[id] : q.set === "letters" ? "" : SYMBOL_NAMES[q.set][id]}
             </button>
@@ -150,7 +152,7 @@ export function CycleTryPanel(p: Props) {
 
       {done && isCount && (
         <output className={styles.bigNumber} aria-live="polite">
-          {checked === q.answer ? "✓" : "✗"} {fa(checked)}
+          {p.exam ? "" : checked === q.answer ? "✓" : "✗"} {fa(checked)}
         </output>
       )}
 
@@ -165,7 +167,7 @@ export function CycleTryPanel(p: Props) {
           <span className={styles.icon}>{ICON[fb.tone]}</span> {fb.text}
         </p>
       )}
-      {done && <p className={styles.hint}>روی صفحه، هر دور در یک قاب است؛ با نوار پایین ببین خانه {fa(q.n)} در کدام دور و کجای آن است.</p>}
+      {done && !p.exam && <p className={styles.hint}>روی صفحه، هر دور در یک قاب است؛ با نوار پایین ببین خانه {fa(q.n)} در کدام دور و کجای آن است.</p>}
       {!done && <p className={styles.hint}>همه خانه‌ها را نشمار: ببین هر دور چند خانه است و {fa(q.n)} را بر آن تقسیم کن.</p>}
 
       <button className={styles.next} onClick={p.onNew}>

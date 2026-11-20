@@ -19,7 +19,7 @@ export interface ChildSummary {
 
 export function summarize(attempts: readonly Attempt[], reviews: readonly ReviewItem[], now: number): ChildSummary {
   const today = dayNumber(now);
-  const days = attempts.filter((a) => a.mode !== "speed" || a.tag === "right").map((a) => dayNumber(a.createdAt));
+  const days = attempts.map((a) => dayNumber(a.createdAt));
   const { weeks, daysThisWeek } = chain(days, today);
   // A review answered right moved a notebook entry on: count those.
   const reviewsDone = attempts.filter((a) => a.mode === "review" && a.tag === "right").length;

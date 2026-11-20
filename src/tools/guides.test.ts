@@ -20,6 +20,7 @@ import { COUNTING_GUIDE } from "./17-counting/guide";
 import { CODES_GUIDE } from "./18-codes/guide";
 import { LOGIC_GUIDE } from "./19-logic/guide";
 import { SEATING_GUIDE } from "./20-seating/guide";
+import { SPEED_GUIDE } from "./21-speed/guide";
 
 const GUIDES: [string, GuideContent][] = [
   ["01 transforms", TRANSFORMS_GUIDE],
@@ -42,6 +43,7 @@ const GUIDES: [string, GuideContent][] = [
   ["18 codes", CODES_GUIDE],
   ["19 logic", LOGIC_GUIDE],
   ["20 seating", SEATING_GUIDE],
+  ["21 speed", SPEED_GUIDE],
 ];
 
 // Plan section 4: every tool has 8–12 hand-picked, reviewed examples, and
