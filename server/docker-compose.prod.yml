@@ -33,6 +33,8 @@ services:
       SMS_SENDER: ${SMS_SENDER:-dev}
       SMS_API_KEY: ${SMS_API_KEY:-}
       OTP_SECRET: ${OTP_SECRET:?set OTP_SECRET}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-600}
+      RATE_LIMIT_AUTH_PER_MIN: ${RATE_LIMIT_AUTH_PER_MIN:-30}
       TRUST_PROXY: "1"
       TZ: Asia/Tehran
     ports:

@@ -50,6 +50,7 @@ export function answer(x: AnswerInput): AnswerResult {
     durationMs: Math.max(0, Math.round(x.durationMs)),
     mode: item.mode,
     createdAt: x.now,
+    ...(item.mode === "review" && item.reviewOf ? { reviewOf: item.reviewOf } : {}),
   };
   const key = skillKey(item.tool, item.type);
   const skill = updateSkill(x.skill ?? { childId: x.childId, skill: key, theta: 0, n: 0, updatedAt: x.now }, item.level, score, x.now);

@@ -5,6 +5,8 @@
 // Auth: "Authorization: Bearer <token>" on every call except /v1/auth/*.
 // Errors: { error: string } with a 4xx/5xx status; `error` is a short
 // machine code ("bad_code", "not_found", "forbidden", "rate_limited" …).
+// Requests per address are limited (sign-in more tightly): past the limit,
+// 429 "rate_limited" with a Retry-After header in seconds.
 
 import type { Attempt, Profile } from "./types";
 
@@ -60,7 +62,9 @@ export type AttemptDto = Omit<Attempt, "synced">;
 // generators and grades `response` again; `tag` and `score` from the device
 // are kept as sent, the server's own grading is stored next to them and a
 // difference is counted in `mismatched` (never an error: devices may run an
-// older version). At most 500 attempts per call.
+// older version). At most 500 attempts per call. A review answer names the
+// notebook entry it was for (`reviewOf`), so the server moves that same
+// entry; answers from older apps without it are matched by skill and level.
 export interface AttemptBatch {
   attempts: AttemptDto[];
 }

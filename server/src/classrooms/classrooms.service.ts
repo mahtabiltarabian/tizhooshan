@@ -43,13 +43,13 @@ export class ClassroomsService {
   /** The teacher's own classroom, or 404: another teacher's classroom is "not found" too. */
   async ownClassroom(teacherId: string, rawId: string): Promise<Classroom> {
     const id = idParam(rawId);
-    const c = await this.prisma.classroom.findUnique({ where: { id } });
+    const c = await this.prisma.db.classroom.findUnique({ where: { id } });
     if (!c || c.teacherId !== teacherId) throw notFound();
     return c;
   }
 
   async list(teacherId: string): Promise<ClassroomDto[]> {
-    const rows = await this.prisma.classroom.findMany({
+    const rows = await this.prisma.db.classroom.findMany({
       where: { teacherId },
       orderBy: { createdAt: "asc" },
       include: { memberships: { orderBy: { joinedAt: "asc" }, include: { child: { select: { id: true, nickname: true, avatar: true, grade: true } } } } },
@@ -60,12 +60,19 @@ export class ClassroomsService {
 
   async create(teacherId: string, body: unknown): Promise<ClassroomDto> {
     const { name } = parseBody(CreateClassroom, body);
+    // A failed insert would end the request's transaction, so a free code is
+    // found first. Codes are unique across all teachers: asked of the system
+    // connection, which says only whether the code is taken.
     for (let i = 0; i < 8; i++) {
+      const joinCode = newJoinCode();
+      if (await this.prisma.classroom.count({ where: { joinCode } })) continue;
       try {
-        const c = await this.prisma.classroom.create({ data: { teacherId, name, joinCode: newJoinCode() } });
+        const c = await this.prisma.db.classroom.create({ data: { teacherId, name, joinCode } });
         return { ...classroomDto(c), children: [] };
       } catch (e) {
-        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+        // Taken by another teacher at this very moment.
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") break;
+        throw e;
       }
     }
     throw new ApiError(503, "try_again");
@@ -73,7 +80,7 @@ export class ClassroomsService {
 
   async remove(teacherId: string, id: string) {
     const c = await this.ownClassroom(teacherId, id);
-    await this.prisma.classroom.delete({ where: { id: c.id } });
+    await this.prisma.db.classroom.delete({ where: { id: c.id } });
   }
 
   async join(parentId: string, body: unknown): Promise<ClassroomDto> {
@@ -81,9 +88,11 @@ export class ClassroomsService {
     const code = asciiDigits(p.code).replace(/[\s-]/g, "").toUpperCase();
     if (!JOIN_CODE.test(code)) throw badRequest("bad_join_code");
     const child = await this.children.ownChild(parentId, p.childId);
+    // The parent cannot see a classroom before joining it: the code is looked
+    // up on the system connection (knowing the code is the permission).
     const c = await this.prisma.classroom.findUnique({ where: { joinCode: code } });
     if (!c) throw new ApiError(404, "bad_join_code");
-    await this.prisma.membership.createMany({ data: [{ classroomId: c.id, childId: child.id, joinedAt: new Date() }], skipDuplicates: true });
+    await this.prisma.db.membership.createMany({ data: [{ classroomId: c.id, childId: child.id, joinedAt: new Date() }], skipDuplicates: true });
     return classroomDto(c);
   }
 
@@ -91,18 +100,18 @@ export class ClassroomsService {
   async leave(user: AuthUser, rawClassroomId: string, rawChildId: string) {
     const classroomId = idParam(rawClassroomId);
     const childId = idParam(rawChildId);
-    const m = await this.prisma.membership.findUnique({
+    const m = await this.prisma.db.membership.findUnique({
       where: { classroomId_childId: { classroomId, childId } },
       include: { child: { select: { parentId: true } }, classroom: { select: { teacherId: true } } },
     });
     const allowed = m && (user.role === "parent" ? m.child.parentId === user.id : m.classroom.teacherId === user.id);
     if (!m || !allowed) throw notFound();
-    await this.prisma.membership.delete({ where: { classroomId_childId: { classroomId, childId } } });
+    await this.prisma.db.membership.delete({ where: { classroomId_childId: { classroomId, childId } } });
   }
 
   async assignments(teacherId: string, id: string): Promise<AssignmentDto[]> {
     const c = await this.ownClassroom(teacherId, id);
-    const rows = await this.prisma.assignment.findMany({ where: { classroomId: c.id }, orderBy: [{ due: "asc" }, { createdAt: "asc" }] });
+    const rows = await this.prisma.db.assignment.findMany({ where: { classroomId: c.id }, orderBy: [{ due: "asc" }, { createdAt: "asc" }] });
     return rows.map(assignmentDto);
   }
 
@@ -114,21 +123,21 @@ export class ClassroomsService {
     const known = new Set(SKILLS.map((s) => s.key));
     const skills = [...new Set(p.skills)];
     if (skills.some((s) => !known.has(s))) throw badRequest("unknown_skill");
-    const a = await this.prisma.assignment.create({ data: { classroomId: c.id, title: p.title, skills, due } });
+    const a = await this.prisma.db.assignment.create({ data: { classroomId: c.id, title: p.title, skills, due } });
     return assignmentDto(a);
   }
 
   async removeAssignment(teacherId: string, id: string, rawAid: string) {
     const c = await this.ownClassroom(teacherId, id);
     const aid = idParam(rawAid);
-    const { count } = await this.prisma.assignment.deleteMany({ where: { id: aid, classroomId: c.id } });
+    const { count } = await this.prisma.db.assignment.deleteMany({ where: { id: aid, classroomId: c.id } });
     if (!count) throw notFound();
   }
 
   /** Open assignments (due today or later, server calendar) of every classroom the child is in. */
   async childAssignments(parentId: string, rawChildId: string): Promise<AssignmentDto[]> {
     const child = await this.children.ownChild(parentId, rawChildId);
-    const rows = await this.prisma.assignment.findMany({
+    const rows = await this.prisma.db.assignment.findMany({
       where: { classroom: { memberships: { some: { childId: child.id } } }, due: { gte: todayDate() } },
       orderBy: [{ due: "asc" }, { createdAt: "asc" }],
     });
@@ -142,18 +151,18 @@ export class ClassroomsService {
    */
   async heatmap(teacherId: string, id: string): Promise<Heatmap> {
     const c = await this.ownClassroom(teacherId, id);
-    const members = await this.prisma.membership.findMany({
+    const members = await this.prisma.db.membership.findMany({
       where: { classroomId: c.id },
       orderBy: { joinedAt: "asc" },
       include: { child: { select: { id: true, nickname: true } } },
     });
-    const counts = await this.prisma.$queryRaw<{ child_id: string; tool: string; type: string; n: number }[]>`
+    const counts = await this.prisma.db.$queryRaw<{ child_id: string; tool: string; type: string; n: number }[]>`
       SELECT a.child_id::text AS child_id, a.tool, a.type, count(*)::int AS n
       FROM attempts a
       JOIN memberships m ON m.child_id = a.child_id AND m.classroom_id = ${c.id}::uuid
       WHERE a.created_at >= m.joined_at
       GROUP BY a.child_id, a.tool, a.type`;
-    const states = await this.prisma.skillState.findMany({ where: { childId: { in: members.map((m) => m.childId) } } });
+    const states = await this.prisma.db.skillState.findMany({ where: { childId: { in: members.map((m) => m.childId) } } });
     const state = new Map(states.map((s) => [`${s.childId}|${s.skill}`, s]));
     const answers = new Map(counts.map((r) => [`${r.child_id}|${skillKey(r.tool, r.type)}`, r.n]));
     const order = new Map(SKILLS.map((s, i) => [s.key, i]));

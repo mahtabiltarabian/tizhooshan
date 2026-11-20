@@ -3,6 +3,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import express, { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import { ApiExceptionFilter } from "./common/exception.filter";
+import { rateLimit, rateLimits } from "./common/rate-limit";
 
 export const BODY_LIMIT = "1mb";
 
@@ -29,6 +30,8 @@ export function configureApp(app: INestApplication) {
     allowedHeaders: ["Authorization", "Content-Type"],
     maxAge: 600,
   });
+  // Before the body is read: a flood costs as little as possible.
+  ex.use(rateLimit(rateLimits()));
   const json = express.json({ limit: BODY_LIMIT, strict: true });
   ex.use((req: Request, res: Response, next: NextFunction) =>
     json(req, res, (err?: { type?: string; status?: number }) => {

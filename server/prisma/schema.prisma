@@ -133,6 +133,8 @@ model Attempt {
   hintsUsed        Int      @map("hints_used")
   durationMs       Int      @map("duration_ms")
   mode             String
+  /// Review answers: the notebook entry (its attempt id) the question was for. Null from older apps.
+  reviewOf         String?  @map("review_of") @db.Uuid
   createdAt        DateTime @map("created_at")
   receivedAt       DateTime @default(now()) @map("received_at")
   /// As graded again on the server, from (tool, type, level, seed).

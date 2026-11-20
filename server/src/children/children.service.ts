@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { Child } from "@prisma/client";
+import { Prisma, type Child } from "@prisma/client";
 import { z } from "zod";
 import { badRequest, forbidden, notFound } from "../common/errors";
 import { idParam, parseBody, uuid } from "../common/validate";
@@ -35,13 +35,13 @@ export class ChildrenService {
   /** The parent's own child, or 404 (another parent's child is "not found" too). */
   async ownChild(parentId: string, rawId: string): Promise<Child> {
     const id = idParam(rawId);
-    const child = await this.prisma.child.findUnique({ where: { id } });
+    const child = await this.prisma.db.child.findUnique({ where: { id } });
     if (!child || child.parentId !== parentId) throw notFound();
     return child;
   }
 
   async list(parentId: string) {
-    const rows = await this.prisma.child.findMany({ where: { parentId }, orderBy: { createdAt: "asc" } });
+    const rows = await this.prisma.db.child.findMany({ where: { parentId }, orderBy: { createdAt: "asc" } });
     return rows.map(childDto);
   }
 
@@ -49,15 +49,27 @@ export class ChildrenService {
     const id = idParam(rawId);
     const p = parseBody(ChildBody, body);
     if (p.id.toLowerCase() !== id) throw badRequest("id_mismatch");
-    const existing = await this.prisma.child.findUnique({ where: { id } });
-    if (existing && existing.parentId !== parentId) throw forbidden();
+    // Another parent's child is invisible here (row-level security), so
+    // whether the id is taken is asked of the system connection: only a yes
+    // or no comes back.
+    if (await this.takenByOther(parentId, id)) throw forbidden();
     const data = { nickname: p.nickname, avatar: p.avatar, grade: p.grade, birthYear: p.birthYear, dailyLimitMin: p.dailyLimitMin, createdAt: new Date(p.createdAt) };
-    const row = await this.prisma.child.upsert({ where: { id }, create: { id, parentId, ...data }, update: data });
-    return childDto(row);
+    try {
+      const row = await this.prisma.db.child.upsert({ where: { id }, create: { id, parentId, ...data }, update: data });
+      return childDto(row);
+    } catch (e) {
+      // The same id made by another parent at this very moment.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw forbidden();
+      throw e;
+    }
+  }
+
+  private async takenByOther(parentId: string, id: string) {
+    return (await this.prisma.child.count({ where: { id, parentId: { not: parentId } } })) > 0;
   }
 
   async remove(parentId: string, rawId: string) {
     const child = await this.ownChild(parentId, rawId);
-    await this.prisma.child.delete({ where: { id: child.id } }); // cascades to attempts, skills, reviews, memberships
+    await this.prisma.db.child.delete({ where: { id: child.id } }); // cascades to attempts, skills, reviews, memberships
   }
 }

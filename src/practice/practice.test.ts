@@ -134,6 +134,9 @@ describe("recording an answer", () => {
     expect(r.doneReview).toBe("old");
     const w = answer({ ...base, item: { ...item, mode: "review", reviewOf: "old" }, review, response: 0 });
     expect(w.putReview).toMatchObject({ attemptId: "old", step: 1 });
+    // The answer names its entry, so the server updates the same one.
+    expect(r.attempt.reviewOf).toBe("old");
+    expect(answer({ ...base, item, response: 1 }).attempt).not.toHaveProperty("reviewOf");
   });
 });
 

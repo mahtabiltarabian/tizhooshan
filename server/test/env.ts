@@ -4,3 +4,6 @@ export const TEST_DATABASE_URL =
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 process.env.SMS_SENDER = "dev";
 process.env.OTP_SECRET = "test-secret";
+// Tests sign in many times a minute from one address; the limits get their own test.
+process.env.RATE_LIMIT_PER_MIN = "100000";
+process.env.RATE_LIMIT_AUTH_PER_MIN = "100000";

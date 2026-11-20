@@ -17,7 +17,7 @@ export class ReportsController {
   ) {}
 
   private async skillStates(childId: string): Promise<SkillState[]> {
-    const rows = await this.prisma.skillState.findMany({ where: { childId } });
+    const rows = await this.prisma.db.skillState.findMany({ where: { childId } });
     return rows.map((s) => ({ childId, skill: s.skill, theta: s.theta, n: s.n, updatedAt: s.updatedAt.getTime() }));
   }
 
@@ -26,7 +26,7 @@ export class ReportsController {
   async report(@CurrentUser() user: AuthUser, @Param("id") id: string): Promise<ReportData> {
     const child = await this.children.ownChild(user.id, id);
     const [rows, skills] = await Promise.all([
-      this.prisma.attempt.findMany({ where: { childId: child.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+      this.prisma.db.attempt.findMany({ where: { childId: child.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
       this.skillStates(child.id),
     ]);
     return buildReport(rows.map(toAttempt), skills, Date.now());
@@ -43,12 +43,12 @@ export class ReportsController {
     let only: string[] | undefined;
     if (assignment !== undefined) {
       const a = isUuid(assignment)
-        ? await this.prisma.assignment.findFirst({ where: { id: assignment, classroom: { memberships: { some: { childId: child.id } } } } })
+        ? await this.prisma.db.assignment.findFirst({ where: { id: assignment, classroom: { memberships: { some: { childId: child.id } } } } })
         : null;
       if (!a) throw notFound();
       only = a.skills;
     }
-    const [skills, reviews] = await Promise.all([this.skillStates(child.id), this.prisma.reviewItem.findMany({ where: { childId: child.id } })]);
+    const [skills, reviews] = await Promise.all([this.skillStates(child.id), this.prisma.db.reviewItem.findMany({ where: { childId: child.id } })]);
     return planSession({
       catalog: SKILLS,
       states: new Map(skills.map((s) => [s.skill, s])),

@@ -19,7 +19,7 @@ app's pure files from `../src` through one module,
 | --- | --- |
 | Grading an answer again | `adapterFor(tool).grade(type, level, seed, response)` (`src/practice/adapters.ts`) |
 | Score | `scoreOf` (`adaptive.ts`) |
-| Skill states and the mistake notebook | `answer()` (`record.ts`), replayed over all of a child's answers |
+| Skill states and the mistake notebook | `answer()` (`record.ts`): new answers are replayed onto the saved state; answers that arrive out of order (a second device) replay the child's whole history. Both give exactly the same state (θ is stored and read as text so no digit is lost) |
 | Stage shown to teachers and parents | `stageOf` (never θ) |
 | Next session | `planSession` (`session.ts`) with `SKILLS` (`catalog.ts`) |
 | Daily challenge | `dailyChallenge(SKILLS, day)` (`rewards.ts`) |
@@ -73,7 +73,9 @@ Other scripts:
 | `SMS_SENDER` | `dev` | `dev` logs the code (masked phone). `kavenegar` is a **stub** of a real provider and throws until implemented (`src/auth/sms.ts`) |
 | `SMS_API_KEY` | — | Key for the real provider |
 | `OTP_SECRET` | — | Secret in the code hashes; long and random in production |
-| `TRUST_PROXY` | — | Set to `1` behind one reverse proxy |
+| `TRUST_PROXY` | — | Set to `1` behind one reverse proxy (needed for the request limits: otherwise every request comes from the proxy) |
+| `RATE_LIMIT_PER_MIN` | `600` | Requests per minute from one address (a whole school may share one) |
+| `RATE_LIMIT_AUTH_PER_MIN` | `30` | Sign-in requests per minute from one address, on top of 3 codes per phone per 10 minutes |
 | `TZ` | system | Server calendar (assignment due dates); `Asia/Tehran` |
 
 ## Deploy on a rented Linux server with Docker
@@ -120,9 +122,24 @@ from the repository root.
 - `DELETE /v1/me` removes the user, their children, every answer, state,
   notebook entry, class membership, token and sign-in code (cascades in the
   schema). `DELETE /v1/children/:id` does the same for one child.
-- Access control is in the application (each query is scoped to the
-  signed-in parent or teacher). PostgreSQL row-level security per school
-  (plan, section 9) is **not** implemented yet.
+- Access control is checked twice. The application scopes each query to
+  the signed-in parent or teacher, and PostgreSQL row-level security
+  (migration `20261120140000_row_level_security`) enforces the same rules
+  in the database: every signed-in request runs in one transaction as the
+  role `tizhooshan_app` with the user's id set, so even a query that forgot
+  its filter sees only that user's rows. A parent sees their own children
+  and everything about them; a teacher sees their own classrooms, the
+  children in them (nickname, picture, grade) and those children's answers
+  from the day they joined. Sign-in tables are closed to the role. Sign-in,
+  the token check, account deletion and the join-code lookup use the
+  connecting user, which the rules do not limit.
+- The migration creates the role `tizhooshan_app` (no login, no password),
+  so the database user must be allowed to create roles. The Docker images'
+  user is a superuser; on a managed database give the user `CREATEROLE`.
+- Requests per address are limited (`RATE_LIMIT_PER_MIN`,
+  `RATE_LIMIT_AUTH_PER_MIN`); past the limit the API answers `429`
+  `{ "error": "rate_limited" }` with `Retry-After`. The counts are in the
+  API process's memory, which fits the single API container.
 
 ## API notes beyond the contract
 

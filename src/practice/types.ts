@@ -44,6 +44,12 @@ export interface Attempt {
   durationMs: number;
   mode: AttemptMode;
   createdAt: number;
+  /**
+   * Review answers only: the mistake-notebook entry (its attemptId) this
+   * question was for, so the server updates the same entry. Absent on
+   * answers from app versions before it was added.
+   */
+  reviewOf?: string;
   /** Set once the server has it. */
   synced?: boolean;
 }
