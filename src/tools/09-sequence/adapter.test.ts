@@ -8,6 +8,9 @@ import { fa } from "@/tools/registry";
 import { SEQUENCE_ADAPTER as A } from "./adapter";
 import { SEQUENCE_PRACTICE } from "./practice";
 import { SEQ_TYPE_LABEL } from "./SequenceTryPanel";
+import { symbolWord } from "./Cycle";
+import { ruleParts } from "@/generators/nth-term";
+import { letterAt } from "@/generators/sequence";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 const LEVELS = [1, 2, 3] as const;
@@ -66,5 +69,33 @@ describe("sequence adapter", () => {
           } else answer = makeSequenceQuestion(key as SequenceQuestionType, level, seed).answer;
           if (answer !== null) for (const line of h) expect(tokens(line)).not.toContain(fa(Math.abs(answer)));
         }
+  });
+
+  it("solution names the generator's answer, in short Persian with Persian digits", () => {
+    for (const { key } of A.types)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(key, level, seed);
+          expect(s.startsWith("جواب:")).toBe(true);
+          expect(s.length).toBeGreaterThanOrEqual(10);
+          expect(s.length).toBeLessThanOrEqual(300);
+          expect(s).not.toMatch(/[0-9]/);
+          const head = s.split(/\. /)[0];
+          if (key === "cycle") {
+            const c = makeCycleQuestion(level, seed);
+            expect(head).toContain(c.variant === "count" ? fa(c.answer) : symbolWord(c.set, c.answer));
+          } else if (key === "nth") {
+            const n = makeNthQuestion(level, seed);
+            if (n.variant === "rule") {
+              const { coef, constant } = ruleParts(n.answer);
+              expect(head).toContain(`${fa(coef)} × n + ${fa(constant)}`);
+            } else expect(tokens(head)).toContain(fa(n.answer));
+          } else {
+            const q = makeSequenceQuestion(key as SequenceQuestionType, level, seed);
+            if (q.letters) expect(head).toContain(`«${letterAt(q.answer)}»`);
+            else expect(tokens(head)).toContain(fa(Math.abs(q.answer)));
+          }
+        }
+    expect(A.solution!("nth", 3, 5)).toBe(A.solution!("nth", 3, 5));
   });
 });

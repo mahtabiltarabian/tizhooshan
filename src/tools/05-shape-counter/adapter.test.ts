@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeHiddenQuestion } from "@/generators/hidden-figure";
-import { countSlip, countSlips, makeStrokeQuestion } from "@/generators/one-stroke";
+import { countSlip, countSlips, makeStrokeQuestion, pointNames } from "@/generators/one-stroke";
 import { countMistake, figureOf, listShapes, makeCountQuestion, type CountQuestionType, type Level, type ShapeQuestionType } from "@/generators/shape-count";
 import { fa } from "@/tools/registry";
 import { SHAPE_COUNTER_ADAPTER as A } from "./adapter";
@@ -84,6 +84,35 @@ describe("shape-counter adapter", () => {
           if (s.ask === "count") answer = s.answer;
         }
         if (answer !== null) for (const line of h) expect(tokens(line)).not.toContain(fa(answer));
+      }
+  }, 60_000);
+});
+
+describe("shape-counter solution", () => {
+  const SOL_SEEDS = Array.from({ length: 25 }, (_, i) => i * 53 + 3);
+  const check = (s: string) => {
+    expect(s.startsWith("جواب:")).toBe(true);
+    expect(s.length).toBeGreaterThanOrEqual(10);
+    expect(s.length).toBeLessThanOrEqual(300);
+    expect(s).not.toMatch(/[0-9]/);
+  };
+
+  it.each(TYPES)("%s: names the generator's real answer, in Persian, within 300 characters", (type) => {
+    for (const level of LEVELS)
+      for (const seed of SOL_SEEDS) {
+        const s = A.solution!(type, level, seed);
+        check(s);
+        if (type === "hidden") expect(s).toContain(`گزینه ${fa(makeHiddenQuestion(level, seed).answer + 1)}.`);
+        else if (type === "stroke") {
+          const q = makeStrokeQuestion(level, seed);
+          if (q.ask === "which") expect(s).toContain(`جواب: گزینه ${fa(q.answer + 1)}.`);
+          else if (q.ask === "count") expect(s).toContain(`جواب: ${fa(q.answer)} رأس فرد`);
+          else expect(s).toContain(`جواب: نقطه «${pointNames(q).get(q.choices[q.answer])}»`);
+          if (q.ask !== "count") expect(A.grade(type, level, seed, q.answer)).toBe("right");
+        } else {
+          const q = makeCountQuestion(type, level, seed);
+          expect(s).toContain(`جواب: ${fa(q.answer)} `);
+        }
       }
   }, 60_000);
 });

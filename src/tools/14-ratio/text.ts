@@ -40,7 +40,7 @@ export const RATIO_THINGS = [
 ];
 
 export const PEOPLE = ["علی", "مریم", "رضا"];
-const DIVIDE_ITEMS = ["گردو", "کارت", "مداد رنگی"];
+export const DIVIDE_ITEMS = ["گردو", "کارت", "مداد رنگی"];
 
 const CARDINAL = ["صفر", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه", "ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "شانزده", "هفده", "هجده", "نوزده", "بیست"];
 const ORDINAL: Record<number, string> = {

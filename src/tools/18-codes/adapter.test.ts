@@ -4,6 +4,10 @@ import { codeMistake, slips } from "@/generators/codes";
 import { CODES_ADAPTER, codesAnswerToken, makeCodes } from "./adapter";
 import { TRY_TYPE_LABEL, type TryType } from "./CodesTryPanel";
 import { CODES_PRACTICE } from "./practice";
+import { binFa } from "./binaryText";
+import { answerFa } from "./text";
+import { fa } from "@/tools/registry";
+import { ALPHABET } from "@/generators/codes";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 const TYPES = Object.keys(TRY_TYPE_LABEL) as TryType[];
@@ -61,6 +65,30 @@ describe("codes adapter", () => {
           const ans = codesAnswerToken(makeCodes(type, level, seed));
           // Whole words only: a sentence answer is matched as a run of words.
           if (ans) for (const line of h) expect(` ${words(line).join(" ")} `, `${type} ${level} ${seed}: ${line}`).not.toContain(` ${ans} `);
+        }
+  });
+
+  it("solution: the real answer, in one to three short Persian sentences", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const q = makeCodes(type, level, seed);
+          const s = CODES_ADAPTER.solution!(type, level, seed);
+          const at = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), at).toBe(true);
+          expect(s.length, at).toBeGreaterThanOrEqual(10);
+          expect(s.length, at).toBeLessThanOrEqual(300);
+          expect(s, at).not.toMatch(/[0-9]/);
+          expect(s, at).toBe(CODES_ADAPTER.solution!(type, level, seed));
+          if (q.type !== "binary") {
+            expect(s, at).toContain(`«${answerFa(q)}»`);
+            continue;
+          }
+          const token = q.kind === "word" ? `«${q.word.map((l) => ALPHABET[l]).join("")}»` : q.kind === "show" || q.kind === "next" ? binFa(q.answer) : fa(q.answer);
+          expect(s.startsWith(`جواب: ${token}`) || s.startsWith(`جواب: کلمه ${token}`), at).toBe(true);
+          // The lamps the tool grades as right.
+          if (q.kind !== "word") expect(CODES_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          else expect(CODES_ADAPTER.grade(type, level, seed, q.word)).toBe("right");
         }
   });
 });

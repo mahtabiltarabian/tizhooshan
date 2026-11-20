@@ -3,9 +3,11 @@
 // The response is the index of the picked option (for «شکل متفاوت», of the
 // picked figure in the row).
 
-import { makePatternQuestion, type Level, type PatternQuestion, type PatternQuestionType, type RuleKind } from "@/generators/patterns";
+import { FILL_NAME, makePatternQuestion, type Level, type PatternQuestion, type PatternQuestionType, type RuleKind, type Tile } from "@/generators/patterns";
 import type { ToolAdapter } from "@/practice/adapter";
+import { fa } from "@/tools/registry";
 import { PATTERNS_PRACTICE } from "./practice";
+import { tileWords } from "./tileText";
 
 const make = (type: string, level: number, seed: number) => makePatternQuestion(type as PatternQuestionType, level as Level, seed);
 
@@ -74,9 +76,37 @@ function firstStep(q: PatternQuestion): string {
   }
 }
 
+
+/** The right option in words, when words can say it: shapes, or sides and dots. */
+function optionWords(t: Tile, level: number): string {
+  const shapes = tileWords(t);
+  if (shapes) return shapes;
+  if (t.sides === undefined) return "";
+  const dots = t.dots ? ` و ${fa(t.dots)} نقطه` : "";
+  return `شکلی با ${fa(t.sides)} ضلع${dots}${level === 3 && t.fill ? `، ${FILL_NAME[t.fill]}` : ""}`;
+}
+
+/** Sentences added one by one while the whole stays short enough for the report card. */
+function upTo(head: string, rules: string[], max = 300): string {
+  let out = head;
+  for (const r of rules) if (out.length + 1 + r.length <= max) out += ` ${r}`;
+  return out;
+}
+
+/** The answer and why, for the report card after an exam. */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  if (q.type === "odd") return `جواب: شکل ${fa(q.answer + 1)}. ${q.why}`;
+  // The general rule sentences if there are any, else the step-by-step ones (as the panel shows them).
+  const summaries = q.why.some((w) => !w.cells.length) ? q.why.filter((w) => !w.cells.length) : q.why;
+  const words = q.type === "missing" ? "" : optionWords(q.options[q.answer], q.level);
+  return upTo(`جواب: گزینه ${fa(q.answer + 1)}${words ? ` (${words})` : ""}.`, summaries.map((w) => w.text));
+}
+
 export const PATTERNS_ADAPTER: ToolAdapter = {
   ...PATTERNS_PRACTICE,
   version: "patterns@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as PatternQuestionType], RULE[type as PatternQuestionType], firstStep(make(type, level, seed))],
+  solution,
 };

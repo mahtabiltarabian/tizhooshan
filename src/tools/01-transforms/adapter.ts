@@ -5,9 +5,10 @@
 // shift), or the coloured cells as "x,y" keys (draw, and a shift drawn on
 // the grid).
 
-import { makeTransformQuestion, paintMistake, type Level, type MoveName, type Pt, type TransformQuestion, type TransformQuestionType } from "@/generators/transforms";
+import { makeTransformQuestion, paintMistake, type Level, type MoveName, type Op, type Pt, type TransformQuestion, type TransformQuestionType } from "@/generators/transforms";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
+import { MOVE_NAME, MOVE_STEP, MOVE_WHY, SHIFT_WHY, vecText } from "./moveText";
 import { TRANSFORMS_PRACTICE } from "./practice";
 
 const make = (type: string, level: number, seed: number) => makeTransformQuestion(type as TransformQuestionType, level as Level, seed);
@@ -93,9 +94,55 @@ function firstStep(q: TransformQuestion): string {
   }
 }
 
+
+const ORDINAL = ["اول", "دوم", "سوم", "چهارم"];
+
+/** The rule for a coloured answer, as the check says it. */
+function drawWhy(op: Op): string {
+  if (op.kind === "reflect")
+    return `جواب: قرینه شکل آن طرف ${op.line.kind === "d" || op.line.kind === "a" ? "خط‌چین مورب" : "خط‌چین"}؛`;
+  if (op.kind === "rotate")
+    return `جواب: شکل ${Math.abs(op.deg) === 180 ? "۱۸۰ درجه (نیم‌دور)" : op.deg > 0 ? "۹۰ درجه ساعتگرد" : "۹۰ درجه پادساعتگرد"} دور نقطه چرخش چرخیده؛`;
+  return "جواب:";
+}
+
+/** The answer and why, for the report card after an exam. */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const option = (i: number) => `جواب: گزینه ${fa(i + 1)}.`;
+  switch (q.type) {
+    case "mirror":
+    case "water":
+    case "rotate":
+      return `${option(q.answer)} ${MOVE_WHY[q.moves[0]]}`;
+    case "combo":
+      return `${option(q.answer)} تبدیل‌ها یکی‌یکی و به همین ترتیب: شکل اول ${q.moves.map((m) => MOVE_STEP[m]).join("، بعد ")}. ترتیب مهم است.`;
+    case "sequence": {
+      const gap = q.frames.indexOf(null);
+      return `${option(q.answer)} شکل هر بار ${MOVE_NAME[q.step]} می‌چرخد؛ جای «؟» همان شکل ${ORDINAL[gap - 1]} است که یک بار دیگر چرخیده.`;
+    }
+    case "which": {
+      const right = q.options[q.answer];
+      return `جواب: ${MOVE_NAME[right]}. ${MOVE_WHY[right]}`;
+    }
+    case "draw": {
+      const how = q.op.kind === "reflect" ? "هر خانه عمود بر خط و به همان فاصله آن طرف می‌رود و شکل برعکس می‌شود." : "فاصله هر خانه تا نقطه چرخش همان می‌ماند و شکل برعکس نمی‌شود.";
+      return `${drawWhy(q.op)} ${fa(q.answer.length)} خانه رنگ می‌شود. ${how}`;
+    }
+    case "shift": {
+      if (q.form === "vector") return `جواب: ${vecText(q.vec)}. از یک خانه شکل تا همان خانه در تصویر بشمار و خود خانه شروع را نشمار. ${SHIFT_WHY}`;
+      const n = `${fa(q.answer.length)} خانه رنگ می‌شود`;
+      if (q.ops.some((o) => o.kind === "reflect"))
+        return `جواب: شکل اول ${vecText(q.vec, false)} می‌رود، بعد نسبت به خط‌چین قرینه می‌شود؛ ${n}. ترتیب مهم است: اول انتقال، بعد قرینه.`;
+      return `جواب: همان شکل، ${vecText(q.vec, false)} جابه‌جا شده؛ ${n}. ${SHIFT_WHY}`;
+    }
+  }
+}
+
 export const TRANSFORMS_ADAPTER: ToolAdapter = {
   ...TRANSFORMS_PRACTICE,
   version: "transforms@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as TransformQuestionType], RULE[type as TransformQuestionType], firstStep(make(type, level, seed))],
+  solution,
 };

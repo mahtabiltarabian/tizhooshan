@@ -32,4 +32,11 @@ export interface ToolAdapter extends PracticeInfo {
    * then the first step of this very question. None gives the answer away.
    */
   hints(type: string, level: number, seed: number): [string, string, string];
+  /**
+   * The right answer and why, in one to three short Persian sentences, for
+   * the report card after an exam (shown on screen and printed). Starts
+   * with «جواب:». Persian digits only; equations wrapped with ltr()
+   * (src/practice/text.ts).
+   */
+  solution(type: string, level: number, seed: number): string;
 }

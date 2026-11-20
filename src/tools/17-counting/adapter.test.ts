@@ -4,6 +4,7 @@ import { fa } from "@/tools/registry";
 import { COUNTING_ADAPTER } from "./adapter";
 import { COUNTING_PRACTICE } from "./practice";
 import { COUNTING_TYPE_LABEL } from "./text";
+import { answerText } from "./text";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 const TYPES = Object.keys(COUNTING_TYPE_LABEL) as CountingQuestionType[];
@@ -49,6 +50,24 @@ describe("counting adapter", () => {
           // A probability is a fraction; its parts are small counts that hints may name (six faces).
           const q = makeCountingQuestion(type, level as Level, seed);
           if (typeof q.answer === "number") for (const line of h) expect(tokens(line), `${type} ${level} ${seed}: ${line}`).not.toContain(fa(q.answer));
+        }
+  });
+
+  it("solution: the real answer, in one to three short Persian sentences", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const q = makeCountingQuestion(type, level as Level, seed);
+          // The answer the tool grades as right.
+          expect(COUNTING_ADAPTER.grade(type, level, seed, json(q.answer))).toBe("right");
+          const s = COUNTING_ADAPTER.solution!(type, level, seed);
+          const at = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), at).toBe(true);
+          expect(s.length, at).toBeGreaterThanOrEqual(10);
+          expect(s.length, at).toBeLessThanOrEqual(300);
+          expect(s, at).not.toMatch(/[0-9]/);
+          expect(s, at).toBe(COUNTING_ADAPTER.solution!(type, level, seed));
+          expect(s, at).toContain(answerText(q));
         }
   });
 });

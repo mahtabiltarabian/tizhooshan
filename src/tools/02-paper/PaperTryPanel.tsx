@@ -16,7 +16,8 @@ import {
   type Pt,
 } from "@/generators/paper-folding";
 import { fa } from "@/tools/registry";
-import { FoldSteps, OrderPicture, PaperSvg, STEP_NAMES, type Mark } from "./Pictures";
+import { orderNames, STEP_NAMES } from "./orderText";
+import { FoldSteps, OrderPicture, PaperSvg, type Mark } from "./Pictures";
 import styles from "@/toolkit/TryPanel.module.css";
 
 export const PAPER_TYPE_LABEL: Record<PaperQuestionType, string> = {
@@ -80,8 +81,7 @@ export function paperPrompt(q: PaperQuestion, paper = false): string {
 
 const layers = (k: number) => 2 ** k;
 
-/** Letters of the pictures in the right order, e.g. «ب، الف، پ». */
-export const orderNames = (q: Extract<PaperQuestion, { type: "order" }>) => q.shown.map((_, i) => STEP_NAMES[q.shown.indexOf(i)]).join("، ");
+export { orderNames };
 
 /** `seq[n]`: the picture tapped n-th. Says what went wrong in words. */
 function orderFeedback(q: Extract<PaperQuestion, { type: "order" }>, seq: number[]): { tone: Tone; text: string } {

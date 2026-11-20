@@ -6,10 +6,11 @@
 // names; for a family tree, the chosen option's index (the seed fixes the
 // order).
 
-import { askMistake, condPeople, makeSeatingQuestion, placeMistake, type Level, type SeatingQuestion, type SeatingType } from "@/generators/seating";
+import { askMistake, condPeople, makeSeatingQuestion, placeMistake, survivors, type Level, type SeatingQuestion, type SeatingType } from "@/generators/seating";
 import type { ToolAdapter } from "@/practice/adapter";
+import { fa } from "@/tools/registry";
 import { SEATING_PRACTICE } from "./practice";
-import { condText, factText } from "./text";
+import { arrangementText, askText, condText, factText, familyHow } from "./text";
 
 const make = (type: string, level: number, seed: number) => makeSeatingQuestion(type as SeatingType, level as Level, seed);
 
@@ -57,9 +58,34 @@ function firstStep(q: SeatingQuestion): string {
   return c ? `${s}از این شرط شروع کن: «${condText(q, c)}» حالت‌هایی را که با آن جور نیستند خط بزن.` : `${s}شرط‌ها را یکی‌یکی روی شکل امتحان کن.`;
 }
 
+/** The answer sentence, then as many reason sentences as fit on the report card (300 characters). */
+function fit(head: string, parts: readonly string[]): string {
+  let out = head;
+  for (const p of parts) {
+    if (`${out} ${p}`.length > 300) break;
+    out = `${out} ${p}`;
+  }
+  return out;
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  // Options are numbered on screen in this order, from ۱.
+  if (q.type === "family") return fit(`جواب: گزینه ${fa(q.answer + 1)}، «${q.options[q.answer].text}».`, [familyHow(q)]);
+  const start = q.conds[0] ? [`از شرط «${condText(q, q.conds[0])}» شروع کن؛ هر شرط حالت‌های ناجور را خط می‌زند.`] : [];
+  if (q.variant === "ask") {
+    const name = q.names[q.answer];
+    // The whole seating, when the conditions fix it.
+    const one = survivors(q, q.conds.length).length === 1 ? [`چیدمان کامل: ${arrangementText(q)}.`] : [];
+    return fit(`جواب: ${name}. سؤال این بود: «${askText(q, q.ask!)}»`, [`در هر چیدمانی که با همه‌ی شرط‌ها جور است، ${name} همان‌جاست.`, ...one, ...start]);
+  }
+  return fit(`جواب: ${arrangementText(q)}.`, [...start, "با همه‌ی شرط‌ها فقط همین یک چیدمان می‌ماند."]);
+}
+
 export const SEATING_ADAPTER: ToolAdapter = {
   ...SEATING_PRACTICE,
   version: "seating@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as SeatingType], RULE[type as SeatingType], firstStep(make(type, level, seed))],
+  solution,
 };

@@ -10,11 +10,13 @@
 
 import { SLOTS, makeQuestion, scorePlacement, type Level, type Question, type QuestionType, type Slot } from "@/generators/cube-questions";
 import { oppositePairs } from "@/generators/cube-nets";
-import { diceMistake, HIDDEN_OF, makeDiceQuestion, type DiceQuestion, type DiceQuestionType } from "@/generators/dice";
+import { diceMistake, HIDDEN_OF, makeDiceQuestion, rollStates, type DiceQuestion, type DiceQuestionType } from "@/generators/dice";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
-import { DIR_NAME, SIDE_NAME } from "./diceText";
+import { DIR_NAME, movesText, SIDE_NAME } from "./diceText";
 import { CUBE_NETS_PRACTICE } from "./practice";
+import { whyImpossible, whyNetFails } from "./TryPanel";
 
 type Type = QuestionType | DiceQuestionType;
 const isDice = (t: string): t is DiceQuestionType => t === "die" || t === "roll";
@@ -154,9 +156,91 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[type as Type], RULE[type as Type], step];
 }
 
+// --- Solution (report card after an exam) ---
+
+const MAX = 300;
+const fit = (...texts: string[]) => texts.find((t) => t.length <= MAX) ?? texts[texts.length - 1];
+
+/** Where the top of the symbol points after `k` counter-clockwise quarter turns on the flat net. */
+const POINTS: string[] = ["بالا", "چپ", "پایین", "راست"];
+
+const ASK_NAME = { top: "وجه بالا", bottom: "وجه زیر", south: "وجه روبرو" } as const;
+
+const opposite = (q: Question, i: number) => {
+  const p = oppositePairs(q.net.cells).find((x) => x.includes(i))!;
+  return p[0] === i ? p[1] : p[0];
+};
+
+function netSolution(q: Question): string {
+  const s = q.net.symbols;
+  switch (q.type) {
+    case "opposite": {
+      const why = q.reason === "row" ? "در گسترده در یک ردیف یا ستون‌اند و یک خانه بینشان است." : "با تا شدن گسترده، پشت به پشت هم می‌افتند؛ هیچ ضلع مشترکی ندارند.";
+      return `جواب: «${s[q.answer]}». «${s[q.answer]}» روبروی «${s[q.target]}» است: ${why}`;
+    }
+    case "touch": {
+      const opp = s[opposite(q, q.target)];
+      return `جواب: ${q.answers.map((i) => `«${s[i]}»`).join("، ")}. همه وجه‌ها جز وجه روبرو با «${s[q.target]}» ضلع مشترک دارند، و روبروی آن «${opp}» است.`;
+    }
+    case "hidden": {
+      const shown = q.view[q.slot].symbol;
+      return `جواب: «${s[q.answer]}». وجه ${SLOT_NAME[q.slot]} مکعب «${shown}» است و وجه پنهانِ روبرویش، روی گسترده، «${s[q.answer]}» است.`;
+    }
+    case "missing":
+      return `جواب: خانه ${fa(q.answer + 1)} از راست، که بالای نماد «${s[q.blank]}» در آن رو به ${POINTS[q.answer]} است. جهت را از همسایه‌ای می‌خوانیم که در تصویر مکعب کنار آن است.`;
+    case "makes":
+    case "cannot": {
+      const head = `جواب: گزینه ${fa(q.answer + 1)}.`;
+      if (q.type === "cannot") return `${head} ${whyImpossible(q.options[q.answer])}`;
+      const others = q.options.flatMap((o, i) => (i === q.answer ? [] : [`گزینه ${fa(i + 1)}: ${whyImpossible(o)}`]));
+      return fit(`${head} این مکعب از همین گسترده ساخته می‌شود. ${others.join(" ")}`, `${head} این مکعب از همین گسترده ساخته می‌شود؛ در بقیه دو وجه روبرو کنار هم‌اند، جای دو نماد عوض شده یا جهت یک نماد درست نیست.`);
+    }
+    case "netMakes":
+    case "netCannot": {
+      const head = `جواب: گسترده ${fa(q.answer + 1)}.`;
+      if (q.type === "netCannot") return `${head} ${whyNetFails(q.nets[q.answer])}`;
+      const others = q.nets.flatMap((o, i) => (i === q.answer ? [] : [`گسترده ${fa(i + 1)}: ${whyNetFails(o).replace("در این گسترده ", "")}`]));
+      return fit(`${head} این گسترده همین مکعب را می‌سازد، با اینکه شکلش فرق دارد. ${others.join(" ")}`, `${head} این گسترده همین مکعب را می‌سازد، با اینکه شکلش فرق دارد.`);
+    }
+    case "place": {
+      const pairs = oppositePairs(q.net.cells).map(([a, b]) => `«${s[a]}» و «${s[b]}»`).join("، ");
+      return fit(
+        `جواب: جفت‌های روبرو ${pairs} هستند. هر جفت را در دو خانه روبروی گسترده بگذار؛ بعد جهت هر نماد را با همسایه‌هایش در دو تصویر بخوان.`,
+        `جواب: جفت‌های روبرو ${pairs} هستند.`,
+      );
+    }
+  }
+}
+
+function diceSolution(q: DiceQuestion): string {
+  if (q.type === "roll") {
+    const seq = rollStates(q.start, q.path).map((st) => fa(st[q.ask]));
+    const head = `جواب: ${fa(q.answer)} خال.`;
+    return fit(`${head} ${ASK_NAME[q.ask]} از شروع تا پایان، با مسیر ${movesText(q.path)}: ${ltr(seq.join(" → "))}.`, `${head} ${ASK_NAME[q.ask]} از شروع تا پایان: ${ltr(seq.join(" → "))}.`, head);
+  }
+  switch (q.kind) {
+    case "opposite": {
+      const v = q.die[q.shown];
+      return `جواب: ${fa(q.answer)} خال. وجه ${SIDE_NAME[HIDDEN_OF[q.shown]]} روبروی وجه ${SIDE_NAME[q.shown]} است که ${fa(v)} خال دارد، و مجموع دو وجه روبرو ۷ است: ${ltr(`${fa(v)} + ${fa(q.answer)} = ۷`)}.`;
+    }
+    case "missing": {
+      const p = oppositePairs(q.net.cells).find((x) => x.includes(q.ask))!;
+      const opp = q.net.values[p[0] === q.ask ? p[1] : p[0]];
+      return `جواب: ${fa(q.answer)} خال. روبروی خانه «؟» عدد ${fa(opp)} است و ${ltr(`${fa(opp)} + ${fa(q.answer)} = ۷`)}.`;
+    }
+    case "validNet":
+      return `جواب: گسترده ${fa(q.answer + 1)}. فقط در این گسترده ۱ و ۶، ۲ و ۵، ۳ و ۴ روبروی هم می‌افتند؛ در هر یک از بقیه، دو عدد با مجموع ۷ روبروی هم نمی‌افتند.`;
+  }
+}
+
+function solution(type: string, level: number, seed: number): string {
+  return isDice(type) ? diceSolution(makeDiceQuestion(type, level as Level, seed)) : netSolution(makeQuestion(type as QuestionType, level as Level, seed));
+}
+
 export const CUBE_NETS_ADAPTER: ToolAdapter = {
   ...CUBE_NETS_PRACTICE,
   version: "cube-nets@1",
   grade,
   hints,
+  solution,
 };

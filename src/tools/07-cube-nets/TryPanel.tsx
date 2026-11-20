@@ -78,7 +78,7 @@ export interface Display {
 // ---------------------------------------------------------------------------
 // Explanations
 
-function whyImpossible(o: Option): string {
+export function whyImpossible(o: Option): string {
   const [a, b] = o.symbols ?? [];
   switch (o.mistake) {
     case "opposite":
@@ -92,7 +92,7 @@ function whyImpossible(o: Option): string {
   }
 }
 
-function whyNetFails(o: NetOption): string {
+export function whyNetFails(o: NetOption): string {
   const [a, b] = o.symbols ?? [];
   return o.mistake === "turned"
     ? `در این گسترده نماد «${a}» جهت دیگری دارد.`

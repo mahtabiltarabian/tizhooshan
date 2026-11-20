@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { answerKey, answerKind, digitsMistake, makeDigitsQuestion, slips, type DigitsQuestionType, type Level } from "@/generators/digits";
 import { fa } from "@/tools/registry";
 import { DIGITS_ADAPTER as A } from "./adapter";
-import { DIGITS_TYPE_LABEL, digitsPrompt } from "./DigitsTryPanel";
+import { answerFa, DIGITS_TYPE_LABEL, digitsPrompt } from "./DigitsTryPanel";
+import { choiceWords } from "@/generators/digits-numbers";
 import { DIGITS_PRACTICE as P } from "./practice";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
@@ -61,6 +62,26 @@ describe("digits adapter", () => {
           const ans = fa(answerKey(q));
           if (nums(digitsPrompt(q)).includes(ans)) continue;
           expect(nums(h[2]), `${type} ${level} ${seed}: ${h[2]}`).not.toContain(ans);
+        }
+  }, 60_000);
+
+  it("solution names the real answer, in Persian digits, short enough for the report card", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(type, level, seed);
+          const where = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), where).toBe(true);
+          expect(s.length, where).toBeGreaterThanOrEqual(10);
+          expect(s.length, where).toBeLessThanOrEqual(300);
+          expect(s, where).not.toMatch(/[0-9]/);
+          expect(A.solution!(type, level, seed)).toBe(s);
+          const q = makeDigitsQuestion(type, level, seed);
+          expect(A.grade(type, level, seed, answerKey(q))).toBe("right");
+          // The answer is named in the first sentence, as the tool writes it (a yes/no or odd/even choice: the choice's words).
+          const choice = (q.type === "prime" || q.type === "parity") && answerKind(q) === "choice";
+          const token = choice ? `«${choiceWords(q)[q.answer - 1]}»` : answerFa(q);
+          expect(s.slice(0, s.indexOf(".", "جواب:".length + token.length)), where).toContain(token);
         }
   }, 60_000);
 });

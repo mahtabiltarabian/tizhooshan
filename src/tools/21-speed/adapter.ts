@@ -2,11 +2,11 @@
 // is the tapped cells (find), a number (count), one cell (differ), or the
 // six answers of a mental arithmetic card, in card order (mental).
 
-import { inRow, makeSpeedQuestion, speedMistake, type Level, type SpeedQuestionType } from "@/generators/speed";
+import { inRow, makeSpeedQuestion, relation, speedMistake, type Glyph, type Level, type SpeedQuestion, type SpeedQuestionType } from "@/generators/speed";
 import { makeMentalQuestion, mentalMistake, type Level as MentalLevel } from "@/generators/mental";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
-import { itemText, ltr } from "./mentalText";
+import { itemText, ltr, worked } from "./mentalText";
 import { SPEED_PRACTICE } from "./practice";
 
 const make = (type: string, level: number, seed: number) => makeSpeedQuestion(type as SpeedQuestionType, level as Level, seed);
@@ -60,9 +60,59 @@ function firstStep(type: string, level: number, seed: number) {
   return n === 0 ? "گام اول: در ردیف اول هیچ شکلی درست مثل هدف نیست؛ برو سراغ ردیف دوم." : `گام اول: در ردیف اول ${fa(n)} شکل درست مثل هدف هست؛ پیدایشان کن و برو ردیف بعد.`;
 }
 
+// --- Solution (report card after an exam) ---
+
+const MAX = 300;
+const fit = (...texts: string[]) => texts.find((t) => t.length <= MAX) ?? texts[texts.length - 1];
+
+/** Shapes 0 … 7 (speed.ts); the grid cells run right to left, top to bottom (Pictures.tsx). */
+const SHAPE_NAME = ["دایره", "مربع", "مثلث", "ستاره", "به‌علاوه (+)", "لوزی", "حلقه", "پرچم"];
+
+/** How the odd shape differs from the others. */
+function oddWords(odd: Glyph, target: Glyph): string {
+  const r = relation(odd, target);
+  if (r === "other") return `همه شکل‌ها ${SHAPE_NAME[target.shape]} هستند و این یکی ${SHAPE_NAME[odd.shape]} است`;
+  if (r === "mirror") return "همه پرچم‌ها یکی‌اند و این یکی آینه‌ای (برعکس) است: بازوی کوتاهش طرف دیگر است";
+  const turn = (((odd.rot - target.rot) % 4) + 4) % 4;
+  const how = turn === 2 ? "نیم دور چرخیده (سر و ته)" : `یک ربع دور ${turn === 1 ? "در جهت" : "خلاف جهت"} عقربه‌های ساعت چرخیده`;
+  return `همه پرچم‌ها یکی‌اند و این یکی ${how} است`;
+}
+
+function lookAlikes(q: SpeedQuestion): string {
+  if (q.level === 1) return "فقط شکل‌هایی که درست مثل هدف‌اند حساب می‌شوند.";
+  const kinds = q.grid.map((g) => relation(g, q.target));
+  const mirrors = kinds.filter((k) => k === "mirror").length;
+  const turned = kinds.filter((k) => k === "rotated").length;
+  const parts = [turned ? `${fa(turned)} پرچم چرخیده` : "", mirrors ? `${fa(mirrors)} پرچم آینه‌ای (برعکس)` : ""].filter(Boolean);
+  return parts.length ? `${parts.join(" و ")} هم هست که حساب نمی‌شوند؛ فقط جهتِ درست قبول است.` : "شکل‌های چرخیده یا آینه‌ای حساب نمی‌شوند.";
+}
+
+function solution(type: string, level: number, seed: number): string {
+  if (type === "mental") {
+    const q = makeMentalQuestion(level as MentalLevel, seed);
+    const head = `جواب: ${q.items.map((it) => fa(it.answer)).join("، ")} (به ترتیب کارت).`;
+    // One worked shortcut that fits: the longest, which is usually the hardest sum.
+    const ways = q.items
+      .map((it) => `${head} مثلاً «${ltr(itemText(it))}»: ${worked(it)}`)
+      .sort((a, b) => b.length - a.length);
+    return fit(...ways, head);
+  }
+  const q = make(type, level, seed);
+  if (q.type === "differ") {
+    const at = q.answer as number;
+    const where = `ردیف ${fa(Math.floor(at / q.cols) + 1)}، خانه ${fa((at % q.cols) + 1)} از راست`;
+    return `جواب: ${where}. ${oddWords(q.grid[at], q.target)}.`;
+  }
+  const total = q.type === "find" ? (q.answer as number[]).length : (q.answer as number);
+  const head = `جواب: ${fa(total)} شکل درست مثل هدف.`;
+  const rows = `ردیف به ردیف از بالا: ${Array.from({ length: q.rows }, (_, r) => fa(inRow(q, r))).join("، ")}.`;
+  return fit(`${head} ${lookAlikes(q)} ${rows}`, `${head} ${lookAlikes(q)}`, head);
+}
+
 export const SPEED_ADAPTER: ToolAdapter = {
   ...SPEED_PRACTICE,
   version: "speed@1",
   grade: (type, level, seed, response) => (type === "mental" ? mentalMistake(makeMentalQuestion(level as MentalLevel, seed), response) : speedMistake(make(type, level, seed), response)),
   hints: (type, level, seed) => [NUDGE[type as SpeedQuestionType | "mental"], rule(type, level), firstStep(type, level, seed)],
+  solution,
 };

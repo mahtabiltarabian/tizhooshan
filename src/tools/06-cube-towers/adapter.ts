@@ -5,12 +5,14 @@
 // generated question's options; for "build" the child's column heights,
 // one row per board row as the tower stores them (h[y][x]).
 
-import { makeTowerQuestion, matchesViews, maxHeight, type Level, type TowerQuestion, type TowerQuestionType } from "@/generators/cube-towers";
-import { solidMistake, solidName, type SolidQuestion } from "@/generators/solids";
+import { countCubes, frontView, layerCounts, makeTowerQuestion, matchesViews, maxHeight, sideView, type Level, type TowerQuestion, type TowerQuestionType, type ViewPicture } from "@/generators/cube-towers";
+import { counts, solidMistake, solidName, type SolidQuestion } from "@/generators/solids";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { paintWhy } from "./paintText";
 import { CUBE_TOWERS_PRACTICE } from "./practice";
-import { PART_NAME, PART_PLURAL } from "./solidText";
+import { PART_NAME, PART_PLURAL, solidWhy } from "./solidText";
 
 const make = (type: string, level: number, seed: number) => makeTowerQuestion(type as TowerQuestionType, level as Level, seed);
 
@@ -126,9 +128,86 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[q.type], RULE[q.type], answer !== null && showsNumber(step, answer) ? PLAIN_STEP[q.type] : step];
 }
 
+// --- Solution (report card after an exam) ---
+
+const MAX = 300;
+const fit = (...texts: string[]) => texts.find((t) => t.length <= MAX) ?? texts[texts.length - 1];
+
+/** Numbers read left to right, as the picture shows them. */
+const leftToRight = (ns: readonly number[]) => ltr(ns.map(fa).join("، "));
+
+const VIEW_WHY = {
+  front: "در نمای روبرو هر ستون به بلندی بلندترین برجِ همان ستون است: از چپ به راست",
+  side: "در نمای کنار هر ستون به بلندی بلندترین برجِ یک ردیف است: از چپ (ردیف جلو) به راست",
+} as const;
+
+/** The view in words: column heights, or how many squares are filled. */
+function viewWords(type: "top" | "front" | "side", pic: ViewPicture): string {
+  if (pic.kind === "top") return `از بالا هر خانه‌ای که دست‌کم یک مکعب دارد پر دیده می‌شود: ${fa(pic.cells.flat().filter(Boolean).length)} خانه پر؛ بلندی برج‌ها دیده نمی‌شود.`;
+  return `${VIEW_WHY[type as "front" | "side"]} ${leftToRight(pic.heights)} مکعب.`;
+}
+
+function combineWhy(q: Extract<SolidQuestion, { kind: "combine" }>): string {
+  const [a, b] = q.solids;
+  const [ca, cb] = [counts(a)[q.part], counts(b)[q.part]];
+  return `${solidName(a)} ${fa(ca)} و ${solidName(b)} ${fa(cb)} ${PART_NAME[q.part]} دارد؛ پس ${ltr(`${fa(ca)} ${q.op === "sum" ? "+" : "−"} ${fa(cb)} = ${fa(q.value)}`)}.`;
+}
+
+/** paintWhy() (the panel's words) with its sums kept left to right. */
+function paintSolution(n: number, k: number): string {
+  const m = n - 2;
+  switch (k) {
+    case 3:
+      return paintWhy(n, k);
+    case 2:
+      return `روی هر یال، جز دو گوشه، ${fa(m)} مکعب است و مکعب ۱۲ یال دارد: ${ltr(`۱۲ × ${fa(m)} = ${fa(12 * m)}`)}.`;
+    case 1:
+      return `وسط هر وجه ${fa(m * m)} مکعب است و مکعب ۶ وجه دارد: ${ltr(`۶ × ${fa(m * m)} = ${fa(6 * m * m)}`)}.`;
+    default:
+      return `مکعب‌های درون، بدون لایه بیرونی، یک مکعب کوچک‌تر می‌سازند: ${ltr(`${fa(m)}×${fa(m)}×${fa(m)} = ${fa(m ** 3)}`)}.`;
+  }
+}
+
+const ROW_NAME = ["ردیف جلو", "ردیف وسط", "ردیف عقب"];
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  switch (q.type) {
+    case "count": {
+      const head = `جواب: ${fa(q.options[q.answer])} مکعب.`;
+      const layers = `لایه به لایه از پایین: ${layerCounts(q.tower).map((n, i) => `لایه ${fa(i + 1)}: ${fa(n)}`).join("، ")}.`;
+      const hid = q.hidden ? ` ${fa(q.hidden)} مکعب پنهان هم هست که دیده نمی‌شود، چون مکعب‌ها روی هوا نمی‌ایستند.` : "";
+      return fit(`${head} ${layers}${hid}`, `${head} ${layers}`, head);
+    }
+    case "top":
+    case "front":
+    case "side":
+      return fit(`جواب: گزینه ${fa(q.answer + 1)}. ${viewWords(q.type, q.options[q.answer])}`, `جواب: گزینه ${fa(q.answer + 1)}.`);
+    case "build": {
+      const rows = q.tower.h.map((row, y) => `${q.tower.d === 3 ? ROW_NAME[y] : `ردیف ${fa(y + 1)}`} ${leftToRight(row)}`).join("؛ ");
+      const head = `جواب: یک برج درست، با تعداد مکعب هر خانه از چپ به راست: ${rows}.`;
+      const range = q.solutions > 1 ? ` ${fa(q.solutions)} برج مختلف با این نماها جورند؛ کمترین ${fa(q.min)} و بیشترین ${fa(q.max)} مکعب.` : " فقط همین برج با همه نماها جور است.";
+      const views = ` نمای روبرو ${leftToRight(frontView(q.tower))} و نمای کنار ${leftToRight(sideView(q.tower))}.`;
+      return fit(`${head}${range}`, `${head}${views}`, head);
+    }
+    case "complete": {
+      const have = countCubes(q.tower);
+      return `جواب: ${fa(q.n ** 3 - have)} مکعب. مکعب کامل ${fa(q.n ** 3)} مکعب کوچک دارد و ${fa(have)} تا هست: ${ltr(`${fa(q.n ** 3)} − ${fa(have)} = ${fa(q.n ** 3 - have)}`)}.`;
+    }
+    case "paint":
+      return `جواب: ${fa(q.options[q.answer])} مکعب کوچک. ${paintSolution(q.n, q.k)}`;
+    case "solid": {
+      const head = `جواب: ${fa(q.value)} ${PART_NAME[q.part]}.`;
+      const why = q.kind === "combine" ? combineWhy(q) : solidWhy(q);
+      return fit(`${head} ${why}`, head);
+    }
+  }
+}
+
 export const CUBE_TOWERS_ADAPTER: ToolAdapter = {
   ...CUBE_TOWERS_PRACTICE,
   version: "cube-towers@1",
   grade,
   hints,
+  solution,
 };

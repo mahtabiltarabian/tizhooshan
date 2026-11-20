@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { makePatternQuestion, type Level, type PatternQuestionType } from "@/generators/patterns";
+import { fa } from "@/tools/registry";
 import { PATTERNS_ADAPTER as A } from "./adapter";
+import { tileWords } from "./tileText";
 import { PATTERN_TYPE_LABEL } from "./PatternTryPanel";
 import { PATTERNS_PRACTICE as P } from "./practice";
 
@@ -44,6 +46,30 @@ describe("patterns adapter", () => {
           expect(line.trim().length).toBeGreaterThan(5);
           expect(line).not.toMatch(/گزینه|شکل [۰-۹]/);
         }
+      }
+  }, 60_000);
+  it.each(TYPES)("%s: the solution names the real answer, in Persian digits", (type) => {
+    for (const level of LEVELS)
+      for (const seed of SEEDS.slice(0, 30)) {
+        const s = A.solution!(type, level, seed);
+        expect(s).toBe(A.solution!(type, level, seed));
+        expect(s.startsWith("جواب:")).toBe(true);
+        expect(s.length).toBeGreaterThanOrEqual(10);
+        expect(s.length).toBeLessThanOrEqual(300);
+        expect(s).not.toMatch(/[0-9]/);
+        const q = makePatternQuestion(type, level, seed);
+        expect(A.grade(type, level, seed, q.answer)).toBe("right");
+        if (q.type === "odd") {
+          expect(s).toContain(`جواب: شکل ${fa(q.answer + 1)}.`);
+          continue;
+        }
+        expect(s).toContain(`جواب: گزینه ${fa(q.answer + 1)}`);
+        // Beyond the number, a rule sentence (or the answer in words) says why.
+        expect(s.length).toBeGreaterThan(30);
+        if (q.type === "missing") continue;
+        const right = q.options[q.answer];
+        if (tileWords(right)) expect(s).toContain(tileWords(right));
+        if (q.type === "sides") expect(s).toContain(`${fa(right.sides!)} ضلع`);
       }
   }, 60_000);
 });

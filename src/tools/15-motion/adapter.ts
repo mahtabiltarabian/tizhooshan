@@ -9,6 +9,8 @@ import { TOWN_NAMES } from "@/generators/motion-map";
 import { COMPASS, makeMotionQuestion, motionMistake, UNIT, type GridCmd, type Level, type Link, type MotionQuestionType, type TurnCmd } from "@/generators/motion";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
+import { answerFa, motionHow } from "./MotionTryPanel";
+import { ROT_ICON, ROT_WORD, WHEEL_NAMES } from "./Pictures";
 import { MOTION_PRACTICE } from "./practice";
 
 // makeMotionQuestion hands its rng to the motion-map generator, as the page does.
@@ -119,9 +121,40 @@ function firstStep(type: string, level: number, seed: number): string {
   return "گام اول: داده‌های پرسش را روی صفحه پیدا کن.";
 }
 
+// ── Solution (report card after an exam) ─────────────────────────────────
+
+const MAX = 300;
+
+/** The answer named so it reads without the picture: the wheel and its turning, the way you face, the point, the road, or a number with its unit. */
+export function motionAnswerPhrase(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  switch (q.type) {
+    case "gearDir":
+      return `چرخ ${WHEEL_NAMES[q.machine.wheels.length - 1]} ${ROT_WORD[q.answer]} (${ROT_ICON[q.answer]}) می‌چرخد`;
+    case "gearTurns":
+      return `چرخ ${WHEEL_NAMES[q.machine.wheels.length - 1]} ${fa(q.answer)} دور می‌چرخد`;
+    case "orient":
+      return `رو به ${COMPASS[q.answer]}`;
+    default:
+      return answerFa(q);
+  }
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const head = `جواب: ${motionAnswerPhrase(type, level, seed)}.`;
+  // The tool's own working («نشانم بده»); when it is too long, its last sentences.
+  const sentences = motionHow(make(type, level, seed)).split(/(?<=[.؛:])\s+/).filter(Boolean);
+  for (let k = 0; k < sentences.length; k++) {
+    const s = `${head} ${sentences.slice(k).join(" ")}`;
+    if (s.length <= MAX) return s;
+  }
+  return head;
+}
+
 export const MOTION_ADAPTER: ToolAdapter = {
   ...MOTION_PRACTICE,
   version: "motion@1",
   grade: (type, level, seed, response) => (typeof response === "number" && Number.isFinite(response) ? motionMistake(make(type, level, seed), response) : "other"),
+  solution,
   hints: (type, level, seed) => [NUDGE[type as MotionQuestionType], RULE[type as MotionQuestionType], firstStep(type, level, seed)],
 };

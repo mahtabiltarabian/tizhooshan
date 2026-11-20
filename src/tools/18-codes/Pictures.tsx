@@ -93,12 +93,8 @@ export function TokenG({ kind, t, x, y, size }: { kind: TokenKind; t: number; x:
   );
 }
 
-/** The token a rule gives letter i, as text (for captions and lists). */
-export function tokenText(kind: TokenKind, t: number | null) {
-  if (t === null) return "؟";
-  if (t === SPACE) return " ";
-  return kind === "number" ? fa(t) : kind === "shape" ? SHAPE_FA[SHAPES[t]] : (ALPHABET[t] ?? "؟");
-}
+export { tokenText } from "./text";
+
 
 // ---------------------------------------------------------------- the wheel
 

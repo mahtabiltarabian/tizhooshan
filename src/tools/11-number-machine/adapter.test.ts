@@ -84,4 +84,32 @@ describe("number machine adapter", () => {
           for (const line of h) expect(tokens(line)).not.toContain(fa(Math.abs(answer)));
         }
   });
+
+  it("solution names the generator's answer, in short Persian with Persian digits", () => {
+    const check = (type: string, level: number, seed: number, want: string[]) => {
+      const s = A.solution!(type, level, seed);
+      expect(s.startsWith("جواب:")).toBe(true);
+      expect(s.length).toBeGreaterThanOrEqual(10);
+      expect(s.length).toBeLessThanOrEqual(300);
+      expect(s).not.toMatch(/[0-9]/);
+      const head = s.split(/\. /)[0];
+      for (const w of want) expect(tokens(head)).toContain(w);
+    };
+    for (const level of LEVELS)
+      for (const seed of SEEDS) {
+        for (const type of MACHINE_TYPES) {
+          const q = makeMachineQuestion(type, level, seed);
+          if (q.type !== "build") check(type, level, seed, [fa(q.answer)]);
+          else {
+            // The machine named is the generator's, which grade() takes as right.
+            expect(A.grade(type, level, seed, q.answer)).toBe("right");
+            check(type, level, seed, q.answer.kind === "op" ? [q.answer.op.p, q.answer.op.q].filter((n) => Math.abs(n) > 1).map((n) => fa(Math.abs(n))) : q.answer.rule.map((r) => fa(r.n)));
+          }
+        }
+        const sq = makeSortQuestion(level, seed);
+        check("sort", level, seed, [fa(isChoice(sq) ? sq.answer + 1 : sq.answer)]);
+        if (isChoice(sq)) expect(A.solution!("sort", level, seed)).toContain(`گزینه ${fa(sq.answer + 1)}`);
+      }
+    expect(A.solution!("sort", 3, 5)).toBe(A.solution!("sort", 3, 5));
+  });
 });

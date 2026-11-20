@@ -1,13 +1,20 @@
 "use client";
 
 // The bar above a tool during a session: which question, the three-step
-// hint, the stars for the answer, and the way on. In a mock exam it shows
-// the time left instead of hints, and never says whether an answer is right.
+// hint, the stars for the answer, and the way on.
+//
+// Exams (exam.ts) run in stages; at the end of a stage the stage screen
+// (PracticeResult) takes over. The learning exam keeps hints and, after
+// each answer, says kindly whether it was right and gives the right answer.
+// Real-exam practice and the placement test say nothing about answers,
+// show the stage's time left (real exam only), and let a question be left
+// blank.
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { easierLevel } from "./adaptive";
-import { endRun, getRun, getScreenAdapter, updateRun, useHash, useRun, type Run } from "./bridge";
+import { endRun, examKind, getRun, getScreenAdapter, lastOfStage, updateRun, useHash, useRun, type Run } from "./bridge";
+import { EXAM_AREAS, EXAM_STAGES, PLACEMENT_ROUNDS } from "./exam";
 import { catalogTool, practiceHref } from "./catalog";
 import { starsOf } from "./rewards";
 import { fa } from "@/tools/registry";
@@ -18,7 +25,22 @@ export const RUN_TITLE: Record<Run["kind"], string> = {
   daily: "چالش روزانه",
   exam: "آزمون شبیه‌سازی",
   assignment: "تکلیف",
+  placement: "تعیین سطح",
 };
+
+/** The run's name, with the exam's kind. */
+export function runTitle(r: Pick<Run, "kind" | "exam">) {
+  const kind = examKind(r);
+  if (kind === "learn") return "آزمون آموزشی";
+  if (kind === "real" && r.exam) return "آزمون شبیه واقعی";
+  return RUN_TITLE[r.kind];
+}
+
+/** Is the stage now running (or just ended) the last one? */
+export const finalStage = (r: Pick<Run, "exam">) =>
+  !r.exam || r.exam.stage >= (r.exam.kind === "placement" ? PLACEMENT_ROUNDS : EXAM_STAGES.length) - 1;
+
+const PRAISE = ["آفرین! درست بود.", "عالی! درست جواب دادی.", "درسته! خوب فکر کردی.", "بله، درست است. ادامه بده!"];
 
 const noop = () => () => {};
 /** Re-render once a second (exam clock, daily limit). */
@@ -57,7 +79,10 @@ export function PracticeBar() {
   const pathname = usePathname();
   const router = useRouter();
   const adapter = useSyncExternalStore(noop, getScreenAdapter, () => null);
-  const exam = r?.kind === "exam";
+  const kind = examKind(r);
+  // No word on answers: real-exam practice and placement.
+  const exam = kind === "real" || kind === "placement";
+  const staged = !!r?.exam;
   const now = useNow(!!r && !r.finished);
 
   const hash = useHash(pathname);
@@ -78,10 +103,19 @@ export function PracticeBar() {
     router.push("/practice/result/");
   };
 
-  // Time is up in the exam. (The daily limit is checked after each answer.)
+  /** End of a stage: the stage screen, or the report card after the last one. */
+  const endStage = () => {
+    const cur = getRun();
+    if (!cur) return;
+    if (!cur.exam || finalStage(cur)) return finish();
+    updateRun({ exam: { ...cur.exam, between: true }, finishedAt: Date.now() });
+    router.push("/practice/result/");
+  };
+
+  // Time is up in the exam (in a staged exam: this stage). The daily limit is checked after each answer.
   useEffect(() => {
-    if (!r || r.finished || !r.endsAt || r.kind !== "exam") return;
-    if (now >= r.endsAt) finish();
+    if (!r || r.finished || r.exam?.between || !r.endsAt || examKind(r) !== "real") return;
+    if (now >= r.endsAt) endStage();
   });
 
   if (!r || r.finished || !item || !onTool) return null;
@@ -95,9 +129,11 @@ export function PracticeBar() {
   const next = () => {
     const cur = getRun();
     if (!cur) return;
+    if (cur.exam && lastOfStage(cur)) return endStage();
     if (last || limitReached) return finish();
     // Three wrong in a row: a short lesson came first; the next question of the same skill is one step easier.
-    if (cur.wrongStreak >= 3) {
+    // (Exams set their levels stage by stage instead.)
+    if (cur.wrongStreak >= 3 && !cur.exam) {
       const items = cur.items.map((it, i) =>
         i > cur.index && it.tool === item.tool && it.type === item.type ? { ...it, level: easierLevel(it.level, catalogTool(it.tool)?.levels ?? [1]) } : it,
       );
@@ -107,15 +143,24 @@ export function PracticeBar() {
     openItem(cur, cur.index + 1, router.push);
   };
 
-  const showLesson = !exam && answered && r.wrongStreak >= 3;
+  const showLesson = !staged && !exam && answered && r.wrongStreak >= 3;
+  const solution = adapter && adapter.tool === item.tool ? adapter.solution(item.type, item.level, item.seed) : undefined;
+  const where = r.exam
+    ? r.exam.kind === "placement"
+      ? `سؤال ${fa(r.index + 1)} از ${fa(PLACEMENT_ROUNDS * EXAM_AREAS.length)}`
+      : `مرحله ${fa(r.exam.stage + 1)} از ${fa(EXAM_STAGES.length)} (${EXAM_STAGES[r.exam.stage].title}) · سؤال ${fa(r.index - r.exam.stageStart + 1)} از ${fa(r.items.length - r.exam.stageStart)}`
+    : `سؤال ${fa(r.index + 1)} از ${fa(r.items.length)}`;
 
   return (
     <div className={styles.bar} role="region" aria-label={RUN_TITLE[r.kind]}>
-      <strong>{RUN_TITLE[r.kind]}</strong>
-      <span>
-        سؤال {fa(r.index + 1)} از {fa(r.items.length)}
-      </span>
-      {exam && r.endsAt && <span className={styles.clock}>⏱ {clock(r.endsAt - now)}</span>}
+      <strong>{runTitle(r)}</strong>
+      <span>{where}</span>
+      {kind === "real" && r.endsAt && (
+        <span className={styles.clock} aria-label="زمان باقی‌مانده">
+          ⏱ {clock(r.endsAt - now)}
+        </span>
+      )}
+      {kind === "learn" && !answered && <span className={styles.clock}>⏱ {clock(now - r.itemStartedAt)}</span>}
 
       {!exam && !answered && hints && (
         <div className={styles.hints}>
@@ -132,12 +177,26 @@ export function PracticeBar() {
         </div>
       )}
 
-      {!exam && answered && (
+      {!exam && !staged && answered && (
         <span className={styles.stars} aria-label={`${fa(starsOf(result))} ستاره از ۳`}>
           {starText(starsOf(result))}
         </span>
       )}
-      {exam && answered && <span>پاسخ ثبت شد.</span>}
+      {kind === "learn" && answered && (
+        <div className={styles.lesson} role="status">
+          {result.tag === "right" ? (
+            <p>
+              <strong>✓ {PRAISE[r.index % PRAISE.length]}</strong>
+            </p>
+          ) : (
+            <p>
+              <strong>↻ اشکالی ندارد؛ با اشتباه یاد می‌گیریم.</strong> {solution ?? hints?.[1]}
+            </p>
+          )}
+        </div>
+      )}
+      {kind === "placement" && answered && <span>پاسخ ثبت شد. آفرین برای تلاشت!</span>}
+      {kind === "real" && answered && <span>پاسخ ثبت شد.</span>}
 
       {showLesson && (
         <div className={styles.lesson} role="status">
@@ -152,13 +211,18 @@ export function PracticeBar() {
       <span className={styles.grow} />
       {answered && (
         <button className={styles.primary} onClick={next}>
-          {last || limitReached ? "دیدن نتیجه" : "سؤال بعدی ←"}
+          {staged && lastOfStage(r) ? (finalStage(r) ? "دیدن کارنامه" : "پایان این مرحله") : last || limitReached ? "دیدن نتیجه" : "سؤال بعدی ←"}
+        </button>
+      )}
+      {staged && !answered && (
+        <button className={styles.quiet} onClick={next}>
+          {kind === "real" ? "بی‌جواب بگذار ←" : "نمی‌دانم، بعدی ←"}
         </button>
       )}
       <button
         className={styles.quiet}
         onClick={() => {
-          if (!confirm(exam ? "آزمون تمام شود؟ پاسخ‌های داده‌شده ثبت شده‌اند." : "تمرین تمام شود؟ پاسخ‌های داده‌شده ثبت شده‌اند.")) return;
+          if (!confirm(exam || staged ? "آزمون تمام شود؟ پاسخ‌های داده‌شده ثبت شده‌اند." : "تمرین تمام شود؟ پاسخ‌های داده‌شده ثبت شده‌اند.")) return;
           if (r.results.some(Boolean)) finish();
           else {
             endRun();

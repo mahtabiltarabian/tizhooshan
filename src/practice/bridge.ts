@@ -12,11 +12,27 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ToolAdapter } from "./adapter";
 import { db, newId } from "./db";
+import type { AreaLevels, ExamMode } from "./exam";
 import { answer } from "./record";
 import type { SessionItem } from "./session";
 import { skillKey, type Attempt } from "./types";
 
-export type RunKind = "practice" | "daily" | "exam" | "assignment";
+export type RunKind = "practice" | "daily" | "exam" | "assignment" | "placement";
+
+/** A placement test or an exam in stages (exam.ts). Items are added one stage at a time. */
+export interface ExamState {
+  kind: "placement" | ExamMode;
+  /** Current stage (placement: round), from 0. */
+  stage: number;
+  /** Index of the current stage's first item. */
+  stageStart: number;
+  /** First item of every stage so far. */
+  starts: number[];
+  /** The stage just ended: the stage screen is showing. */
+  between: boolean;
+  /** Placement: each area's level now. */
+  levels?: AreaLevels;
+}
 
 export interface Run {
   id: string;
@@ -39,7 +55,19 @@ export interface Run {
   assignmentId?: string;
   finished?: boolean;
   finishedAt?: number;
+  exam?: ExamState;
 }
+
+/**
+ * How the run treats answers: "learn" shows feedback and the right answer,
+ * "real" and "placement" show none until the stage ends; null for practice.
+ * A run from before stages existed counts as "real".
+ */
+export const examKind = (r: Pick<Run, "kind" | "exam"> | null | undefined): ExamState["kind"] | null =>
+  r?.exam?.kind ?? (r?.kind === "exam" ? "real" : null);
+
+/** Is the current question the last of its stage (or of the run)? */
+export const lastOfStage = (r: Run) => r.index === r.items.length - 1;
 
 const KEY = "tizhooshan-run";
 let run: Run | null = null;
@@ -163,8 +191,10 @@ export function usePractice(adapter: ToolAdapter, onQuestion?: (type: string, le
   }, [adapter]);
   const item = r && !r.finished ? r.items[r.index] : undefined;
   const active = !!item && item.tool === adapter.tool && new URLSearchParams(hash.slice(1)).has("practice");
+  // `exam`: no feedback on screen (real-exam practice and placement). The learning exam shows the tool's feedback.
   // `answered`: the question on screen is already recorded (tools hide answer-revealing aids until then).
-  return { active, exam: active && r?.kind === "exam", answered: active && !!r?.results[r.index] };
+  const kind = examKind(r);
+  return { active, exam: active && (kind === "real" || kind === "placement"), answered: active && !!r?.results[r.index] };
 }
 
 /**

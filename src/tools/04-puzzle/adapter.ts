@@ -6,8 +6,9 @@
 // ({ k: quarter turns, flip, x, y } as a Placement without the kind), or
 // null when it lies crooked.
 
-import { areaOf, makePuzzleQuestion, PIECES, placedTris, type BuildQuestion, type Level, type PuzzleQuestion, type PuzzleQuestionType } from "@/generators/puzzle";
+import { areaOf, makePuzzleQuestion, PIECES, placedTris, type BuildQuestion, type Level, type PieceKind, type PuzzleQuestion, type PuzzleQuestionType } from "@/generators/puzzle";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
 import { PUZZLE_PRACTICE } from "./practice";
 
@@ -132,9 +133,52 @@ function firstStep(q: PuzzleQuestion): string {
   }
 }
 
+
+/** Pieces in words, the same ones counted: «۲ مثلث بزرگ، مربع کج». */
+function piecesWords(kinds: readonly PieceKind[]): string {
+  const count = new Map<PieceKind, number>();
+  for (const k of kinds) count.set(k, (count.get(k) ?? 0) + 1);
+  return [...count].map(([k, n]) => (n > 1 ? `${fa(n)} ${PIECES[k].name}` : PIECES[k].name)).join("، ");
+}
+
+const OVERLAY_MOVE: Record<"none" | "turn" | "flip", string> = {
+  none: "",
+  turn: "اول کاغذ ۲ یک ربع ساعتگرد می‌چرخد؛ بعد ",
+  flip: "اول کاغذ ۲ مثل ورق کتاب برمی‌گردد (چپ و راست عوض می‌شود)؛ بعد ",
+};
+
+/** The answer and why, for the report card after an exam. */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const option = (i: number) => `جواب: گزینه ${fa(i + 1)}`;
+  switch (q.type) {
+    case "build": {
+      const big = [...q.kinds].sort((a, b) => areaOf(b) - areaOf(a))[0];
+      const head = `جواب: هر ${fa(q.kinds.length)} قطعه (${piecesWords(q.kinds)}) با هم سایه${q.name ? ` «${q.name}»` : ""} را بی‌جای خالی و بی‌روی‌هم‌افتادن پر می‌کنند؛ مساحت سایه ${tris(q.target.length)} است، برابر مجموع قطعه‌ها.`;
+      const start = ` اول «${PIECES[big].name}» را در گوشه‌ای بگذار که فقط همان جا می‌شود.`;
+      return head.length + start.length <= 300 ? head + start : head;
+    }
+    case "overlay":
+      return `${option(q.answer)}، با ${fa(q.options[q.answer].length)} خانه سیاه. ${OVERLAY_MOVE[q.move]}هر خانه‌ای که در یکی از دو کاغذ سیاه است، در جواب هم سیاه است.`;
+    case "combine": {
+      const [a, b] = q.pieces.map(areaOf);
+      return `${option(q.answer)}. ${ltr(`${fa(a)} + ${fa(b)} = ${fa(a + b)}`)} مثلث کوچک؛ «${PIECES[q.pieces[0]].name}» و «${PIECES[q.pieces[1]].name}» کنار هم، با چرخاندن${q.level === 3 ? " و برگرداندن" : ""}، همین شکل را می‌سازند.`;
+    }
+    case "split":
+      return `${option(q.answer)}: ${piecesWords(q.options[q.answer])}. این قطعه‌ها با چرخاندن و برگرداندن، شکل را بی‌جای خالی پر می‌کنند؛ در دسته‌های دیگر مساحت درست است ولی شکل قطعه‌ها جور نمی‌شود.`;
+    case "extra": {
+      const sum = q.pieces.reduce((n, k) => n + areaOf(k), 0);
+      return `جواب: قطعه ${fa(q.answer + 1)} («${PIECES[q.pieces[q.answer]].name}»). مساحت قطعه اضافه ${ltr(`${fa(sum)} − ${fa(q.target.length)} = ${fa(sum - q.target.length)}`)} مثلث کوچک است، و بدون همین قطعه، بقیه سایه را کامل پر می‌کنند.`;
+    }
+    case "complete":
+      return `${option(q.answer)} («${PIECES[q.options[q.answer].kind].name}»). اندازه‌اش ${tris(q.hole.length)} است، درست مثل جای خالی، و با چرخاندن (بی برگرداندن) در آن جا می‌شود.`;
+  }
+}
+
 export const PUZZLE_ADAPTER: ToolAdapter = {
   ...PUZZLE_PRACTICE,
   version: "puzzle@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as PuzzleQuestionType], RULE[type as PuzzleQuestionType], firstStep(make(type, level, seed))],
+  solution,
 };

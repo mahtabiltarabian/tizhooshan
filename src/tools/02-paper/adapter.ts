@@ -4,9 +4,11 @@
 // (holesChoice, cutChoice, pieces, foldedShape), the tapped hole cells as
 // "i,j" keys (holes), or the pictures' positions in the order tapped (order).
 
-import { holeCells, makePaperQuestion, perpendicular, unfoldPoints, type Level, type PaperQuestion, type PaperQuestionType } from "@/generators/paper-folding";
+import { centroid, holeCells, makePaperQuestion, perpendicular, shapes, unfoldPoints, type Level, type PaperQuestion, type PaperQuestionType } from "@/generators/paper-folding";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { orderNames } from "./orderText";
 import { PAPER_PRACTICE } from "./practice";
 
 const make = (type: string, level: number, seed: number) => makePaperQuestion(type as PaperQuestionType, level as Level, seed);
@@ -84,9 +86,67 @@ function firstStep(q: PaperQuestion): string {
   }
 }
 
+
+/** A hole cell "i,j" (i from the left, j from the bottom) in words: row from the top, column from the right. */
+const cellWords = (key: string, S: number) => {
+  const [i, j] = key.split(",").map(Number);
+  return `سطر ${fa(S - j)} ستون ${fa(S - i)}`;
+};
+
+/** Hole cells top row first, each row from the right. */
+const byRow = (keys: readonly string[]) =>
+  [...keys].sort((a, b) => {
+    const [ai, aj] = a.split(",").map(Number);
+    const [bi, bj] = b.split(",").map(Number);
+    return bj - aj || bi - ai;
+  });
+
+/** The folded paper in the end, in words: «یک مستطیل در طرف راست کاغذ». */
+function foldedWords(q: PaperQuestion): string {
+  const end = shapes(q.S, q.folds).at(-1)!;
+  const side = (k: number) => Math.hypot(end[k][0] - end[(k + 1) % end.length][0], end[k][1] - end[(k + 1) % end.length][1]);
+  const name = end.length === 3 ? "مثلث" : end.length === 4 ? (Math.abs(side(0) - side(1)) < 1e-6 ? "مربع" : "مستطیل") : "شکل";
+  const [cx, cy] = centroid(end);
+  const h = q.S / 2;
+  const where = [cy > h + 1e-6 ? "بالا" : cy < h - 1e-6 ? "پایین" : "", cx > h + 1e-6 ? "راست" : cx < h - 1e-6 ? "چپ" : ""].filter(Boolean);
+  return `یک ${name} ${where.length ? `در طرف ${where.join(" و ")} کاغذ` : "وسط کاغذ"}`;
+}
+
+/** The answer and why, for the report card after an exam. */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const k = q.folds.length;
+  const L = 2 ** k;
+  const option = (i: number) => `جواب: گزینه ${fa(i + 1)}`;
+  switch (q.type) {
+    case "holes": {
+      const total = q.answer.length;
+      const count = `${ltr(`${fa(q.punches.length)} × ${fa(L)} = ${fa(total)}`)} (سوراخ × لایه)`;
+      if (total <= 4) return `جواب: ${fa(total)} سوراخ، در ${byRow(q.answer).map((c) => cellWords(c, q.S)).join("، ")} (سطر از بالا، ستون از راست). ${count}؛ هر خط تا مثل آینه است.`;
+      return `جواب: ${fa(total)} سوراخ؛ خط‌های تا کاغذ باز را ${fa(L)} بخش می‌کنند و در هر بخش ${fa(q.punches.length)} سوراخ است. ${count}؛ هر سوراخ و قرینه‌اش تا خط تا یک فاصله دارند.`;
+    }
+    case "holesChoice":
+      return `${option(q.answer)}. ${fa(q.punches.length)} سوراخ در ${fa(L)} لایه کاغذ، یعنی ${fa(q.options[q.answer].length)} سوراخ؛ هر خط تا مثل آینه است.`;
+    case "cutChoice":
+      return `${option(q.answer)}. برش از همه ${fa(L)} لایه رد می‌شود؛ باز که کنی، دور هر خط تا قرینه می‌شود.`;
+    case "pieces": {
+      const n = q.options[q.answer];
+      const joined = n < L + 1 ? " بعضی تکه‌ها در خط تا به هم وصل می‌مانند." : "";
+      return `جواب: ${fa(n)} تکه. کاغذ تاشده ${fa(L)} لایه دارد، پس باز که کنیم ${fa(L)} خط برش داریم و کاغذ ${fa(n)} تکه می‌شود.${joined}`;
+    }
+    case "foldedShape":
+      return `${option(q.answer)}: ${foldedWords(q)}. در هر تا، نیمه‌ای که فلش دارد روی نیمه دیگر می‌آید و کاغذ نصف می‌شود.`;
+    case "order":
+      return k === 1
+        ? `جواب: به ترتیب شکل ${orderNames(q)}. اول تا می‌کنیم، بعد کاغذ تاشده را سوراخ می‌کنیم، بعد باز می‌کنیم و سوراخ دو تا می‌شود.`
+        : `جواب: به ترتیب شکل ${orderNames(q)}. تای اول روی کاغذ کامل (مربع) است و هر تا روی شکلِ تای قبلی؛ شکل هر مرحله نصف شکل قبلی است.`;
+  }
+}
+
 export const PAPER_ADAPTER: ToolAdapter = {
   ...PAPER_PRACTICE,
   version: "paper@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as PaperQuestionType], RULE[type as PaperQuestionType], firstStep(make(type, level, seed))],
+  solution,
 };

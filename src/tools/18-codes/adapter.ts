@@ -6,11 +6,14 @@
 // as a number whose bits are the cards (show, next), or the letter places
 // of the word (word); which one the seed decides, as on the page.
 
-import { binaryMistake, makeBinaryQuestion, wordMistake, type BinaryQuestion, type Level } from "@/generators/binary-code";
+import { binaryMistake, cardValues, makeBinaryQuestion, maskOfLetter, onValues, wordMistake, type BinaryQuestion, type Level } from "@/generators/binary-code";
 import { ALPHABET, codeMistake, makeCodeQuestion, outKind, SHAPE_FA, SHAPES, signedShift, SPACE, type CodeQuestion, type CodeQuestionType, type TokenKind } from "@/generators/codes";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { allOnFa, binFa, sumFa } from "./binaryText";
 import { CODES_PRACTICE } from "./practice";
+import { answerFa, codeHow } from "./text";
 
 type Type = CodeQuestionType | "binary";
 
@@ -111,9 +114,66 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[t], RULE[t], safe];
 }
 
+/** The answer sentence, then as many reason sentences as fit on the report card (300 characters). */
+function fit(head: string, parts: readonly string[]): string {
+  let out = head;
+  for (const p of parts) {
+    if (`${out} ${p}`.length > 300) break;
+    out = `${out} ${p}`;
+  }
+  return out;
+}
+
+const listFa = (vs: readonly number[]) => vs.map((v) => fa(v)).join("، ");
+
+function codeSolution(q: CodeQuestion): string {
+  const what = q.type === "sentence" ? "جمله" : "کلمه";
+  const head = q.dir === "encode" ? `جواب: رمز کلمه «${word(q.plain)}» می‌شود «${answerFa(q)}».` : `جواب: ${what} اصلی «${answerFa(q)}».`;
+  // The tool's own working, without its last sentence (the answer, already said).
+  const how = codeHow(q).replace(/\s*پس جواب «[^»]*» است\.$/, "");
+  return fit(
+    head,
+    how.split(". ").map((p) => (p.endsWith(".") ? p : `${p}.`)),
+  );
+}
+
+function binarySolution(q: BinaryQuestion): string {
+  switch (q.kind) {
+    case "read":
+      return fit(`جواب: ${fa(q.n)}.`, [`کارت‌های روشن ${listFa(onValues(q.n))} هستند: ${sumFa(q.n)}.`, `کد ${binFa(q.n)} از چپ به راست خوانده می‌شود، مثل عددها.`]);
+    case "show":
+      return fit(`جواب: ${binFa(q.n)}؛ یعنی کارت‌های ${listFa(onValues(q.n))} روشن ● و بقیه خاموش ○.`, [`از بزرگ‌ترین کارت شروع کن و هر کارتی را که هنوز جا می‌شود روشن کن: ${sumFa(q.n)}.`]);
+    case "next": {
+      const flipped = cardValues().filter((v) => (q.n & v) !== (q.answer & v));
+      const off = flipped.filter((v) => q.n & v);
+      const on = flipped.find((v) => q.answer & v) ?? 1;
+      return fit(`جواب: ${binFa(q.answer)}، یعنی عدد ${fa(q.answer)}.`, [
+        `لامپ‌های سؤال ${sumFa(q.n)} را نشان می‌دهند و عدد بعدی ${fa(q.answer)} است.`,
+        `از راست: ${off.length > 1 ? `کارت‌های روشن ${listFa(off)} خاموش می‌شوند` : `کارت روشن ${listFa(off)} خاموش می‌شود`} و کارت ${fa(on)} روشن می‌شود، مثل ${ltr("۹ + ۱ = ۱۰")}.`,
+      ]);
+    }
+    case "howMany": {
+      const k = q.answer;
+      return fit(`جواب: ${fa(k)} کارت.`, [`با ${fa(k - 1)} کارت بزرگ‌ترین عدد ${allOnFa(k - 1)} است که از ${fa(q.n)} کمتر است؛ با ${fa(k)} کارت تا ${fa(2 ** k - 1)} می‌رسیم.`]);
+    }
+    case "largest":
+      return fit(`جواب: ${fa(q.answer)}.`, [`همه ${fa(q.n)} کارت روشن: ${allOnFa(q.n)}.`, `این یکی کمتر از کارت بعدی (${fa(2 ** q.n)}) است.`]);
+    case "word":
+      return fit(`جواب: کلمه «${word(q.word)}».`, [
+        `هر ردیف یک حرف است: ${q.word.map((l) => `${binFa(maskOfLetter(l))} = ${fa(maskOfLetter(l))} ← ${ALPHABET[l]}`).join("، ")} (ا = ۱).`,
+      ]);
+  }
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = makeCodes(type, level, seed);
+  return q.type === "binary" ? binarySolution(q) : codeSolution(q);
+}
+
 export const CODES_ADAPTER: ToolAdapter = {
   ...CODES_PRACTICE,
   version: "codes@1",
   grade,
   hints,
+  solution,
 };

@@ -599,7 +599,7 @@ function SignsParityBoard({ q, step, total }: { q: ParityQuestion; step: number;
       )}
       {step >= 2 && (
         <T x={8} y={3.8} size={0.4}>
-          {`+x ← −x: حاصل ${ltr("2 × x")} کم می‌شود (زوج)؛ پس همیشه ${S % 2 ? "فرد" : "زوج"}`}
+          {`+x ← −x: حاصل ${ltr("۲ × x")} کم می‌شود (زوج)؛ پس همیشه ${S % 2 ? "فرد" : "زوج"}`}
         </T>
       )}
       {step >= total && q.answer === YES && (

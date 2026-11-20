@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { answerKind, makeMotionQuestion, motionMistake, slips, type Level, type MotionQuestion, type MotionQuestionType } from "@/generators/motion";
 import { fa } from "@/tools/registry";
 import { MOTION_ADAPTER as A } from "./adapter";
-import { MOTION_TYPE_LABEL, motionPrompt } from "./MotionTryPanel";
+import { answerFa, MOTION_TYPE_LABEL, motionPrompt, unitOf } from "./MotionTryPanel";
+import { COMPASS } from "@/generators/motion";
+import { ROT_WORD } from "./Pictures";
 import { MOTION_PRACTICE as P } from "./practice";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
@@ -65,4 +67,24 @@ describe("motion adapter", () => {
           for (const line of h) expect(nums(line), `${type} ${level} ${seed}: ${line}`).not.toContain(ans);
         }
   }, 60_000);
+
+  it("solution names the real answer, in Persian digits, short enough for the report card", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(type, level, seed);
+          const where = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), where).toBe(true);
+          expect(s.length, where).toBeGreaterThanOrEqual(10);
+          expect(s.length, where).toBeLessThanOrEqual(300);
+          expect(s, where).not.toMatch(/[0-9]/);
+          expect(A.solution!(type, level, seed)).toBe(s);
+          const q = makeMotionQuestion(type, level, seed);
+          expect(A.grade(type, level, seed, q.answer)).toBe("right");
+          // The answer is named in the first sentence: a number with its unit, the turning, the way, the point or the road.
+          const token =
+            q.type === "gearDir" ? ROT_WORD[q.answer] : q.type === "gearTurns" ? `${fa(q.answer)} دور` : q.type === "orient" ? `رو به ${COMPASS[q.answer]}` : answerKind(q) === "number" ? `${fa(q.answer)} ${unitOf(q)}` : answerFa(q);
+          expect(s.slice(0, s.indexOf(".")), where).toContain(token);
+        }
+  });
 });

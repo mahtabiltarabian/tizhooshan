@@ -77,4 +77,20 @@ describe("balance adapter", () => {
           for (const line of h) expect(line.match(/[۰-۹]+/g) ?? [], `${type} ${level} ${seed}: ${line}`).not.toContain(ans);
         }
   }, 60_000);
+
+  it("solution names the generator's answer, in short Persian with Persian digits", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(type, level, seed);
+          expect(s.startsWith("جواب:")).toBe(true);
+          expect(s.length).toBeGreaterThanOrEqual(10);
+          expect(s.length).toBeLessThanOrEqual(300);
+          expect(s).not.toMatch(/[0-9]/);
+          const q = makeTryQuestion(type, level, seed);
+          expect(A.grade(type, level, seed, q.answer)).toBe("right");
+          expect(s.split(/\. /)[0].match(/[۰-۹]+/g) ?? [], `${type} ${level} ${seed}: ${s}`).toContain(fa(q.answer));
+        }
+    expect(A.solution!("balance", 3, 5)).toBe(A.solution!("balance", 3, 5));
+  });
 });

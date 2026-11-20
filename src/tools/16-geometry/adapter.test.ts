@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { checkBuild, checkCut, geometryMistake, makeGeometryQuestion, slips, type GeometryQuestionType, type Level, type Pt } from "@/generators/geometry";
 import { mulberry32 } from "@/generators/random";
 import { GEOMETRY_ADAPTER, geometryAnswerFa } from "./adapter";
+import { num } from "./frames";
+import { choicesOf } from "./GeometryText";
+import { measureUnit } from "./MeasureText";
 import { GEOMETRY_TYPE_LABEL } from "./GeometryTryPanel";
 import { GEOMETRY_PRACTICE } from "./practice";
 
@@ -65,6 +68,39 @@ describe("geometry adapter", () => {
           // classify, build and divide have no single number to give away.
           const ans = geometryAnswerFa(makeGeometryQuestion(type, level as Level, seed));
           if (ans) for (const line of h) expect(tokens(line), `${type} ${level} ${seed}: ${line}`).not.toContain(ans);
+        }
+  });
+
+  it("solution names the real answer with its unit, in Persian digits, short enough for the report card", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = GEOMETRY_ADAPTER.solution!(type, level, seed);
+          const where = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), where).toBe(true);
+          expect(s.length, where).toBeGreaterThanOrEqual(10);
+          expect(s.length, where).toBeLessThanOrEqual(300);
+          expect(s, where).not.toMatch(/[0-9]/);
+          expect(GEOMETRY_ADAPTER.solution!(type, level, seed)).toBe(s);
+          const q = makeGeometryQuestion(type, level as Level, seed);
+          // What the first sentence must say, and that grade() takes that answer as right.
+          const first = s.slice(0, s.indexOf("."));
+          let token: string;
+          if (q.type === "build") {
+            expect(GEOMETRY_ADAPTER.grade(type, level, seed, json(q.example))).toBe("right");
+            token = q.area !== null ? `${num(q.area)} واحد مربع` : `${num(q.perimeter!)} واحد`;
+          } else if (q.type === "divide") {
+            expect(GEOMETRY_ADAPTER.grade(type, level, seed, json(q.example))).toBe("right");
+            token = "مساحت برابر";
+          } else {
+            expect(GEOMETRY_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+            if (q.type === "classify") token = `«${choicesOf(q.level)[q.answer]}»`;
+            else if (q.type === "angle" || q.type === "parallel") token = `${num(q.answer)} درجه`;
+            else if (q.type === "area") token = `${num(q.answer)} واحد مربع`;
+            else if (q.type === "perimeter") token = `${num(q.answer)} واحد`;
+            else token = `${num(q.answer)} ${measureUnit(q)}`;
+          }
+          expect(first, where).toContain(token);
         }
   });
 });

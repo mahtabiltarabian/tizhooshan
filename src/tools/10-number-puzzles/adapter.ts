@@ -8,6 +8,7 @@ import { blankCells, cornersOf, makeNumberPuzzle, rowOf, puzzleMistake, solveSte
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
 import { NUMBER_PUZZLES_PRACTICE } from "./practice";
+import { stepText } from "./PuzzleTryPanel";
 
 const make = (type: string, level: number, seed: number) => makeNumberPuzzle(type as PuzzleType, level as Level, seed);
 
@@ -97,9 +98,85 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[t], RULE[t], one !== null && showsNumber(step, one) ? PLAIN_STEP[t] : step];
 }
 
+// ── Solution for the report card ─────────────────────────────────────────
+// The puzzle is not on the paper, so every blank is named by its place on
+// the figure (as the tool's own line names do: "سطر بالا", "ضلع چپ"); the
+// square and the pyramid are written out whole, row by row from the right.
+
+const SQUARE_ROW = ["بالا", "وسط", "پایین"];
+const TRIANGLE_CELL = ["گوشه بالا", "گوشه پایین چپ", "گوشه پایین راست", "وسط ضلع چپ", "وسط ضلع پایین", "وسط ضلع راست"];
+/** Wheel: the centre, then the six circles from the top, clockwise. */
+const WHEEL_CELL = ["وسط", "بالا", "بالا راست", "پایین راست", "پایین", "پایین چپ", "بالا چپ"];
+/** Six-pointed star: the tips from the top, clockwise, then the inner circles from the upper right, clockwise. */
+const STAR_TIP = ["بالا", "بالا راست", "پایین راست", "پایین", "پایین چپ", "بالا چپ"];
+const STAR_INNER = ["بالا راست", "راست", "پایین راست", "پایین چپ", "چپ", "بالا چپ"];
+const SHAPE_CELL = ["گوشه بالا", "گوشه پایین چپ", "گوشه پایین راست", "عدد وسط"];
+const PLACE = ["اول", "دوم", "سوم"];
+
+function cellName(q: NumberPuzzle, i: number): string {
+  switch (q.type) {
+    case "grid": {
+      const r = Math.floor(i / 4);
+      const c = i % 4;
+      if (r === 3) return c === 3 ? "جمع کل" : `جمع ستون ${fa(c + 1)}`;
+      return c === 3 ? `جمع سطر ${fa(r + 1)}` : `سطر ${fa(r + 1)} ستون ${fa(c + 1)}`;
+    }
+    case "star":
+      return TRIANGLE_CELL[i];
+    case "ring":
+      if (q.cells.length === 7) return `دایره ${WHEEL_CELL[i]}`;
+      return i < 6 ? `نوک ${STAR_TIP[i]}` : `دایره داخلی ${STAR_INNER[i - 6]}`;
+    case "shape":
+      return `${SHAPE_CELL[i % 4]} شکل ${fa(Math.floor(i / 4) + 1)}`;
+    case "matrix":
+      return `عدد ${PLACE[i % 3]} سطر ${fa(Math.floor(i / 3) + 1)} (از راست)`;
+    default:
+      return "";
+  }
+}
+
+/** The whole answer: the figure row by row, or each blank by its place, in the order the solver fills them. */
+function answerList(q: NumberPuzzle, steps: ReturnType<typeof solveSteps>): string {
+  const v = q.cells.map((c) => c.value);
+  if (q.type === "magic") return `جدول کامل، هر سطر از راست به چپ: ${SQUARE_ROW.map((n, r) => `${n} ${[2, 1, 0].map((c) => fa(v[3 * r + c])).join("، ")}`).join("؛ ")}.`;
+  if (q.type === "pyramid") {
+    const rows = Math.round((Math.sqrt(8 * v.length + 1) - 1) / 2);
+    const lines = Array.from({ length: rows }, (_, r) => Array.from({ length: r + 1 }, (_, i) => fa(v[r * (r + 1) / 2 + r - i])).join("، "));
+    return `هرم کامل از بالا به پایین، هر ردیف از راست به چپ: ${lines.join("؛ ")}.`;
+  }
+  // Solver order when it has one, else the cells in order.
+  const order: number[] = [];
+  for (const s of steps ?? []) {
+    if (s.kind === "pick") order.push(...s.cells);
+    else if ((s.kind === "line" || s.kind === "only" || s.kind === "apply" || s.kind === "centre") && !order.includes(s.cell)) order.push(s.cell);
+  }
+  for (const i of blankCells(q)) if (!order.includes(i)) order.push(i);
+  return `${order.filter((i) => !q.cells[i].given).map((i) => `${cellName(q, i)}: ${fa(v[i])}`).join("، ")}.`;
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const steps = solveSteps(q);
+  const head = `جواب: ${answerList(q, steps)}`;
+  const tail = q.anyFill ? " چینش‌های دیگری هم درست‌اند (مثلاً چرخاندن مثلث)." : "";
+  // The key line: for number in shape and the matrix, the rule on a finished one and on the blank; else the solver's first step.
+  const keys = !steps?.length ? [] : q.type === "shape" || q.type === "matrix" ? [steps[0], steps[steps.length - 1]] : [steps[0]];
+  // A step about "this cell" names it, and a rule tried on a finished shape ends with a full stop, not a tick.
+  const key = keys
+    .map((s) => {
+      const name = s.kind === "only" ? cellName(q, s.cell) : "";
+      if (s.kind === "only" && name) return `برای ${name}، از عددهای باقی‌مانده (${s.rest.map(fa).join("، ")}) فقط ${fa(s.value)} با همه خط‌هایش جور درمی‌آید.`;
+      return stepText(q, s).replace(/ ✓$/, ".");
+    })
+    .join(" ");
+  for (const s of [`${head}${tail} ${key}`, `${head}${tail}`]) if (s.length <= 300) return s;
+  return head;
+}
+
 export const NUMBER_PUZZLES_ADAPTER: ToolAdapter = {
   ...NUMBER_PUZZLES_PRACTICE,
   version: "number-puzzles@1",
   grade,
   hints,
+  solution,
 };

@@ -8,11 +8,14 @@
 // The grid is the page's default: the level's own size, no extra clues.
 
 import { IF_STORIES } from "@/generators/if-then";
-import { CREATURES, gridCheck, liarSteps, liarsMistake, makeLogicQuestion, type LogicQuestion, type LogicType, type Level } from "@/generators/logic";
+import { CREATURES, gridCheck, gridSteps, liarSteps, liarsMistake, makeLogicQuestion, type GridQuestion, type LiarsQuestion, type LogicQuestion, type LogicType, type Level } from "@/generators/logic";
 import { countMistake } from "@/generators/venn-count";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
+import { answerSentence, countHow } from "./countText";
+import { ifHow, ifOptionText } from "./ifText";
 import { LOGIC_PRACTICE } from "./practice";
+import { gridStepText, itemsOf, liarsAnswerFa, liarStepText, logicHow, optionText } from "./text";
 
 const make = (type: string, level: number, seed: number) => makeLogicQuestion(type as LogicType, level as Level, seed);
 
@@ -97,9 +100,74 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[type as LogicType], RULE[type as LogicType], safe];
 }
 
+/** The answer sentence, then as many reason sentences as fit on the report card (300 characters). */
+function fit(head: string, parts: readonly string[]): string {
+  let out = head;
+  for (const p of parts) {
+    if (`${out} ${p}`.length > 300) break;
+    out = `${out} ${p}`;
+  }
+  return out;
+}
+
+/** The filled grid as short pairs: «سارا ← گربه، علی ← ماهی». */
+export const gridPairsFa = (q: GridQuestion) => q.answer.map((i, p) => `${q.people[p]} ← ${itemsOf(q)[i]}`).join("، ");
+
+function gridSolution(q: GridQuestion): string {
+  // The first ✓ the solver finds: where the grid starts to give way.
+  const first = gridSteps(q.size, q.clues).steps.find((s) => s.kind === "row" || s.kind === "col" || (s.kind === "clue" && s.yes.length > 0));
+  return fit(`جواب: ${gridPairsFa(q)}.`, [
+    ...(first ? [`اولین ✓: ${gridStepText(q, first)}`] : []),
+    "بعد از هر سرنخ، سطر یا ستونی که فقط یک خانه باز دارد ✓ می‌گیرد و بقیه سطر و ستونش ✗.",
+  ]);
+}
+
+function liarsSolution(q: LiarsQuestion): string {
+  const head = `جواب: ${liarsAnswerFa(q)}.`;
+  const steps = liarSteps(q);
+  // The wrong first guess and the clash it runs into, when that case has no case inside it.
+  const starts = steps.flatMap((s, k) => (s.kind === "assume" && s.depth === 0 ? [k] : []));
+  const wrong = starts.find((k) => {
+    const s = steps[k];
+    return s.kind === "assume" && s.liar !== q.answer[s.who];
+  });
+  const tries: string[][] = [];
+  if (wrong !== undefined) {
+    const branch = steps.slice(wrong + 1, starts.find((k) => k > wrong) ?? steps.length);
+    const clash = branch.find((s) => s.kind === "clash");
+    if (clash && !branch.some((s) => s.kind === "assume")) {
+      const last = "پس حالت دیگر درست است و همه حرف‌ها با آن جور است.";
+      const full = [steps[wrong], ...branch.slice(0, branch.indexOf(clash) + 1)].map((s) => liarStepText(q, s));
+      const short = [liarStepText(q, steps[wrong]), liarStepText(q, clash)];
+      tries.push([...full, last], full, [...short, last], short);
+    }
+  }
+  tries.push([logicHow(q)]);
+  // The first reason that fits whole: never a guess without the clash that rules it out.
+  const why = tries.find((t) => `${head} ${t.join(" ")}`.length <= 300);
+  return why ? `${head} ${why.join(" ")}` : head;
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  switch (q.type) {
+    case "grid":
+      return gridSolution(q);
+    case "liars":
+      return liarsSolution(q);
+    case "venn":
+      return fit(`جواب: گزینه ${fa(q.answer + 1)}، «${optionText(q, q.answer)}».`, [logicHow(q)]);
+    case "vennNum":
+      return fit(`جواب: ${answerSentence(q, fa(q.answer))}.`, [`روی نمودار: ${countHow(q)}.`]);
+    case "ifThen":
+      return fit(`جواب: گزینه ${fa(q.answer + 1)}، «${ifOptionText(q, q.answer)}».`, [ifHow(q)]);
+  }
+}
+
 export const LOGIC_ADAPTER: ToolAdapter = {
   ...LOGIC_PRACTICE,
   version: "logic@1",
   grade,
   hints,
+  solution,
 };

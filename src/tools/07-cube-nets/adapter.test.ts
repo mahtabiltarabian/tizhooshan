@@ -120,3 +120,54 @@ describe("cube nets adapter", () => {
         }
   });
 });
+
+describe("cube-nets solution", () => {
+  const SOL_SEEDS = Array.from({ length: 25 }, (_, i) => i * 53 + 3);
+  const TYPES = Object.keys(TYPE_LABEL);
+  it.each(TYPES)("%s: names the generator's real answer, in Persian, within 300 characters", (type) => {
+    for (const level of [1, 2, 3] as const)
+      for (const seed of SOL_SEEDS) {
+        const s = A.solution!(type, level, seed);
+        expect(s.startsWith("جواب:")).toBe(true);
+        expect(s.length).toBeGreaterThanOrEqual(10);
+        expect(s.length).toBeLessThanOrEqual(300);
+        expect(s).not.toMatch(/[0-9]/);
+        if (type === "die" || type === "roll") {
+          const q = makeDiceQuestion(type, level, seed);
+          expect(A.grade(type, level, seed, q.answer)).toBe("right");
+          expect(s).toContain(q.type === "die" && q.kind === "validNet" ? `جواب: گسترده ${fa(q.answer + 1)}.` : `جواب: ${fa(q.answer)} خال.`);
+          continue;
+        }
+        const q = makeQuestion(type as QuestionType, level, seed);
+        const sym = q.net.symbols;
+        switch (q.type) {
+          case "opposite":
+          case "hidden":
+            expect(A.grade(type, level, seed, q.answer)).toBe("right");
+            expect(s).toContain(`جواب: «${sym[q.answer]}»`);
+            break;
+          case "touch":
+            expect(A.grade(type, level, seed, q.answers)).toBe("right");
+            for (const i of q.answers) expect(s).toContain(`«${sym[i]}»`);
+            break;
+          case "missing":
+            expect(A.grade(type, level, seed, q.answer)).toBe("right");
+            expect(s).toContain(`جواب: خانه ${fa(q.answer + 1)} از راست`);
+            break;
+          case "makes":
+          case "cannot":
+            expect(A.grade(type, level, seed, q.answer)).toBe("right");
+            expect(s).toContain(`جواب: گزینه ${fa(q.answer + 1)}.`);
+            break;
+          case "netMakes":
+          case "netCannot":
+            expect(A.grade(type, level, seed, q.answer)).toBe("right");
+            expect(s).toContain(`جواب: گسترده ${fa(q.answer + 1)}.`);
+            break;
+          case "place":
+            for (const [a, b] of oppositePairs(q.net.cells)) expect(s).toContain(`«${sym[a]}» و «${sym[b]}»`);
+            break;
+        }
+      }
+  }, 60_000);
+});

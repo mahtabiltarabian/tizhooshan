@@ -4,6 +4,8 @@ import { mulberry32, shuffle } from "@/generators/random";
 import { SEATING_ADAPTER } from "./adapter";
 import { SEATING_PRACTICE } from "./practice";
 import { SEATING_TYPE_LABEL } from "./text";
+import { fa } from "@/tools/registry";
+import { arrangementText } from "./text";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 const TYPES = Object.keys(SEATING_TYPE_LABEL) as SeatingType[];
@@ -70,6 +72,31 @@ describe("seating adapter", () => {
           // The family rule lists the relation words of both sides on purpose (عمو، دایی …); it singles none out.
           const lines = q.type === "family" ? [h[0], h[2]] : h;
           if (ans) for (const line of lines) expect(words(line), `${type} ${level} ${seed}: ${line}`).not.toContain(words(ans));
+        }
+  });
+
+  it("solution: the real answer, in one to three short Persian sentences", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const q = makeSeatingQuestion(type, level as Level, seed);
+          const s = SEATING_ADAPTER.solution!(type, level, seed);
+          const at = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), at).toBe(true);
+          expect(s.length, at).toBeGreaterThanOrEqual(10);
+          expect(s.length, at).toBeLessThanOrEqual(300);
+          expect(s, at).not.toMatch(/[0-9]/);
+          expect(s, at).toBe(SEATING_ADAPTER.solution!(type, level, seed));
+          if (q.type === "family") {
+            expect(s, at).toContain(`گزینه ${fa(q.answer + 1)}، «${q.options[q.answer].text}»`);
+            expect(SEATING_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          } else if (q.variant === "ask") {
+            expect(s.startsWith(`جواب: ${q.names[q.answer]}.`), at).toBe(true);
+            expect(SEATING_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          } else {
+            expect(s.startsWith(`جواب: ${arrangementText(q)}.`), at).toBe(true);
+            expect(SEATING_ADAPTER.grade(type, level, seed, q.solution)).toBe("right");
+          }
         }
   });
 });

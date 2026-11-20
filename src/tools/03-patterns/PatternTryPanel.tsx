@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FILL_NAME, SHAPE_NAME, type Level, type PatternQuestion, type PatternQuestionType, type Tag, type Tile } from "@/generators/patterns";
+import { type Level, type PatternQuestion, type PatternQuestionType, type Tag, type Tile } from "@/generators/patterns";
 import { fa } from "@/tools/registry";
 import { PatchSvg, TileSvg } from "./Pictures";
 import { DROP_ATTR } from "./Scene";
@@ -56,12 +56,7 @@ export function patternPrompt(q: PatternQuestion, paper = false): string {
   }
 }
 
-/** A tile in words, when it is made of shapes. */
-export function tileWords(t: Tile): string {
-  if (!t.shape) return "";
-  const turn = t.turn ? `، ${fa(t.turn * 45)} درجه چرخیده` : "";
-  return `${fa(t.count ?? 1)} ${SHAPE_NAME[t.shape]} ${FILL_NAME[t.fill ?? "white"]}${turn}`;
-}
+export { tileWords } from "./tileText";
 
 type Tone = "good" | "turned" | "bad";
 const ICON: Record<Tone, string> = { good: "✓", turned: "↻", bad: "✗" };

@@ -4,10 +4,12 @@
 // { n, d } (any equal fraction is right), the number of parts shaded, or for
 // «مقایسه کسرها» the choice: 0 the first fraction, 1 the second, 2 equal.
 
-import { lcm, makeRatioQuestion, percentBlocks, ratioMistake, type Answer, type Level, type RatioQuestionType } from "@/generators/ratio";
+import { isFrac, lcm, makeRatioQuestion, percentBlocks, ratioMistake, simplest, type Answer, type Frac, type Level, type RatioQuestion, type RatioQuestionType } from "@/generators/ratio";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
 import { RATIO_PRACTICE } from "./practice";
+import { DIVIDE_ITEMS, isFracView, PEOPLE, RATIO_THINGS, ratioHow, ratioSteps, type FracView, type Seg } from "./text";
 
 const make = (type: string, level: number, seed: number) => makeRatioQuestion(type as RatioQuestionType, level as Level, seed);
 
@@ -92,9 +94,94 @@ function firstStep(type: string, level: number, seed: number): string {
   return "گام اول: داده‌ها را روی نوار بکش.";
 }
 
+// ── Solution (report card after an exam) ─────────────────────────────────
+
+/** A fraction written on one line, left to right: "۳/۴". */
+export const fracFa = (f: Frac | FracView) => ltr(`${typeof f.n === "number" ? fa(f.n) : f.n}/${typeof f.d === "number" ? fa(f.d) : f.d}`);
+
+/** The tool's segments as one line of text: fractions as "۳/۴", equations kept left to right. */
+function plain(segs: Seg[]): string {
+  return segs
+    .map((s) => (typeof s === "string" ? s : isFracView(s) ? fracFa(s) : ltr(s.eq.map((p) => (typeof p === "string" ? p : `${typeof p.n === "number" ? fa(p.n) : p.n}/${typeof p.d === "number" ? fa(p.d) : p.d}`)).join(""))))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const ORDER = ["اول", "دوم", "سوم"];
+
+/** The answer named so it reads without the question: a number with what it counts, a fraction of what, or the option. */
+function answerPhrase(q: RatioQuestion): string {
+  const num = (v: number) => fa(v);
+  switch (q.type) {
+    case "shade":
+      return `${num(q.answer)} قسمت از ${num(q.parts)} قسمتِ ${q.shape === "bar" ? "نوار" : "دایره"} رنگ می‌شود`;
+    case "partOf":
+      if (q.variant === "rest") return `${num(q.answer)} ${["شیرینی", "صفحه", "مهره"][q.item] ?? "تا"} می‌ماند`;
+      return q.variant === "whole" ? `آن عدد ${num(q.answer)} است` : `${fracFa(q.frac)} از ${num(q.whole)} می‌شود ${num(q.answer)}`;
+    case "compare":
+      return q.answer === 2
+        ? `«برابرند»؛ ${fracFa(q.fracs[0])} و ${fracFa(q.fracs[1])} با هم برابرند`
+        : `کسر ${ORDER[q.answer]}، ${fracFa(q.fracs[q.answer])}، بزرگ‌تر است`;
+    case "ratio": {
+      const t = RATIO_THINGS[q.things];
+      const who = q.variant === "other" ? t.b : q.variant === "total" ? t.all : t.a;
+      return `${who} ${num(q.answer)} ${t.unit} هستند`;
+    }
+    case "divide":
+      return `سهم ${PEOPLE[q.ask]} ${num(q.answer)} ${DIVIDE_ITEMS[q.item]} است`;
+    case "percent":
+      switch (q.variant) {
+        case "of":
+          return `${fa(q.pct)} درصد از ${num(q.whole)} می‌شود ${num(q.answer)}`;
+        case "off":
+          return q.item === 0 ? `قیمت تازه ${num(q.answer)} هزار تومان است` : `${num(q.answer)} نفر حاضرند`;
+        case "up":
+          return q.item === 0 ? `گیاه حالا ${num(q.answer)} سانتی‌متر است` : `قیمت تازه ${num(q.answer)} هزار تومان است`;
+        case "whole":
+          return `آن عدد ${num(q.answer)} است`;
+        case "what":
+          return `${num(q.part)}، ${num(q.answer)} درصدِ ${num(q.whole)} است`;
+      }
+      break;
+    case "work": {
+      const thing = q.ctx === "tap" ? "مخزن" : "دیوار";
+      const time = q.ctx === "tap" ? "ساعت" : "روز";
+      const done = q.ctx === "tap" ? "پر می‌شود" : "رنگ می‌شود";
+      if (isFrac(q.answer)) return `در ${q.variant === "pairFraction" ? "یک" : fa(q.hours)} ${time}، ${fracFa(simplest(q.answer))} ${thing} ${done}`;
+      if (q.variant === "crew") return `${fa(q.crew[2])} کارگر آن را در ${num(q.answer)} روز می‌سازند`;
+      return `${num(q.answer)} ${time} طول می‌کشد تا ${thing} ${q.ctx === "tap" ? "پر شود" : "رنگ شود"}`;
+    }
+  }
+  return "";
+}
+
+/** The answer as written in the report card (and in the test): simplest fraction, the number, or the option's fraction. */
+export function answerToken(q: RatioQuestion): string {
+  if (q.type === "compare") return q.answer === 2 ? "برابرند" : fracFa(q.fracs[q.answer]);
+  return isFrac(q.answer) ? fracFa(simplest(q.answer)) : fa(q.answer);
+}
+
+const MAX = 300;
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const head = `جواب: ${answerPhrase(q)}.`;
+  // The tool's own working («نشانم بده»), shortened to its last step when the whole is too long.
+  const steps = ratioSteps(q);
+  // A shade question's last step only repeats the answer; its middle step is the reason.
+  const whole = q.type === "shade" ? steps[1] : ratioHow(q);
+  for (const why of [plain(whole), plain(steps[steps.length - 1])]) {
+    const s = `${head} ${why}${/[.!؟]$/.test(why) ? "" : "."}`;
+    if (s.length <= MAX) return s;
+  }
+  return head;
+}
+
 export const RATIO_ADAPTER: ToolAdapter = {
   ...RATIO_PRACTICE,
   version: "ratio@1",
   grade,
+  solution,
   hints: (type, level, seed) => [NUDGE[type as RatioQuestionType], RULE[type as RatioQuestionType], firstStep(type, level, seed)],
 };

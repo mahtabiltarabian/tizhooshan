@@ -66,4 +66,23 @@ describe("number puzzles adapter", () => {
           if (blanks.length === 1) for (const line of h) expect(tokens(line)).not.toContain(fa(q.cells[blanks[0]].value));
         }
   });
+
+  it("solution gives every blank's value, in short Persian with Persian digits", () => {
+    for (const { key } of A.types)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(key, level, seed);
+          expect(s.startsWith("جواب:")).toBe(true);
+          expect(s.length).toBeGreaterThanOrEqual(10);
+          expect(s.length).toBeLessThanOrEqual(300);
+          expect(s).not.toMatch(/[0-9]/);
+          const q = makeNumberPuzzle(key as NumberPuzzle["type"], level, seed);
+          // The values named are the generator's fill, which grade() takes as right.
+          expect(A.grade(key, level, seed, solution(q))).toBe("right");
+          const head = tokens(s.split(/\. /)[0]);
+          for (const i of blankCells(q)) expect(head).toContain(fa(q.cells[i].value));
+          if (q.anyFill) expect(s).toContain("چینش‌های دیگری هم درست‌اند");
+        }
+    expect(A.solution!("star", 3, 5)).toBe(A.solution!("star", 3, 5));
+  });
 });

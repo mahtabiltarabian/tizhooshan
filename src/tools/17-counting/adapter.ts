@@ -7,6 +7,7 @@ import { COLOURS, countingMistake, FRUITS, makeCountingQuestion, PEOPLE, type An
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
 import { COUNTING_PRACTICE } from "./practice";
+import { answerText, countingHow } from "./text";
 
 const make = (type: string, level: number, seed: number) => makeCountingQuestion(type as CountingQuestionType, level as Level, seed);
 
@@ -107,9 +108,40 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[t], RULE[t], safe];
 }
 
+/** What the count counts, so the answer reads on its own: «۲۴ حالت». */
+function unit(q: CountingQuestion): string {
+  switch (q.type) {
+    case "tree":
+      return q.variant === "roads" || q.variant === "either" ? "راه" : "حالت";
+    case "arrange":
+      return q.ctx === "digits" ? "عدد" : "حالت";
+    case "choose":
+      return q.ctx === "fruit" ? "حالت" : "گروه";
+    case "handshake":
+      if (q.variant === "inverse") return q.ctx === "teams" ? "تیم" : "نفر";
+      return q.ctx === "teams" ? "بازی" : "دست‌دادن";
+    case "grid":
+      return "راه";
+    case "pigeonhole":
+      return q.ctx === "socks" ? "جوراب" : "مهره";
+    case "probability":
+      return "";
+  }
+}
+
+/** «جواب: …» and the working, if it fits in the report card line (300 characters). */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const u = unit(q);
+  const head = u ? `جواب: ${answerText(q)} ${u}.` : `جواب: احتمال ${answerText(q)}.`;
+  const how = countingHow(q);
+  return `${head} ${how}`.length <= 300 ? `${head} ${how}` : `${head} ${RULE[q.type]}`;
+}
+
 export const COUNTING_ADAPTER: ToolAdapter = {
   ...COUNTING_PRACTICE,
   version: "counting@1",
   grade: (type, level, seed, response) => (isAnswer(response) ? countingMistake(make(type, level, seed), response) : "other"),
   hints,
+  solution,
 };

@@ -1,3 +1,4 @@
+import "./ignore-css";
 import "reflect-metadata";
 import { existsSync } from "node:fs";
 

@@ -3,6 +3,7 @@ import { makeTransformQuestion, paintMistake, type Level, type TransformQuestion
 import { fa } from "@/tools/registry";
 import { TRANSFORMS_ADAPTER as A } from "./adapter";
 import { TRANSFORMS_PRACTICE as P } from "./practice";
+import { MOVE_NAME, vecText } from "./moveText";
 import { TRANSFORM_TYPE_LABEL } from "./TransformTryPanel";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
@@ -64,6 +65,26 @@ describe("transforms adapter", () => {
         const q = makeTransformQuestion(type, level, seed);
         if (q.type === "shift" && q.form === "vector")
           for (const v of q.vec) if (v) for (const line of h) expect(line).not.toContain(`${fa(Math.abs(v))} خانه`);
+      }
+  }, 60_000);
+  it.each(TYPES)("%s: the solution names the real answer, in Persian digits", (type) => {
+    for (const level of LEVELS)
+      for (const seed of SEEDS.slice(0, 30)) {
+        const s = A.solution!(type, level, seed);
+        expect(s).toBe(A.solution!(type, level, seed));
+        expect(s.startsWith("جواب:")).toBe(true);
+        expect(s.length).toBeGreaterThanOrEqual(10);
+        expect(s.length).toBeLessThanOrEqual(300);
+        expect(s).not.toMatch(/[0-9]/);
+        const q = makeTransformQuestion(type, level, seed);
+        expect(A.grade(type, level, seed, q.answer)).toBe("right");
+        if (q.type === "which") expect(s).toContain(`جواب: ${MOVE_NAME[q.options[q.answer]]}.`);
+        else if (q.type === "draw") expect(s).toContain(`${fa(q.answer.length)} خانه`);
+        else if (q.type === "shift") {
+          if (q.form === "vector") expect(s).toContain(`جواب: ${vecText(q.vec)}.`);
+          else expect(s).toContain(vecText(q.vec, false));
+          if (q.form === "draw") expect(s).toContain(`${fa(q.answer.length)} خانه رنگ`);
+        } else expect(s).toContain(`جواب: گزینه ${fa(q.answer + 1)}.`);
       }
   }, 60_000);
 });

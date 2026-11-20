@@ -68,3 +68,30 @@ describe("speed adapter", () => {
       }
   });
 });
+
+describe("speed solution", () => {
+  const SOL_SEEDS = Array.from({ length: 25 }, (_, i) => i * 53 + 3);
+  const fa = (n: number) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+  it.each([...TYPES, "mental"])("%s: names the generator's real answer, in Persian, within 300 characters", (type) => {
+    for (const level of [1, 2, 3] as Level[])
+      for (const seed of SOL_SEEDS) {
+        const s = SPEED_ADAPTER.solution!(type, level, seed);
+        expect(s.startsWith("جواب:")).toBe(true);
+        expect(s.length).toBeGreaterThanOrEqual(10);
+        expect(s.length).toBeLessThanOrEqual(300);
+        expect(s).not.toMatch(/[0-9]/);
+        if (type === "mental") {
+          const answers = makeMentalQuestion(level, seed).items.map((it) => it.answer);
+          expect(SPEED_ADAPTER.grade(type, level, seed, answers)).toBe("right");
+          expect(s).toContain(`جواب: ${answers.map(fa).join("، ")} (`);
+          continue;
+        }
+        const q = makeSpeedQuestion(type as SpeedQuestionType, level, seed);
+        expect(SPEED_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+        if (q.type === "differ") {
+          const at = q.answer as number;
+          expect(s).toContain(`جواب: ردیف ${fa(Math.floor(at / q.cols) + 1)}، خانه ${fa((at % q.cols) + 1)} از راست.`);
+        } else expect(s).toContain(`جواب: ${fa(q.type === "find" ? (q.answer as number[]).length : (q.answer as number))} شکل`);
+      }
+  });
+});

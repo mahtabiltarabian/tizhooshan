@@ -6,17 +6,20 @@
 // (1 + , 2 −, 3 ×, 4 ÷) for signs; prime factors joined by "."; or the choice
 // (1 or 2) for yes/no and odd/even questions.
 
-import { digitsMistake, makeDigitsQuestion, readEquation, type Cond, type DigitsQuestionType, type Level } from "@/generators/digits";
-import { LETTER } from "@/generators/digits-more";
+import { digitsMistake, isMore, makeDigitsQuestion, readEquation, type Cond, type DigitsQuestion, type DigitsQuestionType, type Level } from "@/generators/digits";
+import { LETTER, OPS } from "@/generators/digits-more";
+import { choiceWords } from "@/generators/digits-numbers";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { answerFa, digitsHow, equationFa } from "./DigitsTryPanel";
+import { moreSteps, signsTrace } from "./MoreText";
 import { DIGITS_PRACTICE } from "./practice";
 
 // makeDigitsQuestion builds the rng from the seed and hands it to the
 // digits-more and digits-numbers generators, as the page does.
 const make = (type: string, level: number, seed: number) => makeDigitsQuestion(type as DigitsQuestionType, level as Level, seed);
 
-const ltr = (s: string) => `⁦${s}⁩`;
 const list = (xs: number[]) => xs.map((x) => fa(x)).join("، ");
 
 const NUDGE: Record<DigitsQuestionType, string> = {
@@ -159,9 +162,89 @@ function firstStep(type: string, level: number, seed: number): string {
   return "گام اول: پرسش را دوباره بخوان و داده‌ها را بنویس.";
 }
 
+// ── Solution (report card after an exam) ─────────────────────────────────
+
+const MAX = 300;
+const WANT = { max: "بزرگ‌ترین", min: "کوچک‌ترین" } as const;
+const PAGES_UNIT = { digits: "رقم", pages: "صفحه", ones: "بار" } as const;
+
+/** What an lcm or gcd answer counts, as the question's story tells it. */
+function lcmUnit(q: Extract<DigitsQuestion, { type: "lcm" }>) {
+  if (q.ask === "lcm") return q.story === 0 ? "دقیقه" : q.story === 1 || q.story === 3 ? "ثانیه" : "روز";
+  if (q.ask === "pieces") return "تکه";
+  return ["سانتی‌متر", "بسته", "دسی‌متر"][q.story] ?? "";
+}
+
+/** The answer named so it reads without the question; always holds the tool's own answerFa(). */
+export function digitsAnswerPhrase(q: DigitsQuestion): string {
+  const a = answerFa(q);
+  switch (q.type) {
+    case "extreme":
+      return q.want === "diff" ? `تفاضل ${a} است` : `${WANT[q.want]} عدد ${a} است`;
+    case "condition":
+      return `${WANT[q.want]} عدد ${a} است`;
+    case "count":
+      return `رقم ${fa(q.digit)}، ${a} بار نوشته می‌شود`;
+    case "digitSum":
+      return `عدد ${a}`;
+    case "divisible":
+      return `رقم ${a} به جای □`;
+    case "match":
+      return `تساوی درست ${a} است`;
+    case "lcm":
+      return q.ask === "clock" ? `${a} دوباره با هم حرکت می‌کنند` : `${a} ${lcmUnit(q)}`;
+    case "crypt":
+      return a;
+    case "signs":
+      return `علامت‌ها به ترتیب ${q.ops.map((o) => OPS[o]).join(" ")}؛ ${a}`;
+    case "pages":
+      return `${a} ${PAGES_UNIT[q.ask]}`;
+    case "units":
+      return `رقم یکان ${a} است`;
+    case "prime":
+      // Yes or no, in the words of the choice on screen; the working shows the factors.
+      if (q.ask === "isPrime") return `«${choiceWords(q)[q.answer - 1]}»`;
+      return q.ask === "smallest" || q.ask === "sum" ? `عدد ${a}` : a;
+    case "parity":
+      return `«${a}»`;
+  }
+}
+
+/** The tool's own working («نشانم بده»), cut to the steps that carry the reason: at most two, the last ones (they hold the result). */
+function workSteps(q: DigitsQuestion): string[] {
+  if (q.type === "match") {
+    const was = equationFa(q, q.start);
+    return [`${q.moves === 1 ? "با جابه‌جا کردن یک چوب" : "با جابه‌جا کردن دو چوب"}، ${was ? `${was} (که درست نیست) ` : ""}به ${answerFa(q)} تبدیل می‌شود و تساوی درست است.`];
+  }
+  if (!isMore(q)) return digitsHow(q).split(/(?<=\.)\s+/).filter(Boolean);
+  if (q.type === "signs") {
+    const did = signsTrace(q.nums, q.ops, q.paren).map((t) => t.did);
+    return [`${q.paren ? "اول داخل پرانتز، بعد ضرب و تقسیم، آخر جمع و تفریق" : "ضرب و تقسیم پیش از جمع و تفریق"}: ${did.join("، ")} ✓.`];
+  }
+  const steps = moreSteps(q).map((x) => x.replace(/^جواب:[^.]*\.\s*/, ""));
+  // lcm: the step that finds the first common one (and the clock time); crypt: only its check; prime: its conclusion; pages: every group.
+  if (q.type === "lcm") return q.ask === "lcm" ? [steps[q.nums.length]] : q.ask === "clock" ? [steps[q.nums.length], steps[steps.length - 1]] : steps.slice(q.nums.length);
+  if (q.type === "crypt" || q.type === "prime") return steps.slice(-1);
+  if (q.type === "pages") return steps;
+  return steps.slice(-2);
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const head = `جواب: ${digitsAnswerPhrase(q)}.`;
+  // The whole working when it fits, else its last steps (they hold the result).
+  const steps = workSteps(q).filter(Boolean);
+  for (let k = 0; k < steps.length; k++) {
+    const s = `${head} ${steps.slice(k).join(" ")}`;
+    if (s.length <= MAX) return s;
+  }
+  return head;
+}
+
 export const DIGITS_ADAPTER: ToolAdapter = {
   ...DIGITS_PRACTICE,
   version: "digits@1",
   grade: (type, level, seed, response) => (typeof response === "string" ? digitsMistake(make(type, level, seed), response) : "other"),
+  solution,
   hints: (type, level, seed) => [NUDGE[type as DigitsQuestionType], RULE[type as DigitsQuestionType], firstStep(type, level, seed)],
 };

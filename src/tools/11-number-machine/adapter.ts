@@ -10,8 +10,11 @@ import { buildMistake, inverse, machineMistake, makeMachineQuestion, type Level,
 import { isChoice, makeSortQuestion, sortMistake } from "@/generators/sorting";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
+import { ltr as oneLine } from "@/practice/text";
 import { ltr, stepFa } from "./format";
+import { answerFa, machineHow } from "./MachineTryPanel";
 import { NUMBER_MACHINE_PRACTICE } from "./practice";
+import { sortAnswerFa, sortHow } from "./Sorting";
 
 type Type = MachineQuestionType | "sort";
 
@@ -125,6 +128,59 @@ const PLAIN_STEP: Record<Type, string> = {
 
 const showsNumber = (s: string, v: number) => (s.match(/[۰-۹]+/g) ?? ([] as string[])).includes(fa(Math.abs(v)));
 
+/** The tool's working, with its equations kept on one line (format.ts's ltr() does not join the spaces). */
+const keepLines = (s: string) => s.replace(/⁦([^⁩]*)⁩/g, (_, x: string) => oneLine(x));
+
+/** The answer, named so it reads without the question beside it. */
+function answerLine(type: string, level: number, seed: number): { head: string; how: string } {
+  if (type === "sort") {
+    const q = makeSortQuestion(level as Level, seed);
+    const a = sortAnswerFa(q);
+    const head =
+      q.variant === "loop"
+        ? q.theme === "robot"
+          ? `جواب: ربات روی خانه ${a} است.`
+          : `جواب: در پایان عدد ${a} داریم.`
+        : q.variant === "swaps"
+          ? `جواب: ${a} جابه‌جایی.`
+          : q.variant === "passes"
+            ? `جواب: بعد از ${a} دور.`
+            : q.variant === "minSwaps"
+              ? `جواب: ${a} حرکت.`
+              : `جواب: ${a}.`;
+    const how = sortHow(q);
+    // Many pairs make the tool's line too long for the report card: the count and the reason, without the list.
+    if (q.variant === "minSwaps" && keepLines(`${head} ${how}`).length > 300)
+      return { head, how: `${fa(q.answer)} جفت هست که عدد بزرگ‌ترش سمت چپ عدد کوچک‌تر است. هر جابه‌جایی دو همسایه فقط یک جفت را درست می‌کند، پس دقیقاً ${fa(q.answer)} حرکت لازم است.` };
+    return { head, how };
+  }
+  const q = makeMachineQuestion(type as MachineQuestionType, level as Level, seed);
+  const how = machineHow(q);
+  switch (q.type) {
+    case "run":
+      return { head: `جواب: خروجی ${fa(q.answer)} است.`, how };
+    case "reverse":
+      return { head: `جواب: ورودی ${fa(q.answer)} بود.`, how };
+    case "guess":
+      return q.machine.kind === "op"
+        ? { head: `جواب: ${ltr(`${fa(q.query[0])} ★ ${fa(q.query[1])} = ${fa(q.answer)}`)}.`, how }
+        : { head: `جواب: ${fa(q.query[0])} به ${fa(q.answer)} تبدیل می‌شود.`, how };
+    case "build":
+      return { head: `جواب: ${q.answer.kind === "op" ? "قانون" : "ماشین"} ${answerFa(q)} (هر ${q.answer.kind === "op" ? "قانونی" : "ماشینی"} که با همه مثال‌ها جور باشد درست است).`, how };
+    case "operator": {
+      const lhs = q.variant === "plain" ? `${fa(q.a)} ★ ${fa(q.b)}` : q.variant === "nested" ? `(${fa(q.a)} ★ ${fa(q.b)}) ★ ${fa(q.c)}` : "□";
+      return { head: `جواب: ${ltr(`${lhs} = ${fa(q.answer)}`)}.`, how: `${how}.` };
+    }
+  }
+}
+
+/** The answer and the tool's own working; only the answer when that is too long for the report card. */
+function solution(type: string, level: number, seed: number): string {
+  const { head, how } = answerLine(type, level, seed);
+  const full = keepLines(`${head} ${how}`);
+  return full.length <= 300 ? full : keepLines(head);
+}
+
 export const NUMBER_MACHINE_ADAPTER: ToolAdapter = {
   ...NUMBER_MACHINE_PRACTICE,
   version: "number-machine@1",
@@ -134,4 +190,5 @@ export const NUMBER_MACHINE_ADAPTER: ToolAdapter = {
     const answer = numberAnswer(type, level, seed);
     return [NUDGE[type as Type], RULE[type as Type], answer !== null && showsNumber(step, answer) ? PLAIN_STEP[type as Type] : step];
   },
+  solution,
 };

@@ -5,12 +5,15 @@
 // the index of the picked option (شکل پنهان, and the other one-stroke
 // questions: which figure, or which of the named points).
 
-import { makeHiddenQuestion, normal, SHAPE_NAME } from "@/generators/hidden-figure";
-import { countSlip, makeStrokeQuestion, pointNames } from "@/generators/one-stroke";
-import { countMistake, figureOf, listShapes, makeCountQuestion, type CountQuestionType, type Kind, type Level, type ShapeQuestionType } from "@/generators/shape-count";
+import { makeHiddenQuestion, normal, SHAPE_NAME, type HiddenTag } from "@/generators/hidden-figure";
+import { countSlip, makeStrokeQuestion, oddPoints, pointNames } from "@/generators/one-stroke";
+import { countMistake, countOf, figureOf, GROW, listShapes, makeCountQuestion, type CountQuestion, type CountQuestionType, type Kind, type Level, type ShapeQuestionType } from "@/generators/shape-count";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { groupsOf, groupSum } from "./CounterTryPanel";
 import { SHAPE_COUNTER_PRACTICE } from "./practice";
+import { ruleFor as strokeRule } from "./StrokeLab";
 
 const isIndex = (r: number, n: number) => Number.isInteger(r) && r >= 0 && r < n;
 
@@ -88,9 +91,76 @@ function firstStep(type: string, level: Level, seed: number): string {
   return `گام اول: ${name}‌هایی که فقط از یک ${PIECE_WORD[q.kind]} ساخته شده‌اند ${fa(singles)} تا هستند. حالا آن‌هایی را بشمار که از ۲ ${PIECE_WORD[q.kind]} ساخته شده‌اند.`;
 }
 
+// --- Solution (report card after an exam) ---
+
+const MAX = 300;
+/** The first text that fits the report card. */
+const fit = (...texts: string[]) => texts.find((t) => t.length <= MAX) ?? texts[texts.length - 1];
+
+/** Why the right drawing is right, and what each other option has instead. */
+const SLIP_SAID: Record<HiddenTag, string> = {
+  rotated: "چرخیده است",
+  flipped: "وارونه (آینه‌ای) است",
+  size: "بزرگ‌تر است",
+  nearMiss: "یک ضلعش روی خط‌ها نیست",
+};
+
+/** How a growing pattern adds up to the asked stage, equations kept left to right. */
+function growWhy(q: Extract<CountQuestion, { type: "growing" }>): string {
+  const ns = Array.from({ length: q.ask }, (_, i) => i + 1);
+  if (q.pattern === "gridSquares") return `هر مرحله، مرحله قبل به‌اضافه مربع‌های بزرگ‌تر تازه: ${ltr(`${ns.map((n) => `${fa(n)}×${fa(n)}`).join(" + ")} = ${fa(q.answer)}`)}.`;
+  if (q.pattern === "triGridTriangles") {
+    const all = ns.map((n) => countOf(GROW.triGridTriangles.stage(n), "triangle"));
+    return `تعدادها از مرحله ۱ تا ${fa(q.ask)}: ${all.map(fa).join("، ")}؛ اضافه‌شده‌ها هر بار بیشتر می‌شوند: ${all.slice(1).map((c, i) => fa(c - all[i])).join("، ")}.`;
+  }
+  return `هر مرحله یکی بیشتر از بار قبل اضافه می‌شود: ${ltr(`${ns.map(fa).join(" + ")} = ${fa(q.answer)}`)}.`;
+}
+
+const COUNT_NOTE: Partial<Record<Kind, string>> = {
+  rectangle: " هر مربع هم یک مستطیل است.",
+  angle: " دو پرتوی روی یک خط راست (۱۸۰ درجه) زاویه نیستند.",
+};
+
+function solution(type: string, level: number, seed: number): string {
+  const lv = level as Level;
+  if (type === "hidden") {
+    const q = makeHiddenQuestion(lv, seed);
+    const name = SHAPE_NAME[q.shapeName];
+    const head = `جواب: گزینه ${fa(q.answer + 1)}. ${name} فقط در این گزینه با همان اندازه و همان جهت پنهان است.`;
+    const others = q.mistakes.flatMap((m, i) => (i === q.answer ? [] : [`در گزینه ${fa(i + 1)} ${m ? SLIP_SAID[m] : "نیست"}`]));
+    return fit(`${head} ${others.join("، ")}.`, head);
+  }
+  if (type === "stroke") {
+    const q = makeStrokeQuestion(lv, seed);
+    if (q.ask === "which") {
+      const head = `جواب: گزینه ${fa(q.answer + 1)}.`;
+      return fit(`${head} ${strokeRule(q.options[q.answer])} در گزینه‌های دیگر ۴ رأس فرد یا بیشتر هست.`, `${head} ${strokeRule(q.options[q.answer])}`, `${head} این شکل ۰ یا ۲ رأس فرد دارد.`);
+    }
+    if (q.ask === "count") {
+      const head = `جواب: ${fa(q.answer)} رأس فرد.`;
+      const how = "رأسی که تعداد سرهای خطش فرد است (۱، ۳ یا ۵) فرد است؛ خطی که از وسط نقطه رد می‌شود، برای آن نقطه دو سر حساب می‌شود.";
+      return fit(`${head} ${how}`, head);
+    }
+    const names = pointNames(q);
+    const right = names.get(q.choices[q.answer])!;
+    if (q.ask === "start")
+      return `جواب: نقطه «${right}». این شکل ${fa(oddPoints(q.fig).length)} رأس فرد دارد و کشیدن باید از یک رأس فرد شروع شود؛ میان نقطه‌های داده‌شده فقط «${right}» فرد است.`;
+    return `جواب: نقطه «${right}». با ۲ رأس فرد، کار از یکی شروع می‌شود و در دیگری تمام می‌شود؛ «الف» یکی از آن‌هاست و «${right}» رأس فرد دیگر است.`;
+  }
+  const q = makeCountQuestion(type as CountQuestionType, lv, seed);
+  const name = KIND_NAME[q.kind];
+  const head = q.type === "growing" ? `جواب: ${fa(q.answer)} ${name} در مرحله ${fa(q.ask)}.` : `جواب: ${fa(q.answer)} ${name}.`;
+  if (q.type === "growing") return fit(`${head} ${growWhy(q)}`, head);
+  const groups = groupsOf(listShapes(figureOf(q.spec), q.kind));
+  const note = COUNT_NOTE[q.kind] ?? "";
+  if (groups.length < 2) return groups[0]?.pieces !== 1 ? `${head}${note}` : `${head} همه ${name}‌ها از یک ${PIECE_WORD[q.kind]} ساخته شده‌اند.${note}`;
+  return fit(`${head} شمارش نظام‌مند، اول کوچک‌ها و بعد بزرگ‌ترها: ${ltr(groupSum(groups))}.${note}`, `${head}${note}`);
+}
+
 export const SHAPE_COUNTER_ADAPTER: ToolAdapter = {
   ...SHAPE_COUNTER_PRACTICE,
   version: "shape-counter@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as ShapeQuestionType], ruleFor(type, level as Level, seed), firstStep(type, level as Level, seed)],
+  solution,
 };

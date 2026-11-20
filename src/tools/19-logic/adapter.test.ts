@@ -6,6 +6,10 @@ import { fa } from "@/tools/registry";
 import { LOGIC_ADAPTER } from "./adapter";
 import { LOGIC_TYPE_LABEL } from "./LogicTryPanel";
 import { LOGIC_PRACTICE } from "./practice";
+import { answerSentence } from "./countText";
+import { ifOptionText } from "./ifText";
+import { liarsAnswerFa, optionText } from "./text";
+import { gridPairsFa } from "./adapter";
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 const LEVELS = [1, 2, 3] as const;
@@ -78,6 +82,40 @@ describe("logic adapter", () => {
           // Grids, liars and options have no single number or word to give away.
           const q = makeLogicQuestion(type, level as Level, seed);
           if (q.type === "vennNum") for (const line of h) expect(tokens(line), `${type} ${level} ${seed}: ${line}`).not.toContain(fa(q.answer));
+        }
+  });
+
+  it("solution: the real answer, in one to three short Persian sentences", () => {
+    for (const type of LOGIC_TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const q = makeLogicQuestion(type, level as Level, seed);
+          const s = LOGIC_ADAPTER.solution!(type, level, seed);
+          const at = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), at).toBe(true);
+          expect(s.length, at).toBeGreaterThanOrEqual(10);
+          expect(s.length, at).toBeLessThanOrEqual(300);
+          expect(s, at).not.toMatch(/[0-9]/);
+          expect(s, at).toBe(LOGIC_ADAPTER.solution!(type, level, seed));
+          if (q.type === "grid") {
+            expect(s, at).toContain(gridPairsFa(q));
+            // Those pairs, as marks, are what the grid grades as right.
+            const marks = Array.from({ length: q.size * q.size }, (_, c) => (q.answer[Math.floor(c / q.size)] === c % q.size ? 1 : -1));
+            expect(LOGIC_ADAPTER.grade(type, level, seed, marks)).toBe("right");
+          }
+          if (q.type === "liars") {
+            expect(s, at).toContain(liarsAnswerFa(q));
+            expect(LOGIC_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          }
+          if (q.type === "venn" || q.type === "ifThen") {
+            const text = q.type === "venn" ? optionText(q, q.answer) : ifOptionText(q, q.answer);
+            expect(s, at).toContain(`گزینه ${fa(q.answer + 1)}، «${text}»`);
+            expect(LOGIC_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          }
+          if (q.type === "vennNum") {
+            expect(s, at).toContain(answerSentence(q, fa(q.answer)));
+            expect(LOGIC_ADAPTER.grade(type, level, seed, q.answer)).toBe("right");
+          }
         }
   });
 });

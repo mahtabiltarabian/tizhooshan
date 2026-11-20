@@ -6,9 +6,12 @@
 
 import { balanceMistake, stagesOf, SYMBOLS, type BalanceQuestion, type FillQuestion, type Level, type Pan } from "@/generators/balance";
 import { exchangeMistake, GOODS, linkFactor } from "@/generators/exchange";
-import { meanMistake } from "@/generators/mean";
+import { MEAN_CONTEXTS, meanMistake } from "@/generators/mean";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
+import { balanceHow } from "./BalanceTryPanel";
+import { exchangeAnswerFa } from "./exchangeText";
+import { answerUnit, stepNote } from "./frames";
 import { BALANCE_PRACTICE } from "./practice";
 import { makeTryQuestion, type TryType } from "./questions";
 
@@ -127,9 +130,58 @@ function firstStep(type: string, level: number, seed: number): string {
   return "گام اول: داده‌های پرسش را روی ترازو بچین.";
 }
 
+// ── Solution for the report card ─────────────────────────────────────────
+
+const shapeFa = (j: number) => `${SYMBOLS[j].name} (${glyph(j)})`;
+
+/** The answer, named so it reads without the question beside it. */
+function answerLine(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  switch (q.type) {
+    case "balance":
+      return `جواب: هر ${shapeFa(q.ask)} ${fa(q.answer)} کیلو است.`;
+    case "fill":
+      return `جواب: ${answerUnit(q)} در کفه‌ی خالی.`;
+    case "coin":
+      return q.variant === "min" ? `جواب: ${fa(q.answer)} وزن‌کشی.` : `جواب: ${fa(q.answer)} سکه.`;
+    case "age":
+      return `جواب: ${q.askOlder ? q.older : q.younger} ${q.variant === "later" ? "اکنون " : ""}${fa(q.answer)} سال دارد.`;
+    case "mean": {
+      const c = MEAN_CONTEXTS[q.context];
+      if (q.variant === "missing") return `جواب: ${q.names[q.miss]} ${fa(q.answer)} ${c.noun} ${c.didOne}.`;
+      if (q.variant === "join") return `جواب: ${q.names[0]} ${fa(q.answer)} ${c.noun} ${c.didOne}.`;
+      return `جواب: میانگین ${fa(q.answer)} ${c.noun} است.`;
+    }
+    case "exchange":
+      return `جواب: ${exchangeAnswerFa(q)}${q.variant === "compare" ? " می‌دهد" : ""}.`;
+  }
+}
+
+/**
+ * The answer and the tool's working. For the symbol scales the working is one
+ * sentence per stage: the first (the key move) and the last (the answer), as
+ * many as fit.
+ */
+function solution(type: string, level: number, seed: number): string {
+  const head = answerLine(type, level, seed);
+  const q = make(type, level, seed);
+  let tries: string[];
+  if (q.type === "balance") {
+    const notes = stagesOf(q).stages.map((st) => stepNote(st.step, st.before));
+    const last = notes[notes.length - 1] ?? "";
+    tries = notes.length > 1 ? [`${notes[0]} … ${last}`, last] : [last];
+  } else tries = [balanceHow(q)];
+  for (const t of tries) {
+    const s = `${head} ${t}`.trim();
+    if (s.length <= 300) return s;
+  }
+  return head;
+}
+
 export const BALANCE_ADAPTER: ToolAdapter = {
   ...BALANCE_PRACTICE,
   version: "balance@1",
   grade,
   hints: (type, level, seed) => [NUDGE[type as TryType], RULE[type as TryType], firstStep(type, level, seed)],
+  solution,
 };

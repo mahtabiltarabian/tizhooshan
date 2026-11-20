@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makePuzzleQuestion, type Level, type PuzzleQuestionType } from "@/generators/puzzle";
+import { areaOf, makePuzzleQuestion, PIECES, type Level, type PuzzleQuestionType } from "@/generators/puzzle";
+import { fa } from "@/tools/registry";
 import { buildResponse, PUZZLE_ADAPTER as A } from "./adapter";
 import { movePlacement, targetSpot } from "./layout";
 import { poseOf } from "./Pictures";
@@ -76,4 +77,30 @@ describe("puzzle adapter", () => {
     },
     60_000,
   );
+  it.each(TYPES)("%s: the solution names the real answer, in Persian digits", (type) => {
+    for (const level of LEVELS)
+      for (const seed of SEEDS.slice(0, 30)) {
+        const s = A.solution!(type, level, seed);
+        expect(s).toBe(A.solution!(type, level, seed));
+        expect(s.startsWith("جواب:")).toBe(true);
+        expect(s.length).toBeGreaterThanOrEqual(10);
+        expect(s.length).toBeLessThanOrEqual(300);
+        expect(s).not.toMatch(/[0-9]/);
+        const q = makePuzzleQuestion(type, level, seed);
+        if (q.type === "build") {
+          expect(s).toContain(`هر ${fa(q.kinds.length)} قطعه`);
+          expect(s).toContain(`${fa(q.target.length)} مثلث کوچک`);
+          expect(q.kinds.reduce((n, k) => n + areaOf(k), 0)).toBe(q.target.length);
+          continue;
+        }
+        expect(A.grade(type, level, seed, q.answer)).toBe("right");
+        if (q.type === "extra") {
+          expect(s).toContain(`جواب: قطعه ${fa(q.answer + 1)} («${PIECES[q.pieces[q.answer]].name}»)`);
+          continue;
+        }
+        expect(s).toContain(`جواب: گزینه ${fa(q.answer + 1)}`);
+        if (q.type === "overlay") expect(s).toContain(`${fa(q.options[q.answer].length)} خانه سیاه`);
+        if (q.type === "complete") expect(s).toContain(`«${PIECES[q.options[q.answer].kind].name}»`);
+      }
+  }, 60_000);
 });

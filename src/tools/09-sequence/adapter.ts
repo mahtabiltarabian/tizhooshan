@@ -8,9 +8,14 @@
 import { cycleMistake, divide, makeCycleQuestion, type CycleQuestion } from "@/generators/cycle";
 import { makeNthQuestion, nthMistake, termsOf as nthTerms, type NthQuestion } from "@/generators/nth-term";
 import { letterAt, makeSequenceQuestion, sequenceMistake, type Level, type SequenceKind, type SequenceQuestion, type SequenceQuestionType } from "@/generators/sequence";
+import { cycleAnswerFa, cycleHow } from "./CycleTryPanel";
+import { unitOf } from "./Nth";
+import { nthAnswerFa, nthHow } from "./NthTryPanel";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
 import { SEQUENCE_PRACTICE } from "./practice";
+import { answerFa, sequenceHow } from "./SequenceTryPanel";
 
 type Q = { kind: "seq"; q: SequenceQuestion } | { kind: "cycle"; q: CycleQuestion } | { kind: "nth"; q: NthQuestion };
 
@@ -141,9 +146,46 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[f], RULE[f], answer !== null && showsNumber(step, answer) ? PLAIN_STEP[f] : step];
 }
 
+/** The panels' own working, with its equations kept on one line (their ltr() does not join the spaces). */
+const oneLine = (s: string) => s.replace(/⁦([^⁩]*)⁩/g, (_, x: string) => ltr(x));
+
+/** The answer, named so it reads without the question beside it. */
+function answerLine(m: Q): string {
+  if (m.kind === "seq") return `جواب: جای خالی ${m.q.letters ? `حرف «${answerFa(m.q)}»` : ltr(answerFa(m.q))} است.`;
+  if (m.kind === "cycle") {
+    const q = m.q;
+    if (q.variant === "count") return `جواب: ${fa(q.answer)} تا.`;
+    if (q.variant === "week") return `جواب: روز ${fa(q.n)}ام سال ${cycleAnswerFa(q)} است.`;
+    return `جواب: خانه شماره ${fa(q.n)}، ${cycleAnswerFa(q)} است.`;
+  }
+  const q = m.q;
+  switch (q.variant) {
+    case "far":
+      return `جواب: جمله ${fa(q.n)}ام ${fa(q.answer)} است.`;
+    case "pattern":
+      return `جواب: شکل ${fa(q.n)} با ${fa(q.answer)} ${unitOf(q.pattern!)} ساخته می‌شود.`;
+    case "which":
+      return `جواب: ${fa(q.value)} جمله ${fa(q.answer)}ام است.`;
+    case "meet":
+      return `جواب: جمله ${fa(q.answer)}ام؛ هر دو دنباله آنجا ${fa(q.value)} هستند.`;
+    case "rule":
+      return `جواب: ${nthAnswerFa(q)}.`;
+  }
+}
+
+/** The answer and the working of the panel's feedback; only the answer when that is too long for the report card. */
+function solution(type: string, level: number, seed: number): string {
+  const m = make(type, level, seed);
+  const head = answerLine(m);
+  const how = m.kind === "seq" ? sequenceHow(m.q) : m.kind === "cycle" ? cycleHow(m.q) : nthHow(m.q);
+  const full = `${head} ${oneLine(how)}`;
+  return full.length <= 300 ? full : head;
+}
+
 export const SEQUENCE_ADAPTER: ToolAdapter = {
   ...SEQUENCE_PRACTICE,
   version: "sequence@1",
   grade,
   hints,
+  solution,
 };

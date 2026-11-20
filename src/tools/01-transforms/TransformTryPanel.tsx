@@ -9,7 +9,6 @@ import {
   stagedOps,
   type Figure,
   type Level,
-  type MoveName,
   type Op,
   type PaintQuestion,
   type Pt,
@@ -17,6 +16,7 @@ import {
   type TransformQuestionType,
 } from "@/generators/transforms";
 import { fa } from "@/tools/registry";
+import { MOVE_NAME, MOVE_STEP, MOVE_WHY, SHIFT_WHY, vecText } from "./moveText";
 import { boxFor, countFrom, FigureSvg } from "./Pictures";
 import type { Rect } from "./Scene";
 import styles from "@/toolkit/TryPanel.module.css";
@@ -32,38 +32,7 @@ export const TRANSFORM_TYPE_LABEL: Record<TransformQuestionType, string> = {
   which: "کدام تبدیل؟",
 };
 
-export const MOVE_NAME: Record<MoveName, string> = {
-  mirror: "قرینه در آینه",
-  water: "تصویر در آب",
-  cw90: "۹۰ درجه ساعتگرد ↻",
-  r180: "۱۸۰ درجه (نیم‌دور)",
-  ccw90: "۹۰ درجه پادساعتگرد ↺",
-};
-
-/** The move as a step in a sentence ("first … then …"). */
-const MOVE_STEP: Record<MoveName, string> = {
-  mirror: "در آینه برود",
-  water: "در آب برود",
-  cw90: "۹۰ درجه ساعتگرد بچرخد",
-  r180: "۱۸۰ درجه بچرخد",
-  ccw90: "۹۰ درجه پادساعتگرد بچرخد",
-};
-
-const MOVE_WHY: Record<MoveName, string> = {
-  mirror: "در آینه، چپ و راست جابه‌جا می‌شود و بالا و پایین همان می‌ماند.",
-  water: "در آب، بالا و پایین جابه‌جا می‌شود و چپ و راست همان می‌ماند.",
-  cw90: "در چرخش ۹۰ درجه ساعتگرد، بالای شکل به سمت راست می‌رود و شکل برعکس نمی‌شود.",
-  r180: "در نیم‌دور، شکل سر و ته می‌شود ولی برعکس نمی‌شود.",
-  ccw90: "در چرخش ۹۰ درجه پادساعتگرد، بالای شکل به سمت چپ می‌رود و شکل برعکس نمی‌شود.",
-};
-
-/** A slide in words, with arrows: «۳ خانه به راست → و ۲ خانه به بالا ↑». */
-export function vecText([dx, dy]: Pt, arrows = true): string {
-  const parts: string[] = [];
-  if (dx) parts.push(`${fa(Math.abs(dx))} خانه به ${dx > 0 ? "راست" : "چپ"}${arrows ? (dx > 0 ? " →" : " ←") : ""}`);
-  if (dy) parts.push(`${fa(Math.abs(dy))} خانه به ${dy > 0 ? "بالا" : "پایین"}${arrows ? (dy > 0 ? " ↑" : " ↓") : ""}`);
-  return parts.join(" و ");
-}
+export { MOVE_NAME, vecText };
 
 /** Questions answered by colouring cells. */
 export const isPaint = (q: TransformQuestion): q is PaintQuestion => q.type === "draw" || (q.type === "shift" && q.form === "draw");
@@ -204,8 +173,6 @@ export function transformPrompt(q: TransformQuestion, paper = false): string {
       return `شکل را ${vecText(q.vec)} ببر و جای تازه‌اش را روی شبکه رنگ کن.`;
   }
 }
-
-const SHIFT_WHY = "در انتقال هر خانه شکل به یک اندازه و یک جهت می‌رود؛ شکل نه می‌چرخد و نه برعکس می‌شود.";
 
 /** Feedback on a picked slide (which slide took the figure there?). */
 function vectorFeedback(q: Extract<TransformQuestion, { type: "shift"; form: "vector" }>, picked: number): { tone: Tone; text: string } {

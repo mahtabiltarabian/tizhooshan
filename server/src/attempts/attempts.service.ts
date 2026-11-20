@@ -25,7 +25,7 @@ const AttemptItem = z.object({
   score: z.number().min(0).max(1),
   hintsUsed: z.number().int().min(0).max(10),
   durationMs: z.number().min(0).max(86_400_000),
-  mode: z.enum(["practice", "review", "challenge", "daily", "exam"]),
+  mode: z.enum(["practice", "review", "challenge", "daily", "exam", "placement"]),
   createdAt: z.number().int().min(EARLIEST),
   reviewOf: uuid().optional(),
 });

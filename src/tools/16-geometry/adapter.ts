@@ -26,6 +26,7 @@ import { angleById } from "@/generators/parallel-angles";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
 import { num } from "./frames";
+import { answerFa, buildHow, choicesOf, divideHow, geometryHow } from "./GeometryText";
 import { GEOMETRY_PRACTICE } from "./practice";
 
 const make = (type: string, level: number, seed: number) => makeGeometryQuestion(type as GeometryQuestionType, level as Level, seed);
@@ -180,9 +181,63 @@ function hints(type: string, level: number, seed: number): [string, string, stri
   return [NUDGE[t], RULE[t], safe];
 }
 
+// ── Solution (report card after an exam) ─────────────────────────────────
+
+const MAX = 300;
+
+/** The answer named so it reads without the figure: a number with its unit, the option's words, or what any right shape must have. */
+export function geometryAnswerPhrase(q: GeometryQuestion): string {
+  switch (q.type) {
+    case "angle":
+    case "parallel":
+      return `زاویه «؟» ${num(q.answer)} درجه است`;
+    case "area":
+      return `مساحت شکل ${answerFa(q)} است`;
+    case "perimeter":
+      return `محیط شکل ${answerFa(q)} است`;
+    case "circle":
+    case "composite":
+      return answerFa(q);
+    case "classify":
+      return `گزینه‌ی «${choicesOf(q.level)[q.answer]}»`;
+    case "build": {
+      const A = q.area === null ? "" : `${num(q.area)} واحد مربع`;
+      const P = q.perimeter === null ? "" : `${fa(q.perimeter)} واحد`;
+      const want: Record<typeof q.variant, string> = {
+        rectArea: `هر مستطیلی با مساحت ${A}`,
+        rectPerim: `هر مستطیلی با محیط ${P}`,
+        triArea: `هر مثلثی با مساحت ${A}`,
+        gridPerim: `هر شکلِ غیرمستطیل با ضلع‌های روی خطوط شبکه و محیط ${P}`,
+        tiltSquare: `هر مربع کجی با مساحت ${A}`,
+        areaPerim: `هر شکلی با ضلع‌های روی خطوط شبکه، مساحت ${A} و محیط ${P}`,
+      };
+      return `${want[q.variant]} درست است`;
+    }
+    case "divide":
+      return "هر کش صافی که شکل را به دو قسمت با مساحت برابر ببُرد درست است";
+  }
+}
+
+/** The working: the tool's own «نشانم بده» text, or its last sentences when the whole is too long. */
+function why(q: GeometryQuestion): string {
+  return q.type === "build" ? buildHow(q) : q.type === "divide" ? divideHow(q) : geometryHow(q);
+}
+
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const head = `جواب: ${geometryAnswerPhrase(q)}.`;
+  const sentences = why(q).split(/(?<=[.؛])\s+/).filter(Boolean);
+  for (let k = 0; k < sentences.length; k++) {
+    const s = `${head} ${sentences.slice(k).join(" ")}`;
+    if (s.length <= MAX) return s;
+  }
+  return head;
+}
+
 export const GEOMETRY_ADAPTER: ToolAdapter = {
   ...GEOMETRY_PRACTICE,
   version: "geometry@1",
   grade,
   hints,
+  solution,
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { answerKind, isFrac, makeRatioQuestion, ratioMistake, slips, type Level, type RatioQuestion, type RatioQuestionType } from "@/generators/ratio";
 import { fa } from "@/tools/registry";
-import { RATIO_ADAPTER as A } from "./adapter";
+import { answerToken, RATIO_ADAPTER as A } from "./adapter";
 import { RATIO_PRACTICE as P } from "./practice";
 import { isFracView, RATIO_TYPE_LABEL, ratioPrompt } from "./text";
 
@@ -71,4 +71,22 @@ describe("ratio adapter", () => {
           for (const line of h) expect(nums(line), `${type} ${level} ${seed}: ${line}`).not.toContain(ans);
         }
   }, 60_000);
+
+  it("solution names the real answer, in Persian digits, short enough for the report card", () => {
+    for (const type of TYPES)
+      for (const level of LEVELS)
+        for (const seed of SEEDS) {
+          const s = A.solution!(type, level, seed);
+          const where = `${type} ${level} ${seed}: ${s}`;
+          expect(s.startsWith("جواب:"), where).toBe(true);
+          expect(s.length, where).toBeGreaterThanOrEqual(10);
+          expect(s.length, where).toBeLessThanOrEqual(300);
+          expect(s, where).not.toMatch(/[0-9]/);
+          const q = makeRatioQuestion(type, level, seed);
+          expect(A.grade(type, level, seed, q.answer)).toBe("right");
+          // The answer is named in the first sentence.
+          expect(s.slice(0, s.indexOf(".")), where).toContain(answerToken(q));
+          expect(A.solution!(type, level, seed)).toBe(s);
+        }
+  });
 });

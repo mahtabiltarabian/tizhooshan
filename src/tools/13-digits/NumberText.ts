@@ -331,7 +331,7 @@ function paritySteps(q: ParityQuestion): string[] {
       const S = (N * (N + 1)) / 2;
       return [
         `اگر همه علامت‌ها + باشند: ${signsRowFa(N, Array(N - 1).fill(0))} = ${fa(S)}، که ${parityOfFa(S)} است.`,
-        `اگر + جلوی عدد x را − کنیم، حاصل به اندازه ${ltr("2 × x")} کم می‌شود: یک عدد زوج. پس حاصل، هر علامتی بگذاری، مثل ${fa(S)} ${parityOfFa(S)} می‌ماند.`,
+        `اگر + جلوی عدد x را − کنیم، حاصل به اندازه ${ltr("۲ × x")} کم می‌شود: یک عدد زوج. پس حاصل، هر علامتی بگذاری، مثل ${fa(S)} ${parityOfFa(S)} می‌ماند.`,
         q.answer === YES ? `${fa(q.target)} هم ${parityOfFa(q.target)} است و مثلاً ${signsRowFa(N, q.witness)} = ${fa(q.target)}. پس ممکن است.` : `اما ${fa(q.target)} ${parityOfFa(q.target)} است؛ پس ممکن نیست.`,
       ];
     }

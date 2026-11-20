@@ -8,18 +8,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { endRun, getRun, startRun, useRun, type RunKind } from "./bridge";
-import { EXAM_ORDER, SKILLS } from "./catalog";
+import { SKILLS } from "./catalog";
 import { db, newId } from "./db";
 import { AccountPanel } from "./AccountPanel";
 import { assignmentsOf, deleteChildRemote, syncNow } from "./sync";
 import type { AssignmentDto } from "./api";
 import { CONSENT_POINTS, checkPin, getParent, setParent, toLatinDigits, validPin } from "./parent";
-import { openItem, RUN_TITLE } from "./PracticeBar";
+import { openItem, runTitle } from "./PracticeBar";
 import { dailyChallenge, dayNumber } from "./rewards";
-import { EXAM_MINUTES_PER_QUESTION, planExam, planSession, type SessionItem } from "./session";
+import { planSession, type SessionItem } from "./session";
+import { EXAM_AREAS, EXAM_STAGES, examHistoryKey, PLACEMENT_ROUNDS, placementKey, type ExamMode, type ExamRecord, type PlacementRecord } from "./exam";
+import { startExam, startPlacement } from "./examRun";
 import { summarize, timeLeftToday, type ChildSummary } from "./summary";
 import type { Profile, SkillState } from "./types";
-import { fa } from "@/tools/registry";
+import { AREA_LABEL, fa } from "@/tools/registry";
 import styles from "./Practice.module.css";
 
 /** Picture for a profile: a symbol and a colour, never the colour alone. */
@@ -430,13 +432,10 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
     begin("practice", items, Date.now() + left);
   };
 
-  // The mock exam is a sitting of its own: a parent starts it, and it does not count against the daily limit.
-  const exam = () =>
-    asParent(() => {
-      const states = new Map(state.skills.map((s) => [s.skill, s]));
-      const items = planExam({ catalog: SKILLS, states, seed: Math.floor(Math.random() * 1e9), toolOrder: EXAM_ORDER });
-      begin("exam", items, Date.now() + items.length * EXAM_MINUTES_PER_QUESTION * 60_000);
-    });
+  // Placement and exams are sittings of their own: a parent starts them, and they do not count against the daily limit.
+  const placement = () => asParent(() => startPlacement(profile.id, router.push));
+  const exam = (mode: ExamMode) => asParent(() => void startExam(profile.id, mode, router.push));
+  const lastExam = state.exams.at(-1);
 
   return (
     <section>
@@ -457,7 +456,7 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
       {resumable && (
         <div className={styles.card}>
           <p>
-            «{RUN_TITLE[run.kind]}» نیمه‌کاره است (سؤال {fa(run.index + 1)} از {fa(run.items.length)}).
+            «{runTitle(run)}» نیمه‌کاره است (سؤال {fa(run.index + 1)} از {fa(run.items.length)}).
           </p>
           <div className={styles.row}>
             <button className={styles.primary} onClick={() => openItem(run, run.index, router.push)}>
@@ -506,17 +505,44 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
         </section>
       )}
 
-      <div className={`${styles.card} ${styles.row}`}>
-        <div className={styles.grow}>
-          <strong>آزمون شبیه‌سازی</strong>
-          <p className={styles.small}>
-            یک سؤال از هر ابزار، {fa(EXAM_MINUTES_PER_QUESTION)} دقیقه برای هر سؤال، بدون بازخورد تا آخر؛ بعد کارنامه هر محور. با حضور والدین شروع می‌شود.
-          </p>
-        </div>
-        <button className={styles.quiet} onClick={exam}>
-          شروع آزمون
-        </button>
-      </div>
+      <section className={styles.card}>
+        <h3>آزمون</h3>
+        {!state.placement ? (
+          <>
+            <p>
+              آزمون چندمرحله‌ای است: اول <strong>تعیین سطح</strong> ({fa(PLACEMENT_ROUNDS * EXAM_AREAS.length)} سؤال کوتاه، بدون نمره)، بعد آزمون در {fa(EXAM_STAGES.length)} مرحله: {EXAM_STAGES.map((s) => s.title).join("، ")}. آخرش کارنامه با نمودار، که چاپ هم می‌شود.
+            </p>
+            <div className={styles.row}>
+              <button className={styles.primary} onClick={placement}>
+                شروع تعیین سطح
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className={styles.small}>
+              سطح شروع: {EXAM_AREAS.map((a) => `${AREA_LABEL[a]} ${fa(state.placement!.levels[a] ?? 1)}`).join("، ")}
+              {lastExam && ` · آخرین آزمون: ${fa(lastExam.right)} از ${fa(lastExam.total)} درست`}
+            </p>
+            <div className={styles.actions}>
+              <button className={styles.big} onClick={() => exam("learn")}>
+                <strong>آزمون آموزشی</strong>
+                <span>بعد از هر سؤال: درست بود یا نه، و جواب درست</span>
+              </button>
+              <button className={styles.big} onClick={() => exam("real")}>
+                <strong>آزمون شبیه واقعی</strong>
+                <span>زمان‌دار، مثل روز آزمون؛ جواب‌ها آخر هر مرحله</span>
+              </button>
+            </div>
+            <p className={styles.row}>
+              <button className={styles.quiet} onClick={placement}>
+                تعیین سطح دوباره
+              </button>
+            </p>
+          </>
+        )}
+        <p className={styles.small}>با حضور والدین شروع می‌شود و جزو زمان تمرین روزانه حساب نمی‌شود.</p>
+      </section>
 
       <h3>نشان‌ها</h3>
       <ul className={styles.badges}>
@@ -555,6 +581,13 @@ function startAssignment(a: AssignmentDto, childId: string, skills: SkillState[]
 }
 
 async function loadChild(id: string) {
-  const [attempts, skills, reviews, assignments] = await Promise.all([db.attempts(id), db.skills(id), db.reviews(id), assignmentsOf(id)]);
-  return { attempts, skills, reviews, assignments };
+  const [attempts, skills, reviews, assignments, placement, exams] = await Promise.all([
+    db.attempts(id),
+    db.skills(id),
+    db.reviews(id),
+    assignmentsOf(id),
+    db.getMeta<PlacementRecord>(placementKey(id)),
+    db.getMeta<ExamRecord[]>(examHistoryKey(id)),
+  ]);
+  return { attempts, skills, reviews, assignments, placement, exams: exams ?? [] };
 }

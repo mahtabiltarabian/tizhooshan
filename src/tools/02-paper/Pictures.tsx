@@ -23,6 +23,7 @@ import {
   type Pt,
 } from "@/generators/paper-folding";
 import { fa } from "@/tools/registry";
+import { STEP_NAMES } from "./orderText";
 import styles from "./Pictures.module.css";
 
 const INK = "#1f2430";
@@ -350,4 +351,4 @@ export function OrderPicture({ S, folds, punches, step, size }: { S: number; fol
 }
 
 /** Persian letter names for the shuffled steps in "order" questions. */
-export const STEP_NAMES = ["الف", "ب", "پ", "ت"];
+export { STEP_NAMES };

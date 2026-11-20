@@ -5,7 +5,9 @@
 
 import { clockMistake, hm, isLeapYear, makeClockQuestion, MONTHS, WEEKDAYS, type ClockQuestionType, type Level } from "@/generators/clock";
 import type { ToolAdapter } from "@/practice/adapter";
+import { ltr } from "@/practice/text";
 import { fa } from "@/tools/registry";
+import { answerFa, clockHow } from "./ClockTryPanel";
 import { CLOCK_PRACTICE } from "./practice";
 import { durationFa, timeFa } from "./Pictures";
 
@@ -53,9 +55,30 @@ function firstStep(type: string, level: number, seed: number): string {
   }
 }
 
+/** The panel's own working, with its equations kept on one line (the panel's ltr() does not join the spaces). */
+const oneLine = (s: string) => s.replace(/⁦([^⁩]*)⁩/g, (_, x: string) => ltr(x));
+
+/** Weeks and days, short: "۱۰۰ = ۷ × ۱۴ + ۲". */
+const weeksFa = (n: number) => ltr(`${fa(n)} = ۷ × ${fa(Math.floor(n / 7))} + ${fa(n % 7)}`);
+
+/** The answer and the working of the panel's «نشانم بده»; a shorter line when that is too long for the report card. */
+function solution(type: string, level: number, seed: number): string {
+  const q = make(type, level, seed);
+  const answer = q.type === "weekday" || q.type === "month" ? `${WEEKDAYS[q.answer]}` : answerFa(q);
+  const head = `جواب: ${q.type === "angle" ? `${fa(q.answer)} درجه` : q.type === "weekday" || q.type === "month" ? answer : `ساعت ${answer}`}.`;
+  // Less than a week: no "۰ هفته کامل".
+  if (q.type === "weekday" && q.days < 7) return `${head} ${fa(q.days)} روز ${q.back ? "قبل" : "بعد"} از ${WEEKDAYS[q.start]}، ${answer} است.`;
+  const full = `${head} ${oneLine(clockHow(q))}`;
+  if (full.length <= 300) return full;
+  if (q.type === "month")
+    return `${head} از ${fa(q.from.d)} ${MONTHS[q.from.m].name} تا ${fa(q.to.d)} ${MONTHS[q.to.m].name} ${fa(q.days)} روز است. ${weeksFa(q.days)}، پس ${fa(q.days % 7)} روز بعد از ${WEEKDAYS[q.weekday]}.`;
+  return head;
+}
+
 export const CLOCK_ADAPTER: ToolAdapter = {
   ...CLOCK_PRACTICE,
   version: "clock@1",
   grade: (type, level, seed, response) => (typeof response === "number" ? clockMistake(make(type, level, seed), response) : "other"),
   hints: (type, level, seed) => [NUDGE[type as ClockQuestionType], RULE[type as ClockQuestionType], firstStep(type, level, seed)],
+  solution,
 };

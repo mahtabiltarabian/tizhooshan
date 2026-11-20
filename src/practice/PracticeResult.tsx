@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { endRun, useRun } from "./bridge";
+import { ExamReport, PlacementResult, StageScreen } from "./ExamScreens";
 import { syncNow } from "./sync";
 import { tagText, toolArea, toolTitle, typeLabel, catalogTool } from "./catalog";
 import { RUN_TITLE, starText } from "./PracticeBar";
@@ -32,6 +33,11 @@ export function PracticeResult() {
       </main>
     );
   }
+
+  // Staged exams and the placement test have their own screens.
+  if (r.exam?.between) return <StageScreen r={r} />;
+  if (r.exam && r.exam.kind === "placement") return <PlacementResult r={r} />;
+  if (r.exam) return <ExamReport r={r} />;
 
   const exam = r.kind === "exam";
   const answered = r.results.filter((a) => a !== null);

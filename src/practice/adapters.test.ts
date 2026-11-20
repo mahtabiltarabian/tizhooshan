@@ -31,6 +31,20 @@ describe("adapters", () => {
   });
 });
 
+describe("solutions for the report card", () => {
+  it.each(ADAPTERS.map((a) => [a.tool, a] as const))("%s: every type and level has a short worked answer in Persian digits", (_, a) => {
+    for (const t of a.types)
+      for (const l of a.levels)
+        for (const seed of SEEDS.slice(0, 8)) {
+          const s = a.solution(t.key, l, seed);
+          expect(s.startsWith("جواب:")).toBe(true);
+          expect(s.length).toBeGreaterThan(9);
+          expect(s.length).toBeLessThanOrEqual(300);
+          expect(s).not.toMatch(/[0-9]/);
+        }
+  });
+});
+
 describe("clock adapter", () => {
   const types: ClockQuestionType[] = ["angle", "mirror", "elapsed", "drift", "weekday", "month"];
   it("grades like the tool's own feedback, for the answer and every slip", () => {
