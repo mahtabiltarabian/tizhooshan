@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { countSlips, makeSpeedQuestion, relation, type Level, type SpeedQuestionType } from "@/generators/speed";
+import { itemSlips, makeMentalQuestion } from "@/generators/mental";
 import { SPEED_ADAPTER } from "./adapter";
 import { SPEED_PRACTICE } from "./practice";
 
@@ -9,7 +10,7 @@ const SEEDS = Array.from({ length: 40 }, (_, i) => i * 37 + 1);
 describe("speed adapter", () => {
   it("agrees with its practice data", () => {
     expect(SPEED_ADAPTER.types).toEqual(SPEED_PRACTICE.types);
-    expect(SPEED_ADAPTER.types.map((t) => t.key)).toEqual(TYPES);
+    expect(SPEED_ADAPTER.types.map((t) => t.key)).toEqual([...TYPES, "mental"]);
   });
 
   it("grades answers and slips, and every tag has words", () => {
@@ -26,6 +27,34 @@ describe("speed adapter", () => {
           if (type === "differ") expect(SPEED_ADAPTER.grade(type, level, seed, ((q.answer as number) + 1) % q.grid.length)).toBe("other");
         }
     for (const tag of ["right", "mirror", "rotated", "missed", "careless", "offByOne", "other"]) expect(SPEED_ADAPTER.tags[tag]).toBeTruthy();
+  });
+
+  it("grades a mental arithmetic card by its first known slip, and every tag has words", () => {
+    for (const level of [1, 2, 3] as Level[])
+      for (const seed of SEEDS) {
+        const q = makeMentalQuestion(level, seed);
+        const answers = q.items.map((it) => it.answer);
+        expect(SPEED_ADAPTER.grade("mental", level, seed, answers)).toBe("right");
+        q.items.forEach((it, i) => {
+          for (const [tag, v] of itemSlips(it)) {
+            const got = SPEED_ADAPTER.grade("mental", level, seed, answers.map((a, j) => (j === i ? v : a)));
+            expect(got).toBe(tag);
+            expect(SPEED_ADAPTER.tags[got]).toBeTruthy();
+          }
+        });
+        expect(SPEED_ADAPTER.grade("mental", level, seed, answers.map((a, j) => (j === 0 ? a + 100 : a)))).toBe("other");
+      }
+  });
+
+  it("mental hints never show an answer on the card", () => {
+    const fa = (n: number) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+    for (const level of [1, 2, 3] as Level[])
+      for (const seed of SEEDS) {
+        const answers = makeMentalQuestion(level, seed).items.map((it) => fa(it.answer));
+        const hints = SPEED_ADAPTER.hints("mental", level, seed);
+        expect(hints).toHaveLength(3);
+        for (const h of hints) for (const t of h.match(/[۰-۹]+/g) ?? []) expect(answers).not.toContain(t);
+      }
   });
 
   it("hints never give the count away", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { blankCells, cornersOf, firstMove, lineOk, puzzleMistake, SHAPE_RULES, type Level, type NumberPuzzle, type PuzzleType, type Step } from "@/generators/number-puzzles";
+import { blankCells, cornersOf, firstMove, lineOk, MATRIX_RULES, puzzleMistake, rowOf, SHAPE_RULES, type Level, type NumberPuzzle, type PuzzleType, type Step } from "@/generators/number-puzzles";
 import { NumberPad } from "@/toolkit/NumberPad";
 import { fa } from "@/tools/registry";
 import styles from "@/toolkit/TryPanel.module.css";
@@ -12,10 +12,11 @@ export const PUZZLE_TYPE_LABEL: Record<PuzzleType, string> = {
   star: "مثلث جادویی",
   ring: "دایره و ستاره عددی",
   shape: "عدد داخل شکل",
+  matrix: "ماتریس عددی",
 };
 
-/** Keeps an equation left to right inside a Persian sentence, on one line (no-break spaces). */
-export const ltr = (s: string) => `⁦${s.replace(/ /g, " ")}⁩`;
+/** Keeps an equation left to right inside a Persian sentence, on one line (no-break spaces). A mark after «؟» keeps the numbers after it in order. */
+export const ltr = (s: string) => `⁦${s.replace(/ /g, " ").replace(/؟/g, "؟‎")}⁩`;
 
 /** "۱ تا ۹", or the numbers one by one when they skip. */
 export function setFa(set: readonly number[]) {
@@ -27,6 +28,12 @@ const LEVEL_HINT: Record<Level, string> = {
   1: "قانون فقط جمع و تفریق دارد.",
   2: "در قانون ضرب هم هست.",
   3: "قانون پنهان است؛ خودت پیدایش کن.",
+};
+
+const MATRIX_LEVEL_HINT: Record<Level, string> = {
+  1: "قانون فقط جمع و تفریق دارد.",
+  2: "در قانون ضرب هم هست.",
+  3: "قانون پنهان است؛ خانه خالی هم شاید وسط سطر باشد.",
 };
 
 export function puzzlePrompt(q: NumberPuzzle, paper = false): string {
@@ -54,6 +61,8 @@ export function puzzlePrompt(q: NumberPuzzle, paper = false): string {
       const blank = blankCells(q)[0];
       return `در هر مثلث، عدد وسط با یک قانون از سه عدد گوشه ساخته می‌شود. ${LEVEL_HINT[q.level]} ${blank % 4 === 3 ? "عدد وسط شکل ۳ چند است؟" : "عدد گوشه‌ای که «؟» دارد چند است؟"}`;
     }
+    case "matrix":
+      return `هر سطر از راست خوانده می‌شود و در هر سطر، عدد سوم با یک قانون از دو عدد اول ساخته می‌شود. قانون همه سطرها یکی است. ${MATRIX_LEVEL_HINT[q.level]} عدد خانه «؟» چند است؟`;
   }
 }
 
@@ -61,7 +70,7 @@ export function puzzlePrompt(q: NumberPuzzle, paper = false): string {
 export function firstHint(q: NumberPuzzle): string {
   switch (firstMove(q)) {
     case "rule":
-      return "اول فکر کن: چه قانونی در شکل ۱ و شکل ۲ هر دو درست است؟";
+      return q.type === "matrix" ? "اول فکر کن: چه قانونی در سطر ۱ و سطر ۲ هر دو درست است؟" : "اول فکر کن: چه قانونی در شکل ۱ و شکل ۲ هر دو درست است؟";
     case "sum":
       return q.type === "ring"
         ? "اول فکر کن: جمع هر خط چند است؟ هر دایره روی دو خط است؛ پس شش خط با هم هر عدد را دو بار می‌شمارند."
@@ -106,11 +115,24 @@ export function stepText(q: NumberPuzzle, s: Step): string {
     case "only":
       return `عددهای باقی‌مانده: ${s.rest.map(fa).join("، ")}. با خط‌های این خانه فقط ${fa(s.value)} جور درمی‌آید.`;
     case "check": {
+      if (q.type === "matrix") {
+        const r = MATRIX_RULES[q.rule!];
+        const [a, b] = rowOf(v, s.shape);
+        return `سطر ${fa(s.shape + 1)}: ${r.words}: ${ltr(`${r.expr(fa(a), fa(b))} = ${fa(s.value)}`)} ✓`;
+      }
       const r = SHAPE_RULES[q.rule!];
       const [t, l, rr] = cornersFa(v, s.shape);
       return `شکل ${fa(s.shape + 1)}: ${r.words}: ${ltr(`${r.expr(t, l, rr)} = ${fa(s.value)}`)} ✓`;
     }
     case "apply": {
+      if (q.type === "matrix") {
+        const r = MATRIX_RULES[q.rule!];
+        const row = rowOf(v, 2).map(fa);
+        if (s.cell === 8) return `همین قانون در سطر ۳: ${ltr(`${r.expr(row[0], row[1])} = ${fa(s.value)}`)}.`;
+        const shown = [...row];
+        shown[s.cell % 3] = "؟";
+        return `در سطر ۳ عدد خالی را پیدا کن: ${ltr(`${r.expr(shown[0], shown[1])} = ${row[2]}`)}، پس ؟ = ${fa(s.value)} (امتحان کن: ${ltr(`${r.expr(row[0], row[1])} = ${row[2]}`)}).`;
+      }
       const r = SHAPE_RULES[q.rule!];
       const [t, l, rr] = cornersFa(v, 2);
       if (s.cell % 4 === 3) return `همین قانون در شکل ۳: ${ltr(`${r.expr(t, l, rr)} = ${fa(s.value)}`)}.`;
@@ -151,9 +173,13 @@ export function feedback(q: NumberPuzzle, vals: readonly (number | null)[]): { t
             : `نزدیک بود! برای یک خانه، بقیه را از «جمع» کم کن، نه اینکه به آن اضافه کنی.${hatch}`,
       };
     case "sumHabit":
+      if (q.type === "matrix") return { tone: "turned", text: "فقط دو عدد اول را جمع کردی؛ ولی در سطرهای ۱ و ۲ عدد سوم جمع آن دو نیست. قانون دیگری را روی سطر ۱ امتحان کن." };
       return { tone: "turned", text: "فقط سه گوشه را جمع کردی؛ ولی در شکل‌های ۱ و ۲ عدد وسط جمع گوشه‌ها نیست. یک قانون دیگر را روی شکل ۱ امتحان کن." };
     case "oneExample":
+      if (q.type === "matrix") return { tone: "turned", text: "نزدیک بود! قانونی که پیدا کردی فقط در سطر ۱ درست است. قانون باید در سطر ۲ هم درست باشد." };
       return { tone: "turned", text: "نزدیک بود! قانونی که پیدا کردی فقط در شکل ۱ درست است. قانون باید در شکل ۲ هم درست باشد." };
+    case "reversed":
+      return { tone: "turned", text: "نزدیک بود! قانون را درست پیدا کردی، ولی سطر ۳ را از چپ خواندی. عدد اول هر سطر سمت راست است." };
     case "crossing": {
       const [cell, good, bad] = m.cross!;
       const on = q.lines.filter((l) => l.cells.includes(cell)).length;
@@ -167,7 +193,7 @@ export function feedback(q: NumberPuzzle, vals: readonly (number | null)[]): { t
     case "lines":
       return { tone: "bad", text: `هنوز نه.${hatch} آن‌ها را درست کن و دوباره بررسی کن.` };
     default:
-      return { tone: "bad", text: q.type === "shape" ? "هنوز نه. قانون را روی هر دو شکل ۱ و ۲ امتحان کن، بعد در شکل ۳ به کار ببر." : "هنوز نه. دوباره بررسی کن." };
+      return { tone: "bad", text: q.type === "shape" ? "هنوز نه. قانون را روی هر دو شکل ۱ و ۲ امتحان کن، بعد در شکل ۳ به کار ببر." : q.type === "matrix" ? "هنوز نه. قانون را روی هر دو سطر ۱ و ۲ امتحان کن، بعد در سطر ۳ به کار ببر." : "هنوز نه. دوباره بررسی کن." };
   }
 }
 

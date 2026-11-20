@@ -3,6 +3,7 @@ import {
   blankCells,
   candidates,
   cellSlips,
+  columnReading,
   cornerCandidates,
   crossingSlip,
   firstMove,
@@ -14,6 +15,9 @@ import {
   MAGIC_TRIANGLES,
   magicFrame,
   makeNumberPuzzle,
+  MATRIX_RULES,
+  matrixCandidates,
+  matrixRules,
   PUZZLE_TYPES,
   puzzleMistake,
   RING_BLANKS,
@@ -287,7 +291,7 @@ describe("number puzzles", () => {
 
             // The "think first" hint is true for this puzzle.
             const move = firstMove(q);
-            if ((move === "rule") !== (type === "shape")) fail(`hint ${move}`);
+            if ((move === "rule") !== (type === "shape" || type === "matrix")) fail(`hint ${move}`);
             if (move === "sum" && !((type === "magic" || type === "ring") && q.targetHidden)) fail("sum hint");
             if (move === "cornerSum" && !(type === "star" && q.anyFill && n === 6)) fail("corner hint");
             if (move === "line" && !oneBlankLines(q).length) fail("no line with one blank");
@@ -339,6 +343,17 @@ describe("number puzzles", () => {
                 if (fittingRules(sol).join() !== String(q.rule)) fail("rule not unique");
                 if (blanks[0] !== 11 && cornerCandidates(q.rule!, sol, blanks[0]).join() !== String(sol[blanks[0]])) fail("corner not unique");
                 break;
+              case "matrix":
+                // One blank in row 3 (the first or second number only at level 3).
+                if (q.cells.length !== 9 || n !== 1 || blanks[0] < 6 || (level < 3 && blanks[0] !== 8)) fail("blank");
+                // Every row follows the rule, and rows 1 and 2 fit no other rule.
+                if ([0, 1, 2].some((r) => MATRIX_RULES[q.rule!].f(sol[3 * r], sol[3 * r + 1]) !== sol[3 * r + 2])) fail("row breaks the rule");
+                if (matrixRules(sol).join() !== String(q.rule)) fail("rule not unique");
+                if (blanks[0] !== 8 && matrixCandidates(q.rule!, sol, blanks[0]).join() !== String(sol[blanks[0]])) fail("cell not unique");
+                // Read by columns, no rule fits: the table has one reading.
+                if (columnReading(sol, blanks[0])) fail("columns fit a rule");
+                if (level === 1 && q.rule! > 2) fail("level 1 rule");
+                break;
             }
           }
     expect(problems).toEqual([]);
@@ -376,6 +391,29 @@ describe("number puzzles", () => {
       break;
     }
 
+    // Number matrix: the sum habit, and the row read left to right.
+    let reversed = false;
+    for (let seed = 0; seed < 200 && !reversed; seed++) {
+      const m = makeNumberPuzzle("matrix", 2, seed);
+      const slip = cellSlips(m).find(([, t]) => t === "reversed");
+      if (!slip) continue;
+      // Twice the left number plus the right one, say: the rule read from the left.
+      const vals = solution(m) as (number | null)[];
+      vals[8] = slip[2];
+      expect(puzzleMistake(m, vals).tag).toBe("reversed");
+      expect(MATRIX_RULES[m.rule!].f(vals[7]!, vals[6]!)).toBe(slip[2]);
+      reversed = true;
+    }
+    expect(reversed).toBe(true);
+    for (let seed = 0; seed < 50; seed++) {
+      const m = makeNumberPuzzle("matrix", 2, seed);
+      const vals = solution(m) as (number | null)[];
+      if (vals[6]! + vals[7]! === vals[8]) continue;
+      vals[8] = vals[6]! + vals[7]!;
+      expect(puzzleMistake(m, vals).tag).toBe("sumHabit");
+      break;
+    }
+
     // Grid: a row total added in instead of taken away.
     for (let seed = 0; seed < 50; seed++) {
       const g = makeNumberPuzzle("grid", 1, seed);
@@ -403,5 +441,6 @@ describe("number puzzles", () => {
 
   it("describes every rule with its own working", () => {
     for (const r of SHAPE_RULES) expect(r.expr("a", "b", "c")).toMatch(/a/);
+    for (const r of MATRIX_RULES) expect(r.expr("a", "b")).toMatch(/a[^]*b|b[^]*a/);
   });
 });

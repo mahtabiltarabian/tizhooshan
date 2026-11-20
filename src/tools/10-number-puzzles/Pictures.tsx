@@ -2,7 +2,7 @@
 
 // A number puzzle in board units: squares for the magic square and the
 // table, bricks for the pyramid, circles for the magic triangle and the
-// number circle and star, triangles for "number in shape". Given numbers sit on a tinted cell with a solid border;
+// number circle and star, triangles for "number in shape", a 3×3 table for the number matrix. Given numbers sit on a tinted cell with a solid border;
 // blanks are white with a dashed border, and what the child writes is blue.
 // Wrong lines are hatched and marked ✗, so nothing depends on colour alone.
 // Numbers can be dragged from the bank under the figure onto a cell, from a
@@ -78,6 +78,7 @@ function bounds(q: NumberPuzzle): [number, number, number, number] {
     });
   if (q.type === "grid") [x0, y0, x1] = [x0 - 0.7, y0 - 0.45, x1 + 0.7];
   if (q.type === "shape") y1 += 0.5;
+  if (q.type === "matrix") x1 += 1.2;
   return [round(x0), round(y0), round(x1), round(y1)];
 }
 
@@ -223,6 +224,14 @@ export function PuzzleFigure({ q, vals, editable, selected, onSelect, onDrop, on
           </g>
         ))}
 
+      {/* Number matrix: row names on the right, where each row starts. */}
+      {q.type === "matrix" &&
+        [0, 1, 2].map((r) => (
+          <text key={r} x={3.4} y={q.cells[3 * r].y} dy="0.35em" fontSize={0.28} fontWeight={700} textAnchor="middle" fill={SOFT}>
+            {`سطر ${fa(r + 1)}`}
+          </text>
+        ))}
+
       {/* Grid headings */}
       {q.type === "grid" && (
         <>
@@ -256,7 +265,7 @@ export function PuzzleFigure({ q, vals, editable, selected, onSelect, onDrop, on
                 {fa(v)}
               </text>
             ) : (
-              q.type === "shape" && (
+              (q.type === "shape" || q.type === "matrix") && (
                 <text x={c.x} y={c.y} dy="0.35em" fontSize={0.4} fontWeight={800} textAnchor="middle" fill={SOFT}>
                   ؟
                 </text>

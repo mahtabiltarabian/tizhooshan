@@ -13,12 +13,16 @@
 // The number circle and star ("ring") put numbers on circles that sit on
 // straight lines: a wheel of seven (three lines through the centre) at
 // level 1, and a six-pointed star of twelve (six lines of four) above it.
+//
+// The number matrix ("matrix") is a 3×3 table read right to left, row by
+// row: in every row the third number comes from the first two by one hidden
+// rule. Rows 1 and 2 give the rule away; one cell of row 3 is blank.
 
 import { mulberry32, pick, randInt, shuffle, type Rng } from "./random";
 
 export type Level = 1 | 2 | 3;
-export type PuzzleType = "magic" | "pyramid" | "grid" | "star" | "ring" | "shape";
-export const PUZZLE_TYPES: PuzzleType[] = ["magic", "pyramid", "grid", "star", "ring", "shape"];
+export type PuzzleType = "magic" | "pyramid" | "grid" | "star" | "ring" | "shape" | "matrix";
+export const PUZZLE_TYPES: PuzzleType[] = ["magic", "pyramid", "grid", "star", "ring", "shape", "matrix"];
 
 export interface Cell {
   /** Centre of the cell in board units (x to the right, y down). */
@@ -57,7 +61,7 @@ export interface NumberPuzzle {
   targetHidden: boolean;
   /** Several answers are right; any valid fill is accepted. */
   anyFill: boolean;
-  /** Number in shape: index into SHAPE_RULES. */
+  /** Number in shape: index into SHAPE_RULES; number matrix: index into MATRIX_RULES. */
   rule: number | null;
 }
 
@@ -190,6 +194,13 @@ function shapeFigure(): { cells: Cell[]; lines: Line[] } {
   return { cells, lines: [] };
 }
 
+/** Number matrix: cell 3r + j is row r, place j; place 0 is on the right, where a Persian row starts. */
+function matrixFigure(): { cells: Cell[]; lines: Line[] } {
+  const cells: Cell[] = [];
+  for (let r = 0; r < 3; r++) for (let j = 0; j < 3; j++) cells.push(blankCell((2 - j) * 1.15, r * 1.15));
+  return { cells, lines: [] };
+}
+
 const FIGURES: Record<PuzzleType, () => { cells: Cell[]; lines: Line[] }> = {
   magic: magicFigure,
   pyramid: () => pyramidFigure(4),
@@ -197,6 +208,7 @@ const FIGURES: Record<PuzzleType, () => { cells: Cell[]; lines: Line[] }> = {
   star: starFigure,
   ring: wheelFigure,
   shape: shapeFigure,
+  matrix: matrixFigure,
 };
 
 const arith = (a: number, d: number, n: number) => Array.from({ length: n }, (_, i) => a + i * d);
@@ -259,6 +271,62 @@ export function cornerCandidates(ri: number, vals: readonly number[], cell: numb
 /** Rules that fit every finished shape (shapes 0 and 1). */
 export function fittingRules(vals: readonly number[]): number[] {
   return SHAPE_RULES.map((_, i) => i).filter((i) => [0, 1].every((k) => SHAPE_RULES[i].f(...cornersOf(vals, k)) === vals[4 * k + 3]));
+}
+
+// ---------------------------------------------------------------------------
+// Number matrix
+
+export interface MatrixRule {
+  /** The third number of a row from the first two. */
+  f: (a: number, b: number) => number;
+  expr: (a: string, b: string) => string;
+  words: string;
+}
+
+export const MATRIX_RULES: MatrixRule[] = [
+  { f: (a, b) => a + b, expr: (a, b) => `${a} + ${b}`, words: "جمع دو عدد اول" },
+  { f: (a, b) => a - b, expr: (a, b) => `${a} − ${b}`, words: "عدد اول منهای عدد دوم" },
+  { f: (a, b) => 2 * b - a, expr: (a, b) => `${b} + (${b} − ${a})`, words: "گام ثابت: عدد سوم همان‌قدر از دومی فاصله دارد که دومی از اولی" },
+  { f: (a, b) => a * b, expr: (a, b) => `${a} × ${b}`, words: "ضرب دو عدد اول" },
+  { f: (a, b) => 2 * (a + b), expr: (a, b) => `۲ × (${a} + ${b})`, words: "دو برابر جمع دو عدد اول" },
+  { f: (a, b) => 2 * a + b, expr: (a, b) => `۲ × ${a} + ${b}`, words: "دو برابر عدد اول، به‌علاوه عدد دوم" },
+  { f: (a, b) => a * a - b, expr: (a, b) => `${a} × ${a} − ${b}`, words: "عدد اول ضرب در خودش، منهای عدد دوم" },
+  { f: (a, b) => a * b - a - b, expr: (a, b) => `${a} × ${b} − ${a} − ${b}`, words: "ضرب دو عدد اول، منهای هر دو" },
+];
+
+const MATRIX_POOL: Record<Level, number[]> = { 1: [0, 1, 2], 2: [3, 4, 5], 3: [3, 4, 5, 6, 7] };
+
+/** Row r of the matrix as [first, second, third]. */
+export const rowOf = (vals: readonly (number | null)[], r: number) => [vals[3 * r], vals[3 * r + 1], vals[3 * r + 2]] as [number, number, number];
+
+/** Cells of group k: the k-th shape (number in shape) or row (number matrix). */
+export const groupCells = (q: NumberPuzzle, k: number) => (q.type === "matrix" ? [3 * k, 3 * k + 1, 3 * k + 2] : [4 * k, 4 * k + 1, 4 * k + 2, 4 * k + 3]);
+
+/** Rules that fit rows 0 and 1. */
+export function matrixRules(vals: readonly number[]): number[] {
+  return MATRIX_RULES.map((_, i) => i).filter((i) =>
+    [0, 1].every((r) => {
+      const [a, b, c] = rowOf(vals, r);
+      return MATRIX_RULES[i].f(a, b) === c;
+    }),
+  );
+}
+
+/** Values of a blank first or second number of row 2 that make rule `ri` give the third. */
+export function matrixCandidates(ri: number, vals: readonly number[], cell: number): number[] {
+  const out: number[] = [];
+  for (let v = 1; v <= 999; v++) {
+    const row = [...rowOf(vals, 2)];
+    row[cell % 3] = v;
+    if (MATRIX_RULES[ri].f(row[0], row[1]) === row[2]) out.push(v);
+  }
+  return out;
+}
+
+/** A rule that also fits the two full columns would give the table a second reading. */
+export function columnReading(vals: readonly number[], blank: number): boolean {
+  const cols = [0, 1, 2].filter((j) => j !== blank % 3);
+  return MATRIX_RULES.some((r) => cols.every((j) => r.f(vals[j], vals[3 + j]) === vals[6 + j]));
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +505,30 @@ function shapePuzzle(rng: Rng, q: NumberPuzzle): NumberPuzzle {
   }
 }
 
+function matrixPuzzle(rng: Rng, q: NumberPuzzle): NumberPuzzle {
+  const { level, big } = q;
+  const [lo, hi] = big ? ([[10, 60], [4, 25], [3, 15]] as const)[level - 1] : ([[1, 20], [1, 9], [2, 9]] as const)[level - 1];
+  // The rule is picked once, so rules that reject more rows come up as often as the rest.
+  const rule = pick(rng, MATRIX_POOL[level]);
+  for (;;) {
+    const vals: number[] = [];
+    for (let r = 0; r < 3; r++) {
+      const [a, b] = [between(rng, lo, hi), between(rng, lo, hi)];
+      vals.push(a, b, MATRIX_RULES[rule].f(a, b));
+    }
+    // Two different numbers in each row, so the order of a row is never hidden.
+    if ([0, 1, 2].some((r) => vals[3 * r] === vals[3 * r + 1])) continue;
+    if (vals.some((v) => v < 1 || v > 999)) continue;
+    // Each row is different, and rows 1 and 2 point to this rule and no other.
+    if (new Set([0, 1, 2].map((r) => rowOf(vals, r).join())).size < 3) continue;
+    if (matrixRules(vals).length !== 1) continue;
+    const blank = level === 3 && rng() < 0.5 ? 6 + randInt(rng, 2) : 8;
+    if (blank !== 8 && matrixCandidates(rule, vals, blank).length !== 1) continue;
+    if (columnReading(vals, blank)) continue;
+    return { ...q, rule, cells: q.cells.map((c, i) => ({ ...c, value: vals[i], given: i !== blank })) };
+  }
+}
+
 export function makeNumberPuzzle(type: PuzzleType, level: Level, seed: number, big = false): NumberPuzzle {
   const rng = mulberry32(seed * 7 + level * 101 + type.length * 13 + (big ? 50_021 : 0));
   const q = base(type, level, seed, big);
@@ -453,6 +545,8 @@ export function makeNumberPuzzle(type: PuzzleType, level: Level, seed: number, b
       return ringPuzzle(rng, q);
     case "shape":
       return shapePuzzle(rng, q);
+    case "matrix":
+      return matrixPuzzle(rng, q);
   }
 }
 
@@ -472,7 +566,7 @@ export type Step =
   | { kind: "line"; cell: number; line: number; value: number }
   /** Of the numbers left, only one fits every line through this cell. */
   | { kind: "only"; cell: number; value: number; rest: number[] }
-  /** Number in shape: the rule tried on finished shape k. */
+  /** Number in shape or matrix: the rule tried on finished shape (or row) k. */
   | { kind: "check"; shape: number; value: number }
   | { kind: "apply"; cell: number; value: number };
 
@@ -544,6 +638,12 @@ function onlyStep(q: NumberPuzzle, vals: readonly (number | null)[]): Step | nul
 
 function shapeSteps(q: NumberPuzzle): Step[] {
   const blank = blankCells(q)[0];
+  if (q.type === "matrix")
+    return [
+      { kind: "check", shape: 0, value: q.cells[2].value },
+      { kind: "check", shape: 1, value: q.cells[5].value },
+      { kind: "apply", cell: blank, value: q.cells[blank].value },
+    ];
   return [
     { kind: "check", shape: 0, value: q.cells[3].value },
     { kind: "check", shape: 1, value: q.cells[7].value },
@@ -553,7 +653,7 @@ function shapeSteps(q: NumberPuzzle): Step[] {
 
 /** The solving steps, or null if the solver gets stuck. */
 export function solveSteps(q: NumberPuzzle): Step[] | null {
-  if (q.type === "shape") return shapeSteps(q);
+  if (q.type === "shape" || q.type === "matrix") return shapeSteps(q);
   const vals = givenValues(q);
   const steps: Step[] = [];
   let targetKnown = !q.targetHidden;
@@ -589,7 +689,7 @@ export function solveSteps(q: NumberPuzzle): Step[] | null {
  */
 export type FirstMove = "rule" | "sum" | "cornerSum" | "line" | "only";
 export function firstMove(q: NumberPuzzle): FirstMove {
-  if (q.type === "shape") return "rule";
+  if (q.type === "shape" || q.type === "matrix") return "rule";
   const first = solveSteps(q)?.[0];
   if (!first) return "line";
   if (first.kind === "sum" || first.kind === "centre") return "sum";
@@ -631,7 +731,7 @@ export function lineOk(q: NumberPuzzle, line: Line, vals: readonly (number | nul
 /** Full lines that are wrong. */
 export const badLines = (q: NumberPuzzle, vals: readonly (number | null)[]) => q.lines.flatMap((l, i) => (lineOk(q, l, vals) === false ? [i] : []));
 
-export type PuzzleTag = "right" | "anyValid" | "notInSet" | "repeat" | "addedDown" | "sumHabit" | "oneExample" | "diagonal" | "crossing" | "lines" | "other";
+export type PuzzleTag = "right" | "anyValid" | "notInSet" | "repeat" | "addedDown" | "sumHabit" | "oneExample" | "reversed" | "diagonal" | "crossing" | "lines" | "other";
 
 /** Wrong values for one cell with a known cause: [cell, tag, value]. */
 export function cellSlips(q: NumberPuzzle): [number, PuzzleTag, number][] {
@@ -658,7 +758,25 @@ export function cellSlips(q: NumberPuzzle): [number, PuzzleTag, number][] {
       });
     }
   }
-  return out.filter(([c, , x]) => x !== q.cells[c].value);
+  if (q.type === "matrix" && q.rule !== null && blankCells(q)[0] === 8) {
+    const [a, b] = rowOf(v, 2);
+    const [a0, b0, c0] = rowOf(v, 0);
+    const [a1, b1, c1] = rowOf(v, 1);
+    if (q.rule !== 0) out.push([8, "sumHabit", a + b]);
+    MATRIX_RULES.forEach((r, i) => {
+      if (i !== q.rule && r.f(a0, b0) === c0 && r.f(a1, b1) !== c1) out.push([8, "oneExample", r.f(a, b)]);
+    });
+    // Read left to right: the first two numbers swapped.
+    out.push([8, "reversed", MATRIX_RULES[q.rule].f(b, a)]);
+  }
+  // One cause per wrong value: the first one named wins, as in puzzleMistake.
+  const seen = new Set<string>();
+  return out.filter(([c, , x]) => {
+    const key = `${c}:${x}`;
+    if (x === q.cells[c].value || x < 1 || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** What an answer is: right, a known slip, or which lines are wrong. */

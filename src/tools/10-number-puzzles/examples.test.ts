@@ -63,5 +63,8 @@ describe("number puzzles hand-picked examples", () => {
     expect(reachable(ring, "crossing")).toBe(true);
     const star = byFor(4);
     expect(star.type === "star" && star.anyFill).toBe(true);
+    const matrix = byFor(5);
+    expect(matrix.type).toBe("matrix");
+    expect(cellSlips(matrix).map(([, tag]) => tag)).toContain("reversed");
   });
 });

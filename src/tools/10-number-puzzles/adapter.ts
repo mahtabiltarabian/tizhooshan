@@ -4,7 +4,7 @@
 // entry per cell of the puzzle (givens included, null for an empty cell),
 // in the order of the puzzle's cells. Practice questions use small numbers.
 
-import { blankCells, cornersOf, makeNumberPuzzle, puzzleMistake, solveSteps, type Level, type NumberPuzzle, type PuzzleType } from "@/generators/number-puzzles";
+import { blankCells, cornersOf, makeNumberPuzzle, rowOf, puzzleMistake, solveSteps, type Level, type NumberPuzzle, type PuzzleType } from "@/generators/number-puzzles";
 import type { ToolAdapter } from "@/practice/adapter";
 import { fa } from "@/tools/registry";
 import { NUMBER_PUZZLES_PRACTICE } from "./practice";
@@ -29,6 +29,7 @@ const NUDGE: Record<PuzzleType, string> = {
   star: "گوشه‌های مثلث هر کدام در دو ضلع هستند.",
   ring: "هر دایره روی بیش از یک خط است؛ عددش باید با همه آن خط‌ها جور باشد.",
   shape: "قانون باید در شکل اول و شکل دوم هر دو درست باشد.",
+  matrix: "قانون باید در سطر اول و سطر دوم هر دو درست باشد. هر سطر از راست خوانده می‌شود.",
 };
 
 const RULE: Record<PuzzleType, string> = {
@@ -38,6 +39,7 @@ const RULE: Record<PuzzleType, string> = {
   star: "جمع سه ضلع با هم = جمع همه عددها + جمع سه گوشه، چون هر گوشه دو بار شمرده می‌شود.",
   ring: "خطی را پیدا کن که فقط یک خانه خالی دارد: آن خانه = جمع خط منهای بقیه.",
   shape: "قانون‌های ساده را امتحان کن (جمع، تفریق یا ضرب گوشه‌ها) تا یکی در هر دو شکل درست شود؛ بعد همان را در شکل سوم به کار ببر.",
+  matrix: "قانون‌های ساده را امتحان کن (جمع، تفریق، ضرب، یا گام ثابت مثل دنباله) تا یکی در هر دو سطر درست شود؛ بعد همان را در سطر سوم به کار ببر.",
 };
 
 const sumOf = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
@@ -47,6 +49,10 @@ function firstStep(q: NumberPuzzle): string {
     const v = q.cells.map((c) => c.value);
     const [t, l, r] = cornersOf(v, 0).map((x) => fa(x));
     return `گام اول: در شکل اول، عدد وسط ${fa(v[3])} است و گوشه‌ها ${t}، ${l} و ${r}. جمعشان، تفاضلشان یا ضربشان کدام ${fa(v[3])} می‌شود؟`;
+  }
+  if (q.type === "matrix") {
+    const [a, b, c] = rowOf(q.cells.map((x) => x.value), 0).map((x) => fa(x));
+    return `گام اول: در سطر اول، از راست، دو عدد اول ${a} و ${b} هستند و عدد سوم ${c}. جمعشان، تفاضلشان یا ضربشان کدام ${c} می‌شود؟`;
   }
   const first = solveSteps(q)?.[0];
   switch (first?.kind) {
@@ -76,6 +82,7 @@ const PLAIN_STEP: Record<PuzzleType, string> = {
   star: "گام اول: ضلعی را پیدا کن که فقط یک خانه خالی دارد.",
   ring: "گام اول: خطی را پیدا کن که فقط یک خانه خالی دارد.",
   shape: "گام اول: روی شکل اول، جمع سه گوشه را با عدد وسط مقایسه کن؛ اگر جور نیست، ضرب را امتحان کن.",
+  matrix: "گام اول: روی سطر اول، جمع دو عدد اول را با عدد سوم مقایسه کن؛ اگر جور نیست، تفریق و ضرب را امتحان کن.",
 };
 
 const showsNumber = (s: string, v: number) => (s.match(/[۰-۹]+/g) ?? ([] as string[])).includes(fa(Math.abs(v)));

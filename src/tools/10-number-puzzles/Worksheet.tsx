@@ -4,13 +4,13 @@
 // key draws it solved (the blanks' numbers in blue) and, for "number in
 // shape", names the rule; when the line total was hidden, it gives the total.
 
-import { givenValues, makeNumberPuzzle, SHAPE_RULES, type NumberPuzzle, type PuzzleType } from "@/generators/number-puzzles";
+import { givenValues, makeNumberPuzzle, MATRIX_RULES, SHAPE_RULES, type NumberPuzzle, type PuzzleType } from "@/generators/number-puzzles";
 import { FigureRow, WorksheetShell, type WorksheetConfig } from "@/toolkit/WorksheetShell";
 import { fa } from "@/tools/registry";
 import { PuzzleSvg } from "./Pictures";
 import { PUZZLE_TYPE_LABEL, puzzlePrompt } from "./PuzzleTryPanel";
 
-const WIDTH: Record<PuzzleType, number> = { magic: 200, pyramid: 210, grid: 210, star: 180, ring: 200, shape: 320 };
+const WIDTH: Record<PuzzleType, number> = { magic: 200, pyramid: 210, grid: 210, star: 180, ring: 200, shape: 320, matrix: 190 };
 
 function figures(q: NumberPuzzle) {
   return (
@@ -25,6 +25,7 @@ function answer(q: NumberPuzzle) {
     <>
       <PuzzleSvg q={q} vals={q.cells.map((c) => c.value)} width={Math.round(WIDTH[q.type] * 0.7)} />
       {q.type === "shape" && <span style={{ fontWeight: 400 }}> · قانون: {SHAPE_RULES[q.rule!].words}</span>}
+      {q.type === "matrix" && <span style={{ fontWeight: 400 }}> · قانون: {MATRIX_RULES[q.rule!].words}</span>}
       {q.targetHidden && <span style={{ fontWeight: 400 }}> · جمع هر خط: {fa(q.target!)}</span>}
       {q.anyFill && <span style={{ fontWeight: 400 }}> · یک جواب از چند جواب؛ هر چینش درست قبول است.</span>}
     </>

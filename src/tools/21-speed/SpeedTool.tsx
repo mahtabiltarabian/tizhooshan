@@ -3,12 +3,15 @@
 // Tool 21: speed and accuracy (هوش سرعتی). Explore: find the copies with no
 // clock. Show me: the row-by-row scan, comparing each shape with the target.
 // Try it: timed questions; the clock counts up and never runs out.
+// Mental arithmetic ("mental") is the fourth question type: a card of six
+// sums; show me works through each with a shortcut.
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Board } from "@/engine-2d/Board";
 import { newSeed } from "@/generators/random";
 import { countSlips, makeSpeedQuestion, relation, sameGlyph, speedMistake, type Level, type SpeedQuestion, type SpeedQuestionType, type SpeedTag } from "@/generators/speed";
+import { itemsRight, makeMentalQuestion, mentalMistake, MENTAL_ITEMS, type MentalTag } from "@/generators/mental";
 import { practiceCheck, usePractice } from "@/practice/bridge";
 import { setClassroom as applyClassroom, useClassroom } from "@/toolkit/classroom";
 import { NumberPad } from "@/toolkit/NumberPad";
@@ -19,10 +22,15 @@ import panel from "@/toolkit/TryPanel.module.css";
 import { SPEED_ADAPTER } from "./adapter";
 import { SPEED_GUIDE } from "./guide";
 import { GlyphGrid, TargetCard, type CellMark } from "./Pictures";
+import { MentalCard, mentalView } from "./MentalCard";
+import { itemText, ltr, MENTAL_FEEDBACK, MENTAL_LEVEL_NOTE, slipOf, worked } from "./mentalText";
 import { SPEED_TYPE_LABEL } from "./practice";
 
 type Mode = "explore" | "show" | "try";
-type Answer = number[] | number;
+type ToolType = SpeedQuestionType | "mental";
+type Answer = number[] | number | (number | null)[];
+const isType = (t: string): t is ToolType => t in SPEED_TYPE_LABEL;
+const emptyCard = () => Array<number | null>(MENTAL_ITEMS).fill(null);
 
 const viewOf = (q: Pick<SpeedQuestion, "cols" | "rows">): [number, number, number, number] => [-0.2, -1.6, q.cols + 0.4, q.rows + 1.8];
 
@@ -48,9 +56,13 @@ export function SpeedTool() {
     return () => clearInterval(t);
   }, [playing, exQ.rows]);
   const scanning = playing && scan < exQ.rows;
+  // Show me, mental arithmetic: one sum at a time.
+  const [showArea, setShowArea] = useState<"grid" | "mental">("grid");
+  const [mStep, setMStep] = useState(0);
+  const showMental = useMemo(() => makeMentalQuestion(exLevel, exSeed), [exLevel, exSeed]);
 
   // Try it
-  const [type, setType] = useState<SpeedQuestionType>("find");
+  const [type, setType] = useState<ToolType>("find");
   const [level, setLevel] = useState<Level>(1);
   const [seed, setSeed] = useState(7);
   const [taps, setTaps] = useState<number[]>([]);
@@ -59,14 +71,19 @@ export function SpeedTool() {
   const [started, setStarted] = useState(0);
   const [took, setTook] = useState(0);
   const [tick, setTick] = useState(0);
-  const q = useMemo(() => makeSpeedQuestion(type, level, seed), [type, level, seed]);
+  const q = useMemo(() => makeSpeedQuestion(type === "mental" ? "find" : type, level, seed), [type, level, seed]);
+  const mq = useMemo(() => (type === "mental" ? makeMentalQuestion(level, seed) : null), [type, level, seed]);
+  const [mVals, setMVals] = useState<(number | null)[]>(emptyCard);
+  const [mSel, setMSel] = useState<number | null>(0);
 
-  const fresh = (t = type, l = level, s = newSeed()) => {
+  const fresh = (t: ToolType = type, l = level, s = newSeed()) => {
     setType(t);
     setLevel(l);
     setSeed(s);
     setTaps([]);
     setCount("");
+    setMVals(emptyCard());
+    setMSel(0);
     setChecked(null);
     setStarted(Date.now());
     setTook(0);
@@ -74,7 +91,7 @@ export function SpeedTool() {
 
   const practice = usePractice(SPEED_ADAPTER, (t, l, s) => {
     setMode("try");
-    fresh(t in SPEED_TYPE_LABEL ? (t as SpeedQuestionType) : "find", l === 1 || l === 2 || l === 3 ? l : 1, s);
+    fresh(isType(t) ? t : "find", l === 1 || l === 2 || l === 3 ? l : 1, s);
   });
 
   // The clock counts up while a question is open.
@@ -96,9 +113,10 @@ export function SpeedTool() {
       const t = p.get("try");
       if (t !== null) {
         setMode("try");
-        fresh(t in SPEED_TYPE_LABEL ? (t as SpeedQuestionType) : "find", okLevel ?? 1, okSeed ?? 7);
+        fresh(isType(t) ? t : "find", okLevel ?? 1, okSeed ?? 7);
       } else if (p.has("show") || p.has("explore")) {
         setMode(p.has("show") ? "show" : "explore");
+        if (p.has("show") && p.has("mental")) setShowArea("mental");
         if (okLevel) setExLevel(okLevel);
         if (okSeed !== null) setExSeed(okSeed);
       }
@@ -112,17 +130,18 @@ export function SpeedTool() {
     setMode(m);
     setPlaying(false);
     setScan(m === "show" ? 0 : exQ.rows);
+    setMStep(0);
     if (m === "try") fresh(type, level, seed);
   };
 
   const check = () => {
-    const answer: Answer = type === "count" ? Number(count) : taps.length === 1 && type === "differ" ? taps[0] : [...taps].sort((a, b) => a - b);
+    const answer: Answer = type === "mental" ? [...mVals] : type === "count" ? Number(count) : taps.length === 1 && type === "differ" ? taps[0] : [...taps].sort((a, b) => a - b);
     setChecked(answer);
     setTook(Date.now() - started);
     void practiceCheck(SPEED_ADAPTER, answer);
   };
 
-  const tag: SpeedTag | null = checked === null ? null : speedMistake(q, checked);
+  const tag: SpeedTag | MentalTag | null = checked === null ? null : mq ? mentalMistake(mq, checked) : speedMistake(q, checked);
   const exam = practice.exam;
   const done = checked !== null;
   const reviewMarks = done && !exam;
@@ -142,8 +161,33 @@ export function SpeedTool() {
     else if (type === "find") setTaps(taps.includes(i) ? taps.filter((x) => x !== i) : [...taps, i]);
   };
 
+  const mMarks = mq && done && !exam ? itemsRight(mq, mVals) : null;
+  const typeIn = (v: string) => {
+    if (mSel === null || done) return;
+    setMVals(mVals.map((x, i) => (i === mSel ? (v === "" ? null : Number(v)) : x)));
+  };
+  const nextEmpty = () => {
+    for (let k = 1; k <= MENTAL_ITEMS; k++) {
+      const i = ((mSel ?? -1) + k) % MENTAL_ITEMS;
+      if (mVals[i] === null) return setMSel(i);
+    }
+    setMSel(((mSel ?? -1) + 1) % MENTAL_ITEMS);
+  };
+
   let board: React.ReactNode;
-  if (mode === "try") {
+  if (mode === "try" && mq) {
+    board = (
+      <Board view={mentalView(MENTAL_ITEMS)} imageName="mental" label="حساب‌های ذهنی">
+        <MentalCard q={mq} vals={mVals} selected={done ? null : mSel} onSelect={done ? undefined : setMSel} marks={mMarks} />
+      </Board>
+    );
+  } else if (mode === "show" && showArea === "mental") {
+    board = (
+      <Board view={mentalView(MENTAL_ITEMS)} imageName="mental" label="حساب ذهنی قدم‌به‌قدم">
+        <MentalCard q={showMental} vals={emptyCard()} selected={mStep > 0 ? mStep - 1 : null} reveal={mStep} />
+      </Board>
+    );
+  } else if (mode === "try") {
     board = (
       <Board view={viewOf(q)} imageName="speed" label="شبکه شکل‌ها">
         <text x={q.cols - 0.2} y={-0.65} fontSize={0.42} fontWeight={700} textAnchor="start" direction="rtl">
@@ -221,7 +265,23 @@ export function SpeedTool() {
       </section>
 
       <section className={styles.controls}>
-        {mode === "show" ? (
+        {mode === "show" && showArea === "mental" ? (
+          <>
+            <div className={styles.buttons}>
+              <button onClick={() => setMStep(Math.max(0, mStep - 1))} disabled={mStep <= 0}>
+                قدم قبل
+              </button>
+              <button onClick={() => setMStep(Math.min(MENTAL_ITEMS, mStep + 1))} disabled={mStep >= MENTAL_ITEMS}>
+                قدم بعد
+              </button>
+            </div>
+            <p className={styles.stepText} style={{ margin: 0 }}>
+              {mStep === 0
+                ? "«قدم بعد» را بزن: هر حساب را با یک میان‌بُر در ذهن حل می‌کنیم."
+                : `${fa(mStep)}. ${ltr(itemText(showMental.items[mStep - 1]))}: ${worked(showMental.items[mStep - 1])}`}
+            </p>
+          </>
+        ) : mode === "show" ? (
           <>
             <div className={styles.buttons}>
               <button
@@ -254,6 +314,16 @@ export function SpeedTool() {
       </section>
 
       <aside className={styles.side}>
+        {mode === "show" && (
+          <div className={panel.chips} role="radiogroup" aria-label="چه چیزی نشان داده شود">
+            <button role="radio" aria-checked={showArea === "grid"} onClick={() => (setShowArea("grid"), setScan(0), setPlaying(false))}>
+              جست‌وجوی شکل
+            </button>
+            <button role="radio" aria-checked={showArea === "mental"} onClick={() => (setShowArea("mental"), setMStep(0), setPlaying(false))}>
+              حساب ذهنی
+            </button>
+          </div>
+        )}
         {mode !== "try" && (
           <>
             <div className={panel.chips} role="radiogroup" aria-label="سطح">
@@ -268,6 +338,7 @@ export function SpeedTool() {
                     setReveal(false);
                     setScan(mode === "show" ? 0 : exQ.rows);
                     setPlaying(false);
+                    setMStep(0);
                   }}
                 >
                   سطح {fa(l)}
@@ -275,7 +346,7 @@ export function SpeedTool() {
               ))}
             </div>
             <p className={styles.note}>
-              {exLevel === 1 ? "سطح ۱: شکل‌های متفاوت." : exLevel === 2 ? "سطح ۲: همان شکل، چرخیده؛ فقط جهتِ درست حساب است." : "سطح ۳: چرخیده و آینه‌ای (برعکس)؛ آینه‌ای همان شکل نیست."}
+              {mode === "show" && showArea === "mental" ? MENTAL_LEVEL_NOTE[exLevel] : exLevel === 1 ? "سطح ۱: شکل‌های متفاوت." : exLevel === 2 ? "سطح ۲: همان شکل، چرخیده؛ فقط جهتِ درست حساب است." : "سطح ۳: چرخیده و آینه‌ای (برعکس)؛ آینه‌ای همان شکل نیست."}
             </p>
           </>
         )}
@@ -307,7 +378,24 @@ export function SpeedTool() {
           </>
         )}
 
-        {mode === "show" && (
+        {mode === "show" && showArea === "mental" && (
+          <>
+            <h2>حساب ذهنی با میان‌بُر</h2>
+            <p className={styles.note}>حساب ذهنی سریع از عجله نمی‌آید، از شکستن عدد به قسمت‌های آسان می‌آید: ده‌تایی‌ها و یکی‌ها جدا، رفتن تا ده بعدی، و عددهای گرد مثل صد.</p>
+            <p className={styles.note}>در عبارتی که هم جمع دارد هم ضرب، اول ضرب و تقسیم حساب می‌شود.</p>
+            <button
+              className={styles.toggle}
+              onClick={() => {
+                setExSeed(newSeed());
+                setMStep(0);
+              }}
+            >
+              نمونه تازه
+            </button>
+          </>
+        )}
+
+        {mode === "show" && showArea === "grid" && (
           <>
             <h2>جست‌وجوی منظم</h2>
             <p className={styles.note}>چشم‌ها اگر بی‌نظم بگردند، چند شکل را دو بار می‌بینند و چند تا را هیچ‌وقت. نوار زرد ردیف به ردیف جلو می‌رود و در هر ردیف فقط شکل‌هایی که درست مثل هدف‌اند علامت ✓ می‌خورند.</p>
@@ -318,7 +406,7 @@ export function SpeedTool() {
         {mode === "try" && (
           <div className={panel.panel}>
             <div className={panel.types} role="radiogroup" aria-label="نوع پرسش" data-practice-hide>
-              {(Object.keys(SPEED_TYPE_LABEL) as SpeedQuestionType[]).map((t) => (
+              {(Object.keys(SPEED_TYPE_LABEL) as ToolType[]).map((t) => (
                 <button key={t} role="radio" aria-checked={type === t} onClick={() => fresh(t, level)}>
                   {SPEED_TYPE_LABEL[t]}
                 </button>
@@ -333,7 +421,9 @@ export function SpeedTool() {
             </div>
 
             <p className={panel.prompt}>
-              {type === "find"
+              {type === "mental"
+                ? "هر حساب را در ذهن انجام بده و جوابش را بنویس: خانه جواب را بزن، بعد عدد را."
+                : type === "find"
                 ? "روی همه شکل‌هایی بزن که درست مثل هدف‌اند (نه چرخیده، نه آینه‌ای)."
                 : type === "count"
                   ? "چند شکل درست مثل هدف هست؟"
@@ -341,15 +431,27 @@ export function SpeedTool() {
             </p>
 
             {type === "count" && <NumberPad value={count} onChange={setCount} disabled={done} />}
+            {type === "mental" && !done && (
+              <>
+                <NumberPad value={mSel !== null && mVals[mSel] !== null ? String(mVals[mSel]) : ""} onChange={typeIn} disabled={mSel === null} />
+                <p className={panel.hint}>
+                  {fa(mVals.filter((v) => v !== null).length)} از {fa(MENTAL_ITEMS)} جواب نوشته شده.{" "}
+                  <button className={panel.secondary} style={{ display: "inline-block", width: "auto", padding: "4px 12px" }} onClick={nextEmpty}>
+                    خانه بعد
+                  </button>
+                </p>
+              </>
+            )}
             {type === "find" && !done && <p className={panel.hint}>{fa(taps.length)} شکل علامت زدی. برای برداشتن علامت، دوباره بزن.</p>}
 
             {!done && (
-              <button className={panel.secondary} disabled={type === "count" ? !count : taps.length === 0} onClick={check}>
+              <button className={panel.secondary} disabled={type === "mental" ? mVals.includes(null) : type === "count" ? !count : taps.length === 0} onClick={check}>
                 بررسی
               </button>
             )}
 
-            {done && !exam && tag && <Feedback q={q} tag={tag} took={took} answer={checked!} />}
+            {done && !exam && tag && mq && <MentalFeedback q={mq} vals={mVals} tag={tag as MentalTag} took={took} />}
+            {done && !exam && tag && !mq && <Feedback q={q} tag={tag as SpeedTag} took={took} answer={checked as number[] | number} />}
 
             <button className={panel.next} onClick={() => fresh()}>
               نمونه تازه
@@ -358,6 +460,37 @@ export function SpeedTool() {
         )}
       </aside>
     </main>
+  );
+}
+
+function MentalFeedback({ q, vals, tag, took }: { q: ReturnType<typeof makeMentalQuestion>; vals: (number | null)[]; tag: MentalTag; took: number }) {
+  const right = itemsRight(q, vals);
+  const n = right.filter(Boolean).length;
+  const wrong = q.items.map((it, i) => ({ it, v: vals[i] })).filter((_, i) => !right[i]);
+  const tone = tag === "right" ? "good" : tag === "other" ? "bad" : "turned";
+  const text =
+    tag === "right"
+      ? `همه درست، در ${seconds(took)} ثانیه!`
+      : `${fa(n)} از ${fa(q.items.length)} درست، در ${seconds(took)} ثانیه. ${tag === "other" ? "راه ذهنی هر حساب نادرست زیر آمده." : MENTAL_FEEDBACK[tag]}`;
+  return (
+    <>
+      <p className={`${panel.feedback} ${panel[tone]}`} role="status" aria-live="polite">
+        <span className={panel.icon}>{tone === "good" ? "✓" : tone === "turned" ? "↻" : "✗"}</span> {text}
+      </p>
+      {wrong.length > 0 && (
+        <ul className={panel.hint} style={{ paddingInlineStart: 18 }}>
+          {wrong.map(({ it, v }, i) => {
+            const slip = slipOf(it, v);
+            return (
+              <li key={i}>
+                {ltr(itemText(it))}: {worked(it)}
+                {slip ? ` (${MENTAL_FEEDBACK[slip as Exclude<MentalTag, "right" | "other">]})` : ""}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
   );
 }
 

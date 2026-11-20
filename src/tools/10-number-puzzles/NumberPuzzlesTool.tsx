@@ -8,6 +8,7 @@ import {
   blankCells,
   brickIndex,
   givenValues,
+  groupCells,
   lineSum,
   magicFrame,
   makeNumberPuzzle,
@@ -43,10 +44,10 @@ const arith = (a: number, d: number, n: number) => Array.from({ length: n }, (_,
 const puzzleKey = (t: PuzzleType, l: Level, s: number, b: boolean) => `${t}-${l}-${s}-${b ? 1 : 0}`;
 
 /** Cells a step fills, for the thick outline. */
-function stepCells(s: Step | undefined): number[] {
+function stepCells(q: NumberPuzzle, s: Step | undefined): number[] {
   if (!s) return [];
   if (s.kind === "pick") return s.cells;
-  if (s.kind === "check") return [4 * s.shape, 4 * s.shape + 1, 4 * s.shape + 2, 4 * s.shape + 3];
+  if (s.kind === "check") return groupCells(q, s.shape);
   if (s.kind === "centre" || s.kind === "line" || s.kind === "only" || s.kind === "apply") return [s.cell];
   return [];
 }
@@ -341,7 +342,7 @@ export function NumberPuzzlesTool() {
         q={showQ}
         vals={valuesAfter(showQ, steps, k)}
         focusLine={last?.kind === "line" ? last.line : null}
-        focusCells={stepCells(last)}
+        focusCells={stepCells(showQ, last)}
         sums={showQ.type === "magic" || showQ.type === "star" || showQ.type === "ring" ? "full" : null}
       />
     );
@@ -736,6 +737,7 @@ export function NumberPuzzlesTool() {
 function tryNote(q: NumberPuzzle) {
   if (q.type === "magic" && q.set) return `عددها: ${setFa(q.set)}. بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.`;
   if (q.type === "shape") return "شکل‌ها از راست خوانده می‌شوند: شکل ۱ سمت راست است.";
+  if (q.type === "matrix") return "هر سطر از راست خوانده می‌شود: عدد اول سطر سمت راست است و عدد سوم سمت چپ.";
   if (q.type === "ring") return "هر دایره روی بیش از یک خط است؛ عددی که می‌گذاری باید همه خط‌های آن دایره را درست کند. بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.";
   if (q.type === "grid") return `جمع کل (گوشه پایین چپ) هم جمع ستون «جمع» است و هم جمع سطر «جمع».`;
   return "بعد از «بررسی»، هر خط نادرست هاشور می‌خورد و ✗ می‌گیرد.";

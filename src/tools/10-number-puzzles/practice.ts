@@ -14,6 +14,7 @@ export const NUMBER_PUZZLES_PRACTICE: PracticeInfo = {
     { key: "star", label: "مثلث جادویی" },
     { key: "ring", label: "دایره و ستاره عددی" },
     { key: "shape", label: "عدد داخل شکل" },
+    { key: "matrix", label: "ماتریس عددی" },
   ],
   levels: [1, 2, 3],
   tags: {
@@ -23,6 +24,7 @@ export const NUMBER_PUZZLES_PRACTICE: PracticeInfo = {
     addedDown: "برای خانه پایینی یا یک جزء، به‌جای کم کردن جمع می‌کند",
     sumHabit: "از روی عادت گوشه‌ها را جمع می‌کند، بی‌آنکه قانون را امتحان کند",
     oneExample: "قانونی را به کار می‌برد که فقط با یکی از نمونه‌ها جور است",
+    reversed: "سطر جدول را از چپ می‌خواند و جای دو عدد اول را عوض می‌کند",
     diagonal: "سطرها و ستون‌ها را درست می‌کند ولی قطرها را فراموش می‌کند",
     crossing: "خانه‌ای را که روی دو خط است فقط با یکی از آن خط‌ها جور می‌کند",
     lines: "بعضی خط‌ها جمع درست را ندارند",
