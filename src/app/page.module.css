@@ -4,6 +4,46 @@
   padding: 32px 16px 64px;
 }
 
+.profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 14px 6px 10px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.profile > span:last-child {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.profile strong {
+  color: var(--accent);
+}
+
+.profile > span:last-child > span {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.profile:hover,
+.profile:focus-visible {
+  background: var(--accent-soft);
+}
+
 .header h1 {
   margin: 0;
   font-size: 2rem;
