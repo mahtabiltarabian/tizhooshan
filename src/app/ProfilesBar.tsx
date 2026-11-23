@@ -23,7 +23,8 @@ export function ProfilesBar() {
           live &&
           setProfiles([...list].sort((a, b) => a.createdAt - b.createdAt)),
       )
-      .catch(() => {});
+      // Storage blocked: show the sign-in button rather than nothing.
+      .catch(() => live && setProfiles([]));
     return () => {
       live = false;
     };

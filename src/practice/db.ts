@@ -99,10 +99,13 @@ export const db = {
  */
 export async function existingProfiles(): Promise<Profile[]> {
   if (typeof indexedDB === "undefined") return [];
-  if ("databases" in indexedDB) {
-    const list = await indexedDB.databases();
-    if (!list.some((d) => d.name === NAME)) return [];
+  let known: boolean | null = null;
+  try {
+    if ("databases" in indexedDB) known = (await indexedDB.databases()).some((d) => d.name === NAME);
+  } catch {
+    // Some browsers refuse the list: just open the database.
   }
+  if (known === false) return [];
   return db.profiles();
 }
 
