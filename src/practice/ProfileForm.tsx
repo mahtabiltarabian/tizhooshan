@@ -144,6 +144,9 @@ export function ProfileForm({
         <summary>
           بیشتر (اختیاری): عکس، پایه، زمان روزانه
           {register ? "، رمز والدین" : ""}
+          <span className={styles.moreWhy}>
+            با این‌ها کودک شما را بهتر می‌شناسیم و برنامه برایش شخصی‌تر می‌شود.
+          </span>
         </summary>
 
         <fieldset className={styles.field}>
