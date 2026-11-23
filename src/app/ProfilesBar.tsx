@@ -50,7 +50,7 @@ export function ProfilesBar() {
           ورود / ثبت‌نام
         </Link>
         <span className={styles.loginNote}>
-          برای بازی، اول اسم کودک را ثبت کنید (فقط اسم لازم است).
+          لطفاً اول ثبت‌نام کنید.
         </span>
       </nav>
     );
