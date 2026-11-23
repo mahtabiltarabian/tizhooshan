@@ -345,6 +345,9 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
             <Link className={styles.linkButton} href={`/practice/report/#child=${p.id}`}>
               گزارش
             </Link>
+            <Link className={styles.linkButton} href={`/practice/profile/#child=${p.id}`}>
+              پروفایل
+            </Link>
             <button className={styles.quiet} onClick={() => onEdit(p)}>
               ویرایش
             </button>
@@ -448,6 +451,9 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
           </p>
         </div>
         <span className={styles.grow} />
+        <Link className={styles.linkButton} href={`/practice/profile/#child=${profile.id}`}>
+          پروفایل من
+        </Link>
         <button className={styles.quiet} onClick={onSwitch}>
           تعویض
         </button>
