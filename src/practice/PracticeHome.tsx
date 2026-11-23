@@ -9,15 +9,33 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { endRun, getRun, startRun, useRun, type RunKind } from "./bridge";
 import { SKILLS } from "./catalog";
-import { db, newId } from "./db";
+import { db } from "./db";
 import { AccountPanel } from "./AccountPanel";
 import { assignmentsOf, deleteChildRemote, syncNow } from "./sync";
 import type { AssignmentDto } from "./api";
-import { CONSENT_POINTS, checkPin, getParent, setParent, toLatinDigits, validPin } from "./parent";
+import {
+  CONSENT_POINTS,
+  checkPin,
+  getParent,
+  hasPin,
+  setParent,
+  toLatinDigits,
+  validPin,
+} from "./parent";
+import { ProfileForm } from "./ProfileForm";
 import { openItem, runTitle } from "./PracticeBar";
 import { dailyChallenge, dayNumber } from "./rewards";
 import { planSession, type SessionItem } from "./session";
-import { EXAM_AREAS, EXAM_STAGES, examHistoryKey, PLACEMENT_ROUNDS, placementKey, type ExamMode, type ExamRecord, type PlacementRecord } from "./exam";
+import {
+  EXAM_AREAS,
+  EXAM_STAGES,
+  examHistoryKey,
+  PLACEMENT_ROUNDS,
+  placementKey,
+  type ExamMode,
+  type ExamRecord,
+  type PlacementRecord,
+} from "./exam";
 import { startExam, startPlacement } from "./examRun";
 import { summarize, timeLeftToday, type ChildSummary } from "./summary";
 import type { Profile, SkillState } from "./types";
@@ -25,7 +43,7 @@ import { AREA_LABEL, fa } from "@/tools/registry";
 import styles from "./Practice.module.css";
 
 export { AVATARS, Avatar } from "./Avatar";
-import { AVATARS, Avatar } from "./Avatar";
+import { Avatar } from "./Avatar";
 
 const CHILD_KEY = "tizhooshan-child";
 const rememberChild = (id: string | null) => {
@@ -42,7 +60,13 @@ const rememberedChild = () => {
   }
 };
 
-type Screen = { name: "loading" } | { name: "setup" } | { name: "choose" } | { name: "child"; id: string } | { name: "parent" } | { name: "edit"; profile: Profile | null };
+type Screen =
+  | { name: "loading" }
+  | { name: "setup" }
+  | { name: "choose" }
+  | { name: "child"; id: string }
+  | { name: "parent" }
+  | { name: "edit"; profile: Profile | null };
 
 export function PracticeHome() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -70,7 +94,11 @@ export function PracticeHome() {
         if (!parent) return setScreen({ name: "setup" });
         if (!list.length) return setScreen({ name: "edit", profile: null });
         const id = rememberedChild();
-        setScreen(id && list.some((p) => p.id === id) ? { name: "child", id } : { name: "choose" });
+        setScreen(
+          id && list.some((p) => p.id === id)
+            ? { name: "child", id }
+            : { name: "choose" },
+        );
       })
       .catch(() => live && setScreen({ name: "setup" }));
     return () => {
@@ -78,8 +106,14 @@ export function PracticeHome() {
     };
   }, []);
 
-  /** Asks for the parent PIN, then runs `then`. */
-  const asParent = (then: () => void) => setGate(() => then);
+  /** Asks for the parent PIN, when one is set, then runs `then`. */
+  const asParent = (then: () => void) => {
+    hasPin().then((locked) => (locked ? setGate(() => then) : then()));
+  };
+  const openChild = (id: string) => {
+    rememberChild(id);
+    setScreen({ name: "child", id });
+  };
 
   return (
     <main className={styles.main}>
@@ -89,7 +123,13 @@ export function PracticeHome() {
       </header>
 
       {screen.name === "loading" && <p>… در حال آماده‌سازی</p>}
-      {screen.name === "setup" && <Setup onDone={() => reload().then(() => setScreen({ name: "edit", profile: null }))} />}
+      {screen.name === "setup" && (
+        <ProfileForm
+          register
+          profile={null}
+          onSaved={(p) => reload().then(() => openChild(p.id))}
+        />
+      )}
 
       {screen.name === "choose" && (
         <section>
@@ -103,14 +143,17 @@ export function PracticeHome() {
                     setScreen({ name: "child", id: p.id });
                   }}
                 >
-                  <Avatar index={p.avatar} />
+                  <Avatar index={p.avatar} photo={p.photo} name={p.nickname} />
                   <span>{p.nickname}</span>
                 </button>
               </li>
             ))}
           </ul>
           <p className={styles.row}>
-            <button className={styles.quiet} onClick={() => asParent(() => setScreen({ name: "parent" }))}>
+            <button
+              className={styles.quiet}
+              onClick={() => asParent(() => setScreen({ name: "parent" }))}
+            >
               بخش والدین
             </button>
           </p>
@@ -136,7 +179,13 @@ export function PracticeHome() {
           onDeleted={() =>
             reload().then(({ parent, list }) => {
               rememberChild(null);
-              setScreen(!parent ? { name: "setup" } : list.length ? { name: "parent" } : { name: "edit", profile: null });
+              setScreen(
+                !parent
+                  ? { name: "setup" }
+                  : list.length
+                    ? { name: "parent" }
+                    : { name: "edit", profile: null },
+              );
             })
           }
           onBack={() => setScreen({ name: "choose" })}
@@ -144,11 +193,19 @@ export function PracticeHome() {
       )}
 
       {screen.name === "edit" && (
-        <EditProfile
+        <ProfileForm
+          register={false}
           profile={screen.profile}
-          first={!profiles.length}
-          onDone={() => reload().then(({ list }) => setScreen(list.length === 1 ? { name: "choose" } : { name: "parent" }))}
-          onCancel={profiles.length ? () => setScreen({ name: "parent" }) : undefined}
+          onSaved={(p) =>
+            reload().then(({ list }) =>
+              !screen.profile && list.length === 1
+                ? openChild(p.id)
+                : setScreen({ name: "parent" }),
+            )
+          }
+          onCancel={
+            profiles.length ? () => setScreen({ name: "parent" }) : undefined
+          }
         />
       )}
 
@@ -166,51 +223,22 @@ export function PracticeHome() {
   );
 }
 
-function Setup({ onDone }: { onDone: () => void }) {
-  const [agree, setAgree] = useState(false);
-  const [pin, setPin] = useState("");
-  const [pin2, setPin2] = useState("");
-  const [error, setError] = useState("");
-  return (
-    <section className={styles.card}>
-      <h2>برای والدین: پیش از شروع</h2>
-      <p>در بخش تمرین، برنامه سؤال‌ها را به اندازه کودک انتخاب می‌کند. برای این کار باید چیزهایی ثبت شود:</p>
-      <ul className={styles.points}>
-        {CONSENT_POINTS.map((t) => (
-          <li key={t}>{t}</li>
-        ))}
-      </ul>
-      <label className={styles.check}>
-        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /> خواندم و موافقم.
-      </label>
-      <p>یک رمز ۴ تا ۶ رقمی برای «بخش والدین» بگذارید (ساختن و پاک کردن پروفایل، گزارش، زمان روزانه):</p>
-      <div className={styles.row}>
-        <input className={styles.input} inputMode="numeric" type="password" autoComplete="new-password" aria-label="رمز والدین" placeholder="رمز" value={pin} onChange={(e) => setPin(toLatinDigits(e.target.value))} />
-        <input className={styles.input} inputMode="numeric" type="password" autoComplete="new-password" aria-label="تکرار رمز" placeholder="تکرار رمز" value={pin2} onChange={(e) => setPin2(toLatinDigits(e.target.value))} />
-      </div>
-      {error && <p className={styles.error}>{error}</p>}
-      <button
-        className={styles.primary}
-        disabled={!agree}
-        onClick={async () => {
-          if (!validPin(pin)) return setError("رمز باید ۴ تا ۶ رقم باشد.");
-          if (pin !== pin2) return setError("دو رمز یکی نیستند.");
-          await setParent(pin);
-          onDone();
-        }}
-      >
-        ادامه
-      </button>
-      <p className={styles.small}>ابزارهای جعبه‌ابزار بدون این بخش هم کامل کار می‌کنند و هیچ چیزی ثبت نمی‌کنند.</p>
-    </section>
-  );
-}
-
-function PinGate({ onOk, onCancel }: { onOk: () => void; onCancel: () => void }) {
+function PinGate({
+  onOk,
+  onCancel,
+}: {
+  onOk: () => void;
+  onCancel: () => void;
+}) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   return (
-    <div className={styles.overlay} role="dialog" aria-modal aria-label="رمز والدین">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal
+      aria-label="رمز والدین"
+    >
       <form
         className={styles.card}
         onSubmit={async (e) => {
@@ -220,7 +248,16 @@ function PinGate({ onOk, onCancel }: { onOk: () => void; onCancel: () => void })
         }}
       >
         <h2>رمز والدین</h2>
-        <input className={styles.input} autoFocus inputMode="numeric" type="password" autoComplete="current-password" aria-label="رمز والدین" value={pin} onChange={(e) => setPin(toLatinDigits(e.target.value))} />
+        <input
+          className={styles.input}
+          autoFocus
+          inputMode="numeric"
+          type="password"
+          autoComplete="current-password"
+          aria-label="رمز والدین"
+          value={pin}
+          onChange={(e) => setPin(toLatinDigits(e.target.value))}
+        />
         {error && <p className={styles.error}>رمز درست نیست.</p>}
         <div className={styles.row}>
           <button className={styles.primary} type="submit">
@@ -230,104 +267,54 @@ function PinGate({ onOk, onCancel }: { onOk: () => void; onCancel: () => void })
             انصراف
           </button>
         </div>
-        <p className={styles.small}>رمز را فراموش کرده‌اید؟ در «بخش والدین» نمی‌شود وارد شد؛ داده‌های مرورگر این سایت را پاک کنید تا از اول شروع شود.</p>
+        <p className={styles.small}>
+          رمز را فراموش کرده‌اید؟ در «بخش والدین» نمی‌شود وارد شد؛ داده‌های
+          مرورگر این سایت را پاک کنید تا از اول شروع شود.
+        </p>
       </form>
     </div>
   );
 }
 
-function EditProfile({ profile, first, onDone, onCancel }: { profile: Profile | null; first: boolean; onDone: () => void; onCancel?: () => void }) {
-  const year = new Date().getFullYear() - 621; // Rough Solar Hijri year, for the default only.
-  const [nickname, setNickname] = useState(profile?.nickname ?? "");
-  const [avatar, setAvatar] = useState(profile?.avatar ?? 0);
-  const [grade, setGrade] = useState<4 | 5 | 6>(profile?.grade ?? 6);
-  const [birthYear, setBirthYear] = useState(profile?.birthYear ?? year - 12);
-  const [limit, setLimit] = useState(profile?.dailyLimitMin ?? 30);
-  return (
-    <section className={styles.card}>
-      <h2>{profile ? `ویرایش ${profile.nickname}` : first ? "پروفایل اولین کودک" : "کودک تازه"}</h2>
-      <label className={styles.field}>
-        نام مستعار (نام کامل لازم نیست)
-        <input className={styles.input} maxLength={20} value={nickname} onChange={(e) => setNickname(e.target.value)} />
-      </label>
-      <fieldset className={styles.field}>
-        <legend>تصویر</legend>
-        <div className={styles.avatars} role="radiogroup">
-          {AVATARS.map((a, i) => (
-            <button key={i} role="radio" aria-checked={avatar === i} aria-label={a.name} onClick={() => setAvatar(i)}>
-              <Avatar index={i} size={48} />
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <div className={styles.row}>
-        <label className={styles.field}>
-          پایه
-          <select className={styles.input} value={grade} onChange={(e) => setGrade(Number(e.target.value) as 4 | 5 | 6)}>
-            <option value={4}>چهارم</option>
-            <option value={5}>پنجم</option>
-            <option value={6}>ششم</option>
-          </select>
-        </label>
-        <label className={styles.field}>
-          سال تولد
-          <select className={styles.input} value={birthYear} onChange={(e) => setBirthYear(Number(e.target.value))}>
-            {Array.from({ length: 8 }, (_, i) => year - 14 + i).map((y) => (
-              <option key={y} value={y}>
-                {fa(y)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          زمان تمرین روزانه
-          <select className={styles.input} value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-            {[15, 20, 30, 45, 60].map((m) => (
-              <option key={m} value={m}>
-                {fa(m)} دقیقه
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className={styles.row}>
-        <button
-          className={styles.primary}
-          disabled={!nickname.trim()}
-          onClick={async () => {
-            await db.putProfile({ id: profile?.id ?? newId(), nickname: nickname.trim(), avatar, grade, birthYear, dailyLimitMin: limit, createdAt: profile?.createdAt ?? Date.now() });
-            onDone();
-          }}
-        >
-          ذخیره
-        </button>
-        {onCancel && (
-          <button className={styles.quiet} onClick={onCancel}>
-            انصراف
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile[]; onEdit: (p: Profile | null) => void; onDeleted: () => void; onBack: () => void }) {
+function ParentArea({
+  profiles,
+  onEdit,
+  onDeleted,
+  onBack,
+}: {
+  profiles: Profile[];
+  onEdit: (p: Profile | null) => void;
+  onDeleted: () => void;
+  onBack: () => void;
+}) {
   return (
     <section className={styles.card}>
       <h2>بخش والدین</h2>
       <ul className={styles.parentList}>
         {profiles.map((p) => (
           <li key={p.id}>
-            <Avatar index={p.avatar} size={40} />
+            <Avatar
+              index={p.avatar}
+              photo={p.photo}
+              name={p.nickname}
+              size={40}
+            />
             <strong>{p.nickname}</strong>
             <span className={styles.small}>
-              پایه {fa(p.grade)}، {fa(p.dailyLimitMin)} دقیقه در روز
+              {p.grade ? `پایه ${fa(p.grade)}، ` : ""}
+              {fa(p.dailyLimitMin)} دقیقه در روز
             </span>
             <span className={styles.grow} />
-            <Link className={styles.linkButton} href={`/practice/report/#child=${p.id}`}>
+            <Link
+              className={styles.linkButton}
+              href={`/practice/report/#child=${p.id}`}
+            >
               گزارش
             </Link>
-            <Link className={styles.linkButton} href={`/practice/profile/#child=${p.id}`}>
+            <Link
+              className={styles.linkButton}
+              href={`/practice/profile/#child=${p.id}&view=parent`}
+            >
               پروفایل
             </Link>
             <button className={styles.quiet} onClick={() => onEdit(p)}>
@@ -336,7 +323,12 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
             <button
               className={styles.danger}
               onClick={async () => {
-                if (!confirm(`همه داده‌های ${p.nickname} برای همیشه پاک شود؟ این کار برگشت ندارد.`)) return;
+                if (
+                  !confirm(
+                    `همه داده‌های ${p.nickname} برای همیشه پاک شود؟ این کار برگشت ندارد.`,
+                  )
+                )
+                  return;
                 await deleteChildRemote(p.id);
                 await db.deleteChild(p.id);
                 if (getRun()?.childId === p.id) endRun();
@@ -356,6 +348,7 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
           بازگشت
         </button>
       </div>
+      <PinSetting />
       <AccountPanel profiles={profiles} />
 
       <h3>حریم خصوصی</h3>
@@ -367,7 +360,12 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
       <button
         className={styles.danger}
         onClick={async () => {
-          if (!confirm("همه پروفایل‌ها، پاسخ‌ها، رمز و تنظیمات این بخش برای همیشه پاک شود؟ این کار برگشت ندارد.")) return;
+          if (
+            !confirm(
+              "همه پروفایل‌ها، پاسخ‌ها، رمز و تنظیمات این بخش برای همیشه پاک شود؟ این کار برگشت ندارد.",
+            )
+          )
+            return;
           endRun();
           await db.deleteAll();
           onDeleted();
@@ -379,11 +377,99 @@ function ParentArea({ profiles, onEdit, onDeleted, onBack }: { profiles: Profile
   );
 }
 
-function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile; onSwitch: () => void; onParent: () => void; asParent: (then: () => void) => void }) {
+/** Set, change or remove the parent PIN. */
+function PinSetting() {
+  const [locked, setLocked] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    hasPin().then(setLocked);
+  }, []);
+  if (locked === null) return null;
+  const save = async (value: string) => {
+    if (value && !validPin(value)) return setMsg("رمز باید ۴ تا ۶ رقم باشد.");
+    if (value && value !== pin2) return setMsg("دو رمز یکی نیستند.");
+    await setParent(value);
+    setLocked(!!value);
+    setOpen(false);
+    setPin("");
+    setPin2("");
+    setMsg(value ? "رمز ذخیره شد." : "رمز برداشته شد.");
+  };
+  return (
+    <div className={styles.pinBox}>
+      <h3>رمز والدین</h3>
+      <p className={styles.small}>
+        {locked
+          ? "این بخش با رمز قفل است."
+          : "این بخش رمز ندارد و کودک هم می‌تواند بازش کند. اگر بخواهید، یک رمز ۴ تا ۶ رقمی بگذارید."}
+      </p>
+      {open ? (
+        <div className={styles.row}>
+          <input
+            className={styles.input}
+            inputMode="numeric"
+            type="password"
+            autoComplete="new-password"
+            aria-label="رمز تازه"
+            placeholder="رمز تازه"
+            value={pin}
+            onChange={(e) => setPin(toLatinDigits(e.target.value))}
+          />
+          <input
+            className={styles.input}
+            inputMode="numeric"
+            type="password"
+            autoComplete="new-password"
+            aria-label="تکرار رمز"
+            placeholder="تکرار رمز"
+            value={pin2}
+            onChange={(e) => setPin2(toLatinDigits(e.target.value))}
+          />
+          <button className={styles.primary} onClick={() => save(pin)}>
+            ذخیره رمز
+          </button>
+        </div>
+      ) : (
+        <div className={styles.row}>
+          <button className={styles.quiet} onClick={() => setOpen(true)}>
+            {locked ? "تغییر رمز" : "گذاشتن رمز"}
+          </button>
+          {locked && (
+            <button className={styles.quiet} onClick={() => save("")}>
+              برداشتن رمز
+            </button>
+          )}
+        </div>
+      )}
+      {msg && (
+        <p className={styles.small} role="status">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ChildHome({
+  profile,
+  onSwitch,
+  onParent,
+  asParent,
+}: {
+  profile: Profile;
+  onSwitch: () => void;
+  onParent: () => void;
+  asParent: (then: () => void) => void;
+}) {
   const router = useRouter();
   const run = useRun();
   const [sum, setSum] = useState<ChildSummary | null>(null);
-  const [state, setState] = useState<Awaited<ReturnType<typeof loadChild>> | null>(null);
+  const [state, setState] = useState<Awaited<
+    ReturnType<typeof loadChild>
+  > | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -409,31 +495,59 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
 
   const today = () => {
     const states = new Map(state.skills.map((s) => [s.skill, s]));
-    begin("practice", planSession({ catalog: SKILLS, states, reviews: state.reviews, now: Date.now(), seed: Math.floor(Math.random() * 1e9) }), Date.now() + left);
+    begin(
+      "practice",
+      planSession({
+        catalog: SKILLS,
+        states,
+        reviews: state.reviews,
+        now: Date.now(),
+        seed: Math.floor(Math.random() * 1e9),
+      }),
+      Date.now() + left,
+    );
   };
   const reviewOnly = () => {
     const states = new Map(state.skills.map((s) => [s.skill, s]));
-    const items = planSession({ catalog: SKILLS, states, reviews: state.reviews, now: Date.now(), seed: Math.floor(Math.random() * 1e9), size: 9 }).filter((i) => i.mode === "review");
+    const items = planSession({
+      catalog: SKILLS,
+      states,
+      reviews: state.reviews,
+      now: Date.now(),
+      seed: Math.floor(Math.random() * 1e9),
+      size: 9,
+    }).filter((i) => i.mode === "review");
     begin("practice", items, Date.now() + left);
   };
 
   // Placement and exams are sittings of their own: a parent starts them, and they do not count against the daily limit.
-  const placement = () => asParent(() => startPlacement(profile.id, router.push));
-  const exam = (mode: ExamMode) => asParent(() => void startExam(profile.id, mode, router.push));
+  const placement = () =>
+    asParent(() => startPlacement(profile.id, router.push));
+  const exam = (mode: ExamMode) =>
+    asParent(() => void startExam(profile.id, mode, router.push));
   const lastExam = state.exams.at(-1);
 
   return (
     <section>
       <div className={styles.hello}>
-        <Avatar index={profile.avatar} size={72} />
+        <Avatar
+          index={profile.avatar}
+          photo={profile.photo}
+          name={profile.nickname}
+          size={72}
+        />
         <div>
           <h2>سلام {profile.nickname}!</h2>
           <p className={styles.small}>
-            ★ {fa(sum.stars)} ستاره · این هفته {fa(sum.daysThisWeek)} روز از ۵ روز{sum.chainWeeks > 0 && ` · زنجیره ${fa(sum.chainWeeks)} هفته`}
+            ★ {fa(sum.stars)} ستاره · این هفته {fa(sum.daysThisWeek)} روز از ۵
+            روز{sum.chainWeeks > 0 && ` · زنجیره ${fa(sum.chainWeeks)} هفته`}
           </p>
         </div>
         <span className={styles.grow} />
-        <Link className={styles.linkButton} href={`/practice/profile/#child=${profile.id}`}>
+        <Link
+          className={styles.linkButton}
+          href={`/practice/profile/#child=${profile.id}`}
+        >
           پروفایل من
         </Link>
         <button className={styles.quiet} onClick={onSwitch}>
@@ -444,10 +558,14 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
       {resumable && (
         <div className={styles.card}>
           <p>
-            «{runTitle(run)}» نیمه‌کاره است (سؤال {fa(run.index + 1)} از {fa(run.items.length)}).
+            «{runTitle(run)}» نیمه‌کاره است (سؤال {fa(run.index + 1)} از{" "}
+            {fa(run.items.length)}).
           </p>
           <div className={styles.row}>
-            <button className={styles.primary} onClick={() => openItem(run, run.index, router.push)}>
+            <button
+              className={styles.primary}
+              onClick={() => openItem(run, run.index, router.push)}
+            >
               ادامه
             </button>
             <button className={styles.quiet} onClick={() => endRun()}>
@@ -460,7 +578,10 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
       {left <= 0 ? (
         <div className={`${styles.card} ${styles.rest}`}>
           <h3>برای امروز بس است!</h3>
-          <p>امروز {fa(Math.round(sum.minutesToday))} دقیقه تمرین کردی. مغزت حالا وقت دارد چیزهای تازه را جا بیندازد. فردا دوباره بیا.</p>
+          <p>
+            امروز {fa(Math.round(sum.minutesToday))} دقیقه تمرین کردی. مغزت حالا
+            وقت دارد چیزهای تازه را جا بیندازد. فردا دوباره بیا.
+          </p>
         </div>
       ) : (
         <div className={styles.actions}>
@@ -468,13 +589,35 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
             <strong>بازی امروز</strong>
             <span>{fa(10)} سؤال به اندازه خودت</span>
           </button>
-          <button className={styles.big} onClick={() => begin("daily", dailyChallenge(SKILLS, dayNumber(Date.now())), Date.now() + left)} disabled={sum.dailyDoneToday}>
+          <button
+            className={styles.big}
+            onClick={() =>
+              begin(
+                "daily",
+                dailyChallenge(SKILLS, dayNumber(Date.now())),
+                Date.now() + left,
+              )
+            }
+            disabled={sum.dailyDoneToday}
+          >
             <strong>چالش روزانه</strong>
-            <span>{sum.dailyDoneToday ? "✓ امروز انجامش دادی" : "۳ پازل، هر روز تازه"}</span>
+            <span>
+              {sum.dailyDoneToday
+                ? "✓ امروز انجامش دادی"
+                : "۳ پازل، هر روز تازه"}
+            </span>
           </button>
-          <button className={styles.big} onClick={reviewOnly} disabled={!sum.dueReviews}>
+          <button
+            className={styles.big}
+            onClick={reviewOnly}
+            disabled={!sum.dueReviews}
+          >
             <strong>مرور اشتباه‌ها</strong>
-            <span>{sum.dueReviews ? `${fa(Math.min(3, sum.dueReviews))} سؤال آماده مرور` : "فعلاً چیزی برای مرور نیست"}</span>
+            <span>
+              {sum.dueReviews
+                ? `${fa(Math.min(3, sum.dueReviews))} سؤال آماده مرور`
+                : "فعلاً چیزی برای مرور نیست"}
+            </span>
           </button>
         </div>
       )}
@@ -484,7 +627,19 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
           <h3>تکلیف‌های کلاس</h3>
           <div className={styles.actions}>
             {state.assignments.map((a: AssignmentDto) => (
-              <button key={a.id} className={styles.big} onClick={() => startAssignment(a, profile.id, state.skills, left, router.push)}>
+              <button
+                key={a.id}
+                className={styles.big}
+                onClick={() =>
+                  startAssignment(
+                    a,
+                    profile.id,
+                    state.skills,
+                    left,
+                    router.push,
+                  )
+                }
+              >
                 <strong>{a.title}</strong>
                 <span>تا {new Date(a.due).toLocaleDateString("fa-IR")}</span>
               </button>
@@ -498,7 +653,11 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
         {!state.placement ? (
           <>
             <p>
-              آزمون چندمرحله‌ای است: اول <strong>تعیین سطح</strong> ({fa(PLACEMENT_ROUNDS * EXAM_AREAS.length)} سؤال کوتاه، بدون نمره)، بعد آزمون در {fa(EXAM_STAGES.length)} مرحله: {EXAM_STAGES.map((s) => s.title).join("، ")}. آخرش کارنامه با نمودار، که چاپ هم می‌شود.
+              آزمون چندمرحله‌ای است: اول <strong>تعیین سطح</strong> (
+              {fa(PLACEMENT_ROUNDS * EXAM_AREAS.length)} سؤال کوتاه، بدون نمره)،
+              بعد آزمون در {fa(EXAM_STAGES.length)} مرحله:{" "}
+              {EXAM_STAGES.map((s) => s.title).join("، ")}. آخرش کارنامه با
+              نمودار، که چاپ هم می‌شود.
             </p>
             <div className={styles.row}>
               <button className={styles.primary} onClick={placement}>
@@ -509,8 +668,13 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
         ) : (
           <>
             <p className={styles.small}>
-              سطح شروع: {EXAM_AREAS.map((a) => `${AREA_LABEL[a]} ${fa(state.placement!.levels[a] ?? 1)}`).join("، ")}
-              {lastExam && ` · آخرین آزمون: ${fa(lastExam.right)} از ${fa(lastExam.total)} درست`}
+              سطح شروع:{" "}
+              {EXAM_AREAS.map(
+                (a) =>
+                  `${AREA_LABEL[a]} ${fa(state.placement!.levels[a] ?? 1)}`,
+              ).join("، ")}
+              {lastExam &&
+                ` · آخرین آزمون: ${fa(lastExam.right)} از ${fa(lastExam.total)} درست`}
             </p>
             <div className={styles.actions}>
               <button className={styles.big} onClick={() => exam("learn")}>
@@ -529,7 +693,9 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
             </p>
           </>
         )}
-        <p className={styles.small}>با حضور والدین شروع می‌شود و جزو زمان تمرین روزانه حساب نمی‌شود.</p>
+        <p className={styles.small}>
+          با حضور والدین شروع می‌شود و جزو زمان تمرین روزانه حساب نمی‌شود.
+        </p>
       </section>
 
       <h3>نشان‌ها</h3>
@@ -541,7 +707,11 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
               {b.title}
             </strong>
             <span>{b.how}</span>
-            <progress max={b.goal} value={b.progress} aria-label={`${fa(b.progress)} از ${fa(b.goal)}`} />
+            <progress
+              max={b.goal}
+              value={b.progress}
+              aria-label={`${fa(b.progress)} از ${fa(b.goal)}`}
+            />
             <span className={styles.small}>
               {fa(b.progress)} از {fa(b.goal)}
             </span>
@@ -559,23 +729,50 @@ function ChildHome({ profile, onSwitch, onParent, asParent }: { profile: Profile
 }
 
 /** A teacher's assignment: a practice session drawn only from its skills. */
-function startAssignment(a: AssignmentDto, childId: string, skills: SkillState[], left: number, push: (href: string) => void) {
+function startAssignment(
+  a: AssignmentDto,
+  childId: string,
+  skills: SkillState[],
+  left: number,
+  push: (href: string) => void,
+) {
   const states = new Map(skills.map((s) => [s.skill, s]));
   const only = a.skills.filter((k) => SKILLS.some((s) => s.key === k));
   if (!only.length) return;
-  const items = planSession({ catalog: SKILLS, states, reviews: [], now: Date.now(), seed: Math.floor(Math.random() * 1e9), only });
-  const r = startRun({ childId, kind: "assignment", items, endsAt: Date.now() + left, assignmentId: a.id });
+  const items = planSession({
+    catalog: SKILLS,
+    states,
+    reviews: [],
+    now: Date.now(),
+    seed: Math.floor(Math.random() * 1e9),
+    only,
+  });
+  const r = startRun({
+    childId,
+    kind: "assignment",
+    items,
+    endsAt: Date.now() + left,
+    assignmentId: a.id,
+  });
   openItem(r, 0, push);
 }
 
 async function loadChild(id: string) {
-  const [attempts, skills, reviews, assignments, placement, exams] = await Promise.all([
-    db.attempts(id),
-    db.skills(id),
-    db.reviews(id),
-    assignmentsOf(id),
-    db.getMeta<PlacementRecord>(placementKey(id)),
-    db.getMeta<ExamRecord[]>(examHistoryKey(id)),
-  ]);
-  return { attempts, skills, reviews, assignments, placement, exams: exams ?? [] };
+  const [attempts, skills, reviews, assignments, placement, exams] =
+    await Promise.all([
+      db.attempts(id),
+      db.skills(id),
+      db.reviews(id),
+      assignmentsOf(id),
+      db.getMeta<PlacementRecord>(placementKey(id)),
+      db.getMeta<ExamRecord[]>(examHistoryKey(id)),
+    ]);
+  return {
+    attempts,
+    skills,
+    reviews,
+    assignments,
+    placement,
+    exams: exams ?? [],
+  };
 }

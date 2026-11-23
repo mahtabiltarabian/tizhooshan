@@ -10,7 +10,7 @@ export default function Home() {
       <ProfilesBar />
       <header className={styles.header}>
         <h1>جعبه‌ابزار تیزهوشان</h1>
-        <p>ببین، بساز، دست‌کاری کن — بدون اینترنت و بدون ثبت‌نام</p>
+        <p>ببین، بساز، دست‌کاری کن — حتی بدون اینترنت</p>
         <OfflineStatus />
         <Link href="/practice/" className={styles.practice}>
           <strong>تمرین</strong>

@@ -2,15 +2,21 @@
 // server. A question is never stored, only how to rebuild it: tool, type,
 // level, seed and generator version (plan v2, section 9).
 
-/** One child on this device. No full name, no exact birth date. */
+/** One child on this device. No full name, no exact birth date. Only the nickname is required. */
 export interface Profile {
   id: string;
   nickname: string;
-  /** Index into AVATARS. */
+  /** Index into AVATARS; shown when there is no photo. */
   avatar: number;
-  grade: 4 | 5 | 6;
-  /** Solar Hijri year (1393), never a full date. */
-  birthYear: number;
+  /**
+   * The child's photo, small (a JPEG data URL), added by a parent. Only on
+   * this device: never synced, never sent to the server.
+   */
+  photo?: string;
+  /** Left out if the parent did not say. */
+  grade?: 4 | 5 | 6;
+  /** Solar Hijri year (1393), never a full date. Left out if the parent did not say. */
+  birthYear?: number;
   /** Minutes of practice a day; after that the session ends with a summary. */
   dailyLimitMin: number;
   createdAt: number;

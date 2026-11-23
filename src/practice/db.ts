@@ -93,6 +93,19 @@ export const db = {
   },
 };
 
+/**
+ * The profiles on this device, without creating the database when there is
+ * none yet (just visiting a page records nothing).
+ */
+export async function existingProfiles(): Promise<Profile[]> {
+  if (typeof indexedDB === "undefined") return [];
+  if ("databases" in indexedDB) {
+    const list = await indexedDB.databases();
+    if (!list.some((d) => d.name === NAME)) return [];
+  }
+  return db.profiles();
+}
+
 export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()

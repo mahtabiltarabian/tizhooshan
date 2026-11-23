@@ -6,7 +6,7 @@
 // and their answers. Assignments from the child's classrooms come back.
 
 import type { AssignmentDto, AttemptBatchResult, AttemptDto, ChildDto, ClassroomDto, User } from "./api";
-import type { Attempt } from "./types";
+import type { Attempt, Profile } from "./types";
 import { api, hasServer } from "./apiClient";
 import { db } from "./db";
 
@@ -30,6 +30,11 @@ const withoutSynced = (a: Attempt): AttemptDto => {
   return copy;
 };
 
+/** What the server gets of a profile: never the photo. */
+export function childBody(p: Profile): ChildDto {
+  return { id: p.id, nickname: p.nickname, avatar: p.avatar, grade: p.grade ?? null, birthYear: p.birthYear ?? null, dailyLimitMin: p.dailyLimitMin, createdAt: p.createdAt };
+}
+
 /** Sends what the server lacks and fetches assignments. Quietly does nothing offline or unlinked. */
 export async function syncNow(): Promise<{ sent: number } | null> {
   if (!hasServer || (typeof navigator !== "undefined" && !navigator.onLine)) return null;
@@ -37,7 +42,7 @@ export async function syncNow(): Promise<{ sent: number } | null> {
   if (!account) return null;
   const token = account.token;
   const profiles = await db.profiles();
-  for (const p of profiles) await api<ChildDto>(`/children/${p.id}`, { method: "PUT", token, body: p });
+  for (const p of profiles) await api<ChildDto>(`/children/${p.id}`, { method: "PUT", token, body: childBody(p) });
 
   const pending = (await db.allAttempts()).filter((a) => !a.synced && profiles.some((p) => p.id === a.childId));
   let sent = 0;

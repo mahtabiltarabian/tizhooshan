@@ -44,6 +44,36 @@
   background: var(--accent-soft);
 }
 
+.profilesSpace {
+  min-height: 52px;
+  margin: 0 0 20px;
+}
+
+.login {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  box-shadow: var(--shadow);
+}
+
+.login:hover,
+.login:focus-visible {
+  filter: brightness(1.08);
+}
+
+.loginNote {
+  align-self: center;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 .header h1 {
   margin: 0;
   font-size: 2rem;

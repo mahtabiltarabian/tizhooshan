@@ -257,7 +257,7 @@ function ClassView({ classroom, token, onBack, onDeleted }: { classroom: Classro
             <li key={c.id}>
               <Avatar index={c.avatar} size={36} />
               <strong>{c.nickname}</strong>
-              <span className={styles.small}>پایه {fa(c.grade)}</span>
+              {c.grade !== null && <span className={styles.small}>پایه {fa(c.grade)}</span>}
               <span className={styles.grow} />
               <button
                 className={styles.quiet}

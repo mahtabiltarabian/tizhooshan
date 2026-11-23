@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { STAGE_LABEL } from "./adaptive";
 import { db } from "./db";
-import { checkPin, toLatinDigits } from "./parent";
+import { checkPin, hasPin, toLatinDigits } from "./parent";
 import { Avatar } from "./PracticeHome";
 import { buildReport, type ReportData, type Trend } from "./report";
 import type { Profile } from "./types";
@@ -29,6 +29,13 @@ export function ParentReport() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [data, setData] = useState<{ profile: Profile; report: ReportData } | null | "missing">(null);
+
+  // No PIN set: the report opens straight away.
+  useEffect(() => {
+    hasPin()
+      .then((locked) => !locked && setOk(true))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!ok) return;
@@ -88,11 +95,11 @@ export function ParentReport() {
       </header>
 
       <div className={styles.hello}>
-        <Avatar index={profile.avatar} size={56} />
+        <Avatar index={profile.avatar} photo={profile.photo} name={profile.nickname} size={56} />
         <div>
           <h2>{profile.nickname}</h2>
           <p className={styles.small}>
-            پایه {fa(profile.grade)} · این هفته {fa(report.answersThisWeek)} سؤال، {fa(report.rightThisWeek)} درست
+            {profile.grade ? `پایه ${fa(profile.grade)} · ` : ""}این هفته {fa(report.answersThisWeek)} سؤال، {fa(report.rightThisWeek)} درست
           </p>
         </div>
         <span className={styles.grow} />

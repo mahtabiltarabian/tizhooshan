@@ -11,9 +11,10 @@ export const ChildBody = z.object({
   id: uuid(),
   nickname: z.string().trim().min(1).max(30),
   avatar: z.number().int().min(0).max(99),
-  grade: z.union([z.literal(4), z.literal(5), z.literal(6)]),
+  // Both optional: only the nickname is required.
+  grade: z.union([z.literal(4), z.literal(5), z.literal(6)]).nullish(),
   // Solar Hijri year, as the app asks for it (e.g. 1393).
-  birthYear: z.number().int().min(1370).max(1430),
+  birthYear: z.number().int().min(1370).max(1430).nullish(),
   dailyLimitMin: z.number().int().min(1).max(600),
   createdAt: z.number().int().min(0).max(8.64e15),
 });
@@ -22,7 +23,7 @@ export const childDto = (c: Child): ChildDto => ({
   id: c.id,
   nickname: c.nickname,
   avatar: c.avatar,
-  grade: c.grade as ChildDto["grade"],
+  grade: (c.grade ?? null) as ChildDto["grade"],
   birthYear: c.birthYear,
   dailyLimitMin: c.dailyLimitMin,
   createdAt: c.createdAt.getTime(),
@@ -53,7 +54,7 @@ export class ChildrenService {
     // whether the id is taken is asked of the system connection: only a yes
     // or no comes back.
     if (await this.takenByOther(parentId, id)) throw forbidden();
-    const data = { nickname: p.nickname, avatar: p.avatar, grade: p.grade, birthYear: p.birthYear, dailyLimitMin: p.dailyLimitMin, createdAt: new Date(p.createdAt) };
+    const data = { nickname: p.nickname, avatar: p.avatar, grade: p.grade ?? null, birthYear: p.birthYear ?? null, dailyLimitMin: p.dailyLimitMin, createdAt: new Date(p.createdAt) };
     try {
       const row = await this.prisma.db.child.upsert({ where: { id }, create: { id, parentId, ...data }, update: data });
       return childDto(row);

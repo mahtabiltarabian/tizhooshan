@@ -145,6 +145,15 @@ describe("children", () => {
     expect((await ctx.http().get("/v1/children").set(auth(a.token)).expect(200)).body).toEqual([child]);
     const renamed = { ...child, nickname: "ماه", dailyLimitMin: 45 };
     expect((await ctx.http().put(`/v1/children/${child.id}`).set(auth(a.token)).send(renamed).expect(200)).body).toEqual(renamed);
+    // Only the nickname is required: grade and birth year may be null or left out.
+    const nameOnly = { ...renamed, grade: null, birthYear: null };
+    expect((await ctx.http().put(`/v1/children/${child.id}`).set(auth(a.token)).send(nameOnly).expect(200)).body).toEqual(nameOnly);
+    const missing: Record<string, unknown> = { ...renamed };
+    delete missing.grade;
+    delete missing.birthYear;
+    expect((await ctx.http().put(`/v1/children/${child.id}`).set(auth(a.token)).send(missing).expect(200)).body).toEqual(nameOnly);
+    // A photo is never part of what the server keeps.
+    expect((await ctx.http().put(`/v1/children/${child.id}`).set(auth(a.token)).send({ ...renamed, photo: "data:image/jpeg;base64,AAAA" }).expect(200)).body).toEqual(renamed);
 
     expect((await ctx.http().put(`/v1/children/${randomUUID()}`).set(auth(a.token)).send(child).expect(400)).body).toEqual({ error: "id_mismatch" });
     await ctx.http().put(`/v1/children/${child.id}`).set(auth(a.token)).send({ ...child, grade: 9 }).expect(400);

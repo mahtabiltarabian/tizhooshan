@@ -64,8 +64,8 @@ model Child {
   parent        User          @relation(fields: [parentId], references: [id], onDelete: Cascade)
   nickname      String
   avatar        Int
-  grade         Int
-  birthYear     Int           @map("birth_year")
+  grade         Int?
+  birthYear     Int?          @map("birth_year")
   dailyLimitMin Int           @map("daily_limit_min")
   createdAt     DateTime      @map("created_at")
   attempts      Attempt[]

@@ -1,45 +1,73 @@
 "use client";
 
-// Top of the main page: one button per child on this device, straight to
-// their profile. Shows nothing until a parent has made a profile, and never
-// creates the practice database just by visiting the page.
+// Top of the main page. Before anyone registers: a "sign in / register"
+// button (the tools need a registered child). After: one button per child,
+// straight to their profile. Never creates the practice database just by
+// visiting the page.
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/practice/Avatar";
-import { db } from "@/practice/db";
+import { existingProfiles } from "@/practice/db";
 import type { Profile } from "@/practice/types";
 import styles from "./page.module.css";
 
-async function savedProfiles(): Promise<Profile[]> {
-  if (typeof indexedDB === "undefined") return [];
-  // Opening the database would create it: look first, where the browser can tell.
-  if ("databases" in indexedDB) {
-    const list = await indexedDB.databases();
-    if (!list.some((d) => d.name === "tizhooshan")) return [];
-  }
-  return db.profiles();
-}
-
 export function ProfilesBar() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<Profile[] | null>(null);
 
   useEffect(() => {
     let live = true;
-    savedProfiles()
-      .then((list) => live && setProfiles([...list].sort((a, b) => a.createdAt - b.createdAt)))
+    existingProfiles()
+      .then(
+        (list) =>
+          live &&
+          setProfiles([...list].sort((a, b) => a.createdAt - b.createdAt)),
+      )
       .catch(() => {});
     return () => {
       live = false;
     };
   }, []);
 
-  if (!profiles.length) return null;
+  if (!profiles) return <div className={styles.profilesSpace} aria-hidden />;
+  if (!profiles.length)
+    return (
+      <nav className={styles.profiles} aria-label="ورود">
+        <Link href="/practice/" className={styles.login}>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" />
+          </svg>
+          ورود / ثبت‌نام
+        </Link>
+        <span className={styles.loginNote}>
+          برای بازی، اول اسم کودک را ثبت کنید (فقط اسم لازم است).
+        </span>
+      </nav>
+    );
   return (
     <nav className={styles.profiles} aria-label="پروفایل‌ها">
       {profiles.map((p) => (
-        <Link key={p.id} href={`/practice/profile/#child=${p.id}`} className={styles.profile}>
-          <Avatar index={p.avatar} size={36} />
+        <Link
+          key={p.id}
+          href={`/practice/profile/#child=${p.id}`}
+          className={styles.profile}
+        >
+          <Avatar
+            index={p.avatar}
+            photo={p.photo}
+            name={p.nickname}
+            size={40}
+          />
           <span>
             <strong>پروفایل {p.nickname}</strong>
             <span>پیشرفت، زمان تمرین و نمودارها</span>

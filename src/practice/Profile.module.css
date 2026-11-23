@@ -141,6 +141,143 @@
   color: var(--ink-soft);
 }
 
+.viewTabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  margin: 0 0 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  max-width: 360px;
+}
+
+.viewTabs button {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.viewTabs button[aria-selected="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.bigTiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.bigTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: tileIn 0.4s ease both;
+}
+
+.bigTile:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.bigTile:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.bigTile:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.bigTile strong {
+  font-size: 1.9rem;
+  line-height: 1.2;
+}
+
+.bigTile span {
+  color: var(--ink-soft);
+}
+
+.bigTile progress {
+  width: 80%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+@keyframes tileIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bigTile {
+    animation: none;
+  }
+}
+
+.friendlyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friendlyList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #faf7f1;
+}
+
+.newDot {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tryLink {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
 @media print {
   .noPrint {
     display: none !important;

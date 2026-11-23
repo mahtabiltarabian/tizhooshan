@@ -1,19 +1,22 @@
 "use client";
 
-// Parent lock and consent. The PIN is stored only as a salted hash, on this
+// Parent lock and consent. The PIN is optional (only the child's name is
+// required to start); when set, it is stored only as a salted hash, on this
 // device. Forgetting it means "delete everything" from the setup screen.
 
 import { db } from "./db";
 
 export interface ParentMeta {
   salt: string;
+  /** Empty when the parent has not set a PIN: the parent area is then open. */
   pinHash: string;
   /** When the parent agreed to what is stored (CONSENT_TEXT). */
   consentAt: number;
 }
 
 export const CONSENT_POINTS = [
-  "برای هر کودک فقط یک نام مستعار، پایه، سال تولد و یک تصویر نمادین نگه داشته می‌شود؛ نه نام کامل، نه تاریخ تولد دقیق.",
+  "برای هر کودک فقط نام (یا نام مستعار) لازم است. پایه، سال تولد و عکس اختیاری‌اند؛ نام کامل و تاریخ تولد دقیق پرسیده نمی‌شود.",
+  "عکس کودک، اگر بگذارید، فقط روی همین دستگاه می‌ماند و هیچ‌وقت به سرور فرستاده نمی‌شود.",
   "پاسخ‌های کودک (درست یا نوع اشتباه، زمان، تعداد راهنمایی) برای انتخاب سؤال مناسب و گزارش شما ثبت می‌شود.",
   "همه این‌ها فقط روی همین دستگاه می‌ماند و به هیچ جا فرستاده نمی‌شود، مگر خودتان دستگاه را به حساب والد وصل کنید.",
   "هر وقت بخواهید، از «بخش والدین» یک کودک یا همه داده‌ها را برای همیشه پاک می‌کنید.",
@@ -34,17 +37,21 @@ async function hash(pin: string, salt: string) {
 
 export const getParent = () => db.getMeta<ParentMeta>("parent");
 
+/** Records the consent, with a PIN or (empty) without one. */
 export async function setParent(pin: string) {
   const salt = hex(crypto.getRandomValues(new Uint8Array(16)).buffer);
-  const meta: ParentMeta = { salt, pinHash: await hash(pin, salt), consentAt: Date.now() };
+  const meta: ParentMeta = { salt, pinHash: pin ? await hash(pin, salt) : "", consentAt: (await getParent())?.consentAt ?? Date.now() };
   await db.setMeta("parent", meta);
   return meta;
 }
 
 export async function checkPin(pin: string) {
   const meta = await getParent();
-  return !!meta && (await hash(pin, meta.salt)) === meta.pinHash;
+  return !!meta && (!meta.pinHash || (await hash(pin, meta.salt)) === meta.pinHash);
 }
+
+/** Whether the parent area is locked with a PIN. */
+export const hasPin = async () => !!(await getParent())?.pinHash;
 
 export const validPin = (pin: string) => /^\d{4,6}$/.test(pin);
 

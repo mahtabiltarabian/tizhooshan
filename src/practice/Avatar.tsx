@@ -15,10 +15,44 @@ export const AVATARS = [
   { symbol: "⬢", color: "var(--toy-1)", name: "شش‌ضلعی" },
 ];
 
-export function Avatar({ index, size = 64 }: { index: number; size?: number }) {
+/** The child's photo when there is one, else the chosen shape. */
+export function Avatar({
+  index,
+  photo,
+  name,
+  size = 64,
+}: {
+  index: number;
+  photo?: string;
+  name?: string;
+  size?: number;
+}) {
   const a = AVATARS[index % AVATARS.length];
+  if (photo)
+    return (
+      // A data URL made on this device (photo.ts): next/image adds nothing here.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        className={styles.avatar}
+        src={photo}
+        alt={name ? `عکس ${name}` : "عکس"}
+        width={size}
+        height={size}
+        style={{ width: size, height: size, objectFit: "cover" }}
+      />
+    );
   return (
-    <span className={styles.avatar} style={{ background: a.color, width: size, height: size, fontSize: size * 0.5 }} aria-label={a.name} role="img">
+    <span
+      className={styles.avatar}
+      style={{
+        background: a.color,
+        width: size,
+        height: size,
+        fontSize: size * 0.5,
+      }}
+      aria-label={a.name}
+      role="img"
+    >
       {a.symbol}
     </span>
   );

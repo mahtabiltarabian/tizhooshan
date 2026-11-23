@@ -46,7 +46,8 @@ export interface User {
 // POST /v1/auth/logout → 204: revokes the token used.
 
 /** A child as the server keeps it: the device profile, same id. */
-export type ChildDto = Omit<Profile, "createdAt"> & { createdAt: number };
+/** A profile as the server keeps it: never the photo; grade and birth year may be null. */
+export type ChildDto = Omit<Profile, "createdAt" | "photo" | "grade" | "birthYear"> & { grade: 4 | 5 | 6 | null; birthYear: number | null; createdAt: number };
 
 // GET /v1/children → ChildDto[] (parent only).
 // PUT /v1/children/:id with ChildDto → ChildDto. Creates or updates; the id
@@ -95,7 +96,7 @@ export interface ClassroomDto {
   /** 6 characters, letters and digits that cannot be confused (no 0/O, 1/I). */
   joinCode: string;
   /** Teacher's view only. */
-  children?: { id: string; nickname: string; avatar: number; grade: number }[];
+  children?: { id: string; nickname: string; avatar: number; grade: number | null }[];
 }
 
 // Teacher: GET /v1/classrooms → ClassroomDto[] (with children).
