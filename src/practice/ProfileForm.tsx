@@ -181,8 +181,8 @@ export function ProfileForm({
             )}
           </div>
           <p className={styles.small}>
-            عکس فقط روی همین دستگاه می‌ماند و به هیچ جا فرستاده نمی‌شود. بدون
-            عکس، یکی از این شکل‌ها نشان داده می‌شود:
+            اگر دوست دارید عکس کودک در پروفایلش باشد، «انتخاب عکس» را بزنید؛
+            وگرنه یکی از این شکل‌ها را انتخاب کنید:
           </p>
           <div className={styles.avatars} role="radiogroup" aria-label="شکل">
             {AVATARS.map((a, i) => (
