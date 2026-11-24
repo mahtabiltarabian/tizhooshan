@@ -10,7 +10,7 @@ import { DIR_STEP, type DieNet, type DieState, type Dir } from "@/generators/dic
 import { fa } from "@/tools/registry";
 import { DIR_ARROW } from "./diceText";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 const PAPER = "#fffaf0";
 
 /** Pip centres in a −1…1 square (y down). */

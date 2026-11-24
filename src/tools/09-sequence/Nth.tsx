@@ -12,8 +12,8 @@
 import { patternShape, PATTERNS, ruleParts, termAt, type NthQuestion, type PatternKind } from "@/generators/nth-term";
 import { fa } from "@/tools/registry";
 
-const INK = "#1f2430";
-const SOFT = "#5b6170";
+const INK = "#0f172a";
+const SOFT = "#5b6476";
 const JUMP = "#2f6fdb";
 const MARK = "#c0392b";
 const WAGON = "#ffd36b";

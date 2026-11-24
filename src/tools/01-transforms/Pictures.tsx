@@ -10,7 +10,7 @@ import { bounds, mul, opAt, type Figure, type Line, type Mat, type Op, type Pt }
 import { fa } from "@/tools/registry";
 import styles from "./Pictures.module.css";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 const FILL = { figure: "#ffc93d", image: "#8fb8ff", plain: "#cfe0ff", ghost: "none" } as const;
 export type FigureStyle = keyof typeof FILL;
 
@@ -121,7 +121,7 @@ export function LineG({ line, box, look }: { line: Line; box: { x0: number; y0: 
       return (
         <g>
           <rect x={x0} y={-y} width={x1 - x0} height={y - y0} fill="#dcecff" opacity={0.55} />
-          <path d={d} fill="none" stroke="#3d7bf7" strokeWidth={0.09} />
+          <path d={d} fill="none" stroke="#4f46e5" strokeWidth={0.09} />
         </g>
       );
     }
@@ -219,7 +219,7 @@ export function countFrom(f: Figure): Pt {
 /** Dashed links from points to their images. */
 export function LinksG({ pairs }: { pairs: [Pt, Pt][] }) {
   return (
-    <g stroke="#3d7bf7" strokeWidth={0.06} strokeDasharray="0.12 0.14" strokeLinecap="round">
+    <g stroke="#4f46e5" strokeWidth={0.06} strokeDasharray="0.12 0.14" strokeLinecap="round">
       {pairs.map(([a, b], i) => (
         <line key={i} x1={a[0]} y1={-a[1]} x2={b[0]} y2={-b[1]} />
       ))}

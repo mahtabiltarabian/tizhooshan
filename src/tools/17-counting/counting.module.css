@@ -29,7 +29,7 @@
 /* A repeat: pale, dashed, struck through and marked in words. */
 .found li[data-repeat="true"] {
   border-style: dashed;
-  background: #f4f1ec;
+  background: #f1f5f9;
   color: var(--ink-soft);
   text-decoration: line-through;
   opacity: 0.75;
@@ -54,8 +54,8 @@
   width: 1.6em;
   height: 1.6em;
   border-radius: 50%;
-  border: 1.5px solid var(--ink, #1f2430);
-  color: #1f2430;
+  border: 1.5px solid var(--ink, #0f172a);
+  color: #0f172a;
   font-size: 0.85rem;
 }
 
@@ -131,7 +131,7 @@
 .bar {
   width: 96px;
   height: 3px;
-  background: var(--ink, #1f2430);
+  background: var(--ink, #0f172a);
   border-radius: 2px;
 }
 

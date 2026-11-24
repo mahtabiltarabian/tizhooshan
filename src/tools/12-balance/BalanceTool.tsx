@@ -302,7 +302,7 @@ export function BalanceTool() {
       <rect x={x - 0.36} y={y - 0.38} width={0.72} height={0.76} rx={0.12} fill="#fffaf0" stroke="#cfc6b6" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       <ItemG v={{ item }} x={x} y={y} s={0.62} />
       {label && (
-        <text x={x} y={y + 0.55} fontSize={0.2} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170">
+        <text x={x} y={y + 0.55} fontSize={0.2} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6476">
           {label}
         </text>
       )}

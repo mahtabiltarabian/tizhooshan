@@ -101,7 +101,7 @@
   min-height: var(--tap);
   border: 2px solid var(--line);
   border-radius: 10px;
-  background: #fffaf0;
+  background: #f8fafc;
   font-size: 1.2rem;
   font-weight: 700;
 }
@@ -216,8 +216,8 @@
 }
 
 .bad {
-  border-color: #6b6f7a !important;
-  background: #f4f1ec;
+  border-color: #64748b !important;
+  background: #f1f5f9;
 }
 
 .feedback {

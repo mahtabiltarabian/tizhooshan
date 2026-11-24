@@ -394,7 +394,7 @@ export function PatternsTool() {
             <ol className={styles.pairs}>
               {showSteps.map((s, i) => (
                 <li key={i} aria-current={stepAt === i ? "step" : undefined} style={{ fontWeight: stepAt === i ? 700 : 400 }}>
-                  <span className={styles.chip} style={{ background: stepAt === i ? "var(--accent)" : "#b9b2a5" }}>
+                  <span className={styles.chip} style={{ background: stepAt === i ? "var(--accent)" : "#94a3b8" }}>
                     {fa(i + 1)}
                   </span>
                   <button

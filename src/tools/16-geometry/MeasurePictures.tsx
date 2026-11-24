@@ -14,7 +14,7 @@ import padStyles from "@/toolkit/NumberPad.module.css";
 import { ltr, num, type Overlay } from "./frames";
 import { SHAPE, type View } from "./Pictures";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 const HI = "#b5651d";
 const PAPER = "#fffaf0";
 const SHADE = "#bcd6f3";

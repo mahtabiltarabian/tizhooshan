@@ -35,7 +35,7 @@ export function Rich({ segs, className }: { segs: Seg[]; className?: string }) {
 }
 
 /** A stacked fraction in SVG, centred on (x, y); `size` is the digit height. */
-export function FracG({ f, x, y, size, fill = "#1f2430" }: { f: FracView; x: number; y: number; size: number; fill?: string }) {
+export function FracG({ f, x, y, size, fill = "#0f172a" }: { f: FracView; x: number; y: number; size: number; fill?: string }) {
   const n = part(f.n);
   const d = part(f.d);
   const w = Math.max(n.length, d.length) * size * 0.62 + size * 0.3;

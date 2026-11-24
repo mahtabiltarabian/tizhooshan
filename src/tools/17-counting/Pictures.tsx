@@ -22,7 +22,7 @@ import {
 import { fa } from "@/tools/registry";
 import { caseLabel, initial, itemName, stepLabel, TREE_GROUPS } from "./text";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 const SOFT = "#8a8f9c";
 const PAPER = "#fffdf8";
 const OUT = "#ece7de";
@@ -231,7 +231,7 @@ export function CircleG({ n, twins, upto, teams, all: showAll }: { n: number; tw
       const p = at(i);
       const q = at(j);
       const now = !showAll && i === upto;
-      lines.push(<line key={`${i}-${j}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={now ? "#3d7bf7" : SOFT} strokeWidth={now ? 0.07 : 0.035} />);
+      lines.push(<line key={`${i}-${j}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={now ? "#4f46e5" : SOFT} strokeWidth={now ? 0.07 : 0.035} />);
     }
   return (
     <g>
@@ -311,7 +311,7 @@ export function GridG({ a, b, cond, at, values, shown, route, onNode, box }: Gri
       {Array.from({ length: a + 1 }, (_, x) => (
         <line key={`v${x}`} x1={px(x)} y1={py(0)} x2={px(x)} y2={py(b)} stroke={INK} strokeWidth={0.05} />
       ))}
-      {nodes.length > 1 && <polyline points={nodes.map(([x, y]) => `${px(x)},${py(y)}`).join(" ")} fill="none" stroke="#3d7bf7" strokeWidth={0.18} strokeLinecap="round" strokeLinejoin="round" />}
+      {nodes.length > 1 && <polyline points={nodes.map(([x, y]) => `${px(x)},${py(y)}`).join(" ")} fill="none" stroke="#4f46e5" strokeWidth={0.18} strokeLinecap="round" strokeLinejoin="round" />}
       {Array.from({ length: b + 1 }, (_, y) =>
         Array.from({ length: a + 1 }, (_, x) => {
           const blocked = cond === "block" && at && at[0] === x && at[1] === y;
@@ -321,7 +321,7 @@ export function GridG({ a, b, cond, at, values, shown, route, onNode, box }: Gri
           const can = onNode && next(x, y);
           return (
             <g key={`${x}-${y}`} onClick={can ? () => onNode!(x, y) : undefined} style={can ? { cursor: "pointer" } : undefined} role={can ? "button" : undefined} aria-label={can ? `برو به گره ${fa(x)}، ${fa(y)}` : undefined}>
-              {can && <circle cx={px(x)} cy={py(y)} r={r4(dot * 1.6)} fill="#e3edff" stroke="#3d7bf7" strokeWidth={0.06} strokeDasharray="0.15 0.1" />}
+              {can && <circle cx={px(x)} cy={py(y)} r={r4(dot * 1.6)} fill="#eef2ff" stroke="#4f46e5" strokeWidth={0.06} strokeDasharray="0.15 0.1" />}
               {can && <circle cx={px(x)} cy={py(y)} r={r4(s * 0.45)} fill="transparent" />}
               {v !== null ? (
                 <>
@@ -488,7 +488,7 @@ function MiniRoute({ x, y, w, h, a, b, route, out, at, cond }: { x: number; y: n
       {Array.from({ length: a + 1 }, (_, i) => (
         <line key={`v${i}`} x1={px(i)} y1={py(0)} x2={px(i)} y2={py(b)} stroke={OUT} strokeWidth={0.025} />
       ))}
-      <polyline points={routeNodes(route).map(([i, j]) => `${px(i)},${py(j)}`).join(" ")} fill="none" stroke={out ? SOFT : "#3d7bf7"} strokeWidth={0.07} strokeDasharray={out ? "0.1 0.08" : undefined} strokeLinejoin="round" />
+      <polyline points={routeNodes(route).map(([i, j]) => `${px(i)},${py(j)}`).join(" ")} fill="none" stroke={out ? SOFT : "#4f46e5"} strokeWidth={0.07} strokeDasharray={out ? "0.1 0.08" : undefined} strokeLinejoin="round" />
       {at && cond !== "none" && (
         <Tx x={px(at[0])} y={py(at[1])} size={s * 0.55} fill={cond === "block" ? "#c0392b" : "#c98a00"}>
           {cond === "block" ? "✗" : "★"}

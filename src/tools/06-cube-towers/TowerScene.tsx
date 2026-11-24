@@ -128,14 +128,14 @@ export function TowerScene({ tower, explode = 0, showHidden = false, ghosts = []
       {ghosts.map(([x, y, z]) => (
         <mesh key={`g${x},${y},${z}`} position={at(x, y, z)}>
           <boxGeometry args={[SIZE * 0.92, SIZE * 0.92, SIZE * 0.92]} />
-          <meshStandardMaterial color="#3d7bf7" transparent opacity={0.22} depthWrite={false} />
+          <meshStandardMaterial color="#4f46e5" transparent opacity={0.22} depthWrite={false} />
         </mesh>
       ))}
 
       {/* Outline of the big cube */}
       {frameEdges && frame && (
         <lineSegments geometry={frameEdges} position={[(frame - 1) / 2 - cx, frame / 2, -((frame - 1) / 2 - cy)]}>
-          <lineBasicMaterial color="#1f2430" />
+          <lineBasicMaterial color="#0f172a" />
         </lineSegments>
       )}
     </group>

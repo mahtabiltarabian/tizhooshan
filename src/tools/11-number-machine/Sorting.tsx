@@ -39,7 +39,7 @@ import { ltr, stepFa } from "./format";
 import { TypeLevelChips, type TryType } from "./MachineTryPanel";
 import { INK } from "./Pictures";
 
-const SOFT = "#5b6170";
+const SOFT = "#5b6476";
 const BOX = "#fff8e6";
 const PAIR = "#dcebff";
 const round = (v: number) => Math.round(v * 1e4) / 1e4;

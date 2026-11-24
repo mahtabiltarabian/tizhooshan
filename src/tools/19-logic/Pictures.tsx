@@ -16,11 +16,11 @@ import { useId, useRef, useState } from "react";
 import type { Mark } from "@/generators/logic";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 export const PEN = "#2f6fdb";
 export const GOOD = "#1d7a46";
 export const BAD = "#c0392b";
-export const SOFT = "#5b6170";
+export const SOFT = "#5b6476";
 export const ACCENT = "#d9480f";
 export const PAPER = "#ffffff";
 

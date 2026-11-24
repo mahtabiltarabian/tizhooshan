@@ -3,7 +3,7 @@
 
 import { FLAG, type Glyph, type SpeedQuestion } from "@/generators/speed";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 
 /** One shape, centred on (0, 0), about 0.7 wide. */
 export function GlyphShape({ g, color = INK }: { g: Glyph; color?: string }) {
@@ -50,11 +50,11 @@ export const cellXY = (q: Pick<SpeedQuestion, "cols">, i: number) => ({ x: q.col
 export type CellMark = "tapped" | "right" | "wrong" | "missed" | "found" | null;
 
 const MARK: Record<Exclude<CellMark, null>, { stroke: string; dash?: string; symbol?: string }> = {
-  tapped: { stroke: "#3d7bf7", symbol: "●" },
+  tapped: { stroke: "#4f46e5", symbol: "●" },
   right: { stroke: "#1f9d55", symbol: "✓" },
   wrong: { stroke: "#d64545", symbol: "✗" },
   missed: { stroke: "#d64545", dash: "0.08 0.06", symbol: "؟" },
-  found: { stroke: "#3d7bf7", symbol: "✓" },
+  found: { stroke: "#4f46e5", symbol: "✓" },
 };
 
 export function GlyphGrid({
@@ -80,7 +80,7 @@ export function GlyphGrid({
         const style = m ? MARK[m] : null;
         return (
           <g key={i} transform={`translate(${x} ${y})`} onClick={onTap ? () => onTap(i) : undefined} style={onTap ? { cursor: "pointer" } : undefined}>
-            <rect x={-0.46} y={-0.46} width={0.92} height={0.92} rx={0.14} fill="#fff" stroke={style?.stroke ?? "#e4dccd"} strokeWidth={style ? 0.08 : 0.03} strokeDasharray={style?.dash} />
+            <rect x={-0.46} y={-0.46} width={0.92} height={0.92} rx={0.14} fill="#fff" stroke={style?.stroke ?? "#e5e7eb"} strokeWidth={style ? 0.08 : 0.03} strokeDasharray={style?.dash} />
             <GlyphShape g={g} />
             {style?.symbol && (
               <text x={0.3} y={-0.24} fontSize={0.3} fontWeight={700} fill={style.stroke} textAnchor="middle">
@@ -98,7 +98,7 @@ export function GlyphGrid({
 export function TargetCard({ g, x, y }: { g: Glyph; x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      <rect x={-0.55} y={-0.55} width={1.1} height={1.1} rx={0.16} fill="#fff" stroke="#3d7bf7" strokeWidth={0.07} />
+      <rect x={-0.55} y={-0.55} width={1.1} height={1.1} rx={0.16} fill="#fff" stroke="#4f46e5" strokeWidth={0.07} />
       <g transform="scale(1.2)">
         <GlyphShape g={g} />
       </g>

@@ -10,8 +10,8 @@
 import { COMPASS, positionAt, reverses, STEP, wheelTurns, type Compass, type Machine, type Mover, type Pt, type Rot } from "@/generators/motion";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
-export const SOFT = "#5b6170";
+export const INK = "#0f172a";
+export const SOFT = "#5b6476";
 export const BLUE = "#2f6fdb";
 export const ORANGE = "#d9631e";
 const GEAR_FILL = "#dfe5f0";
@@ -404,7 +404,7 @@ export function TrackG({ length, distUnit, movers, t, x, y, w, marks, meet, unkn
           <g key={mv.name}>
             <MoverMark x={sx(p)} y={lane(i)} shape={mv.shape} dir={mv.mover.dir} name={mv.name} color={MOVER_COLOR[i]} />
             {marks && (
-              <text x={sx(p)} y={i ? y + 1.45 : y - 0.85} fontSize={0.24} fontWeight={700} textAnchor="middle" fill={INK} stroke="#efe5d3" strokeWidth={4} paintOrder="stroke" vectorEffect="non-scaling-stroke">
+              <text x={sx(p)} y={i ? y + 1.45 : y - 0.85} fontSize={0.24} fontWeight={700} textAnchor="middle" fill={INK} stroke="#e9edf5" strokeWidth={4} paintOrder="stroke" vectorEffect="non-scaling-stroke">
                 {mv.name}: {numFa(Math.abs(p - mv.mover.start))} {distUnit}
               </text>
             )}
@@ -529,7 +529,7 @@ export function CompassG({ x, y, r, highlight, needle = true }: { x: number; y: 
   return (
     <g>
       <circle cx={x} cy={y} r={r} fill="#fff" stroke={INK} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-      {needle && <path d={`M${x},${r4(y - r * 0.8)} L${r4(x + r * 0.16)},${y} L${x},${r4(y + r * 0.8)} L${r4(x - r * 0.16)},${y} Z`} fill="#f4f1ec" stroke={INK} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
+      {needle && <path d={`M${x},${r4(y - r * 0.8)} L${r4(x + r * 0.16)},${y} L${x},${r4(y + r * 0.8)} L${r4(x - r * 0.16)},${y} Z`} fill="#f1f5f9" stroke={INK} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
       {needle && <path d={`M${x},${r4(y - r * 0.8)} L${r4(x + r * 0.16)},${y} L${r4(x - r * 0.16)},${y} Z`} fill={INK} />}
       {pos.map(([dx, dy], i) => (
         <text
@@ -657,8 +657,8 @@ export function GridG({ cols, rows, x, y, cell, start, walker, points, answer, p
       )}
       {start && (
         <g>
-          <circle cx={px(start.x)} cy={py(start.y)} r={r4(cell * 0.3)} fill="#e3edff" stroke={INK} strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
-          <text x={px(start.x)} y={r4(py(start.y) + cell * 0.48)} fontSize={r4(Math.min(0.3, cell * 0.24))} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill={INK} stroke="#efe5d3" strokeWidth={4} paintOrder="stroke" vectorEffect="non-scaling-stroke">
+          <circle cx={px(start.x)} cy={py(start.y)} r={r4(cell * 0.3)} fill="#eef2ff" stroke={INK} strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+          <text x={px(start.x)} y={r4(py(start.y) + cell * 0.48)} fontSize={r4(Math.min(0.3, cell * 0.24))} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill={INK} stroke="#e9edf5" strokeWidth={4} paintOrder="stroke" vectorEffect="non-scaling-stroke">
             {goal ? "الف" : "شروع"}
           </text>
         </g>

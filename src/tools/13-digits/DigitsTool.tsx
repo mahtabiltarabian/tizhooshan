@@ -382,7 +382,7 @@ export function DigitsTool() {
             y={0.9}
             handY={6.2}
           />
-          <text x={8} y={5.25} fontSize={0.36} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6170">
+          <text x={8} y={5.25} fontSize={0.36} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6476">
             کارت‌ها
           </text>
         </Board>
@@ -420,7 +420,7 @@ export function DigitsTool() {
             flying={frame?.flying}
             marks={frame && f < 1 ? frame.marks : undefined}
           />
-          <text x={v[0] + v[2] / 2} y={SLOT_H + 0.65} fontSize={0.38} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#1f2430">
+          <text x={v[0] + v[2] / 2} y={SLOT_H + 0.65} fontSize={0.38} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#0f172a">
             {caption}
           </text>
         </Board>
@@ -900,28 +900,28 @@ function CountBoard({ digit, n, block, phase }: { digit: number; n: number; bloc
   return (
     <Board view={VIEW} imageName="digit-count" label={`شمارش رقم ${fa(digit)} از ۱ تا ${fa(n)}`}>
       <HundredChartG digit={digit} n={n} base={block * 100} phase={phase} x={0.4} y={0.5} />
-      <text x={12.3} y={0.9} fontSize={0.42} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#1f2430">
+      <text x={12.3} y={0.9} fontSize={0.42} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#0f172a">
         رقم {fa(digit)} در ۱ تا {fa(n)}
       </text>
-      <text x={12.3} y={1.5} fontSize={0.3} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6170">
+      <text x={12.3} y={1.5} fontSize={0.3} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6476">
         روی صفحه: {fa(Math.max(1, block * 100))} تا {fa(Math.min(n, block * 100 + 99))}
       </text>
       <ChartKeyG x={13.6} y={2.5} phase={phase} />
       {lines.map((name, p) => (
-        <text key={name} x={12.3} y={4.4 + p * 0.75} fontSize={0.4} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#1f2430" opacity={phase > p ? 1 : 0.3}>
+        <text key={name} x={12.3} y={4.4 + p * 0.75} fontSize={0.4} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#0f172a" opacity={phase > p ? 1 : 0.3}>
           {name}: {phase > p ? `${fa(counts[p])} بار` : "…"}
         </text>
       ))}
-      <line x1={10.6} x2={14} y1={6.6} y2={6.6} stroke="#1f2430" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-      <text x={12.3} y={7.2} fontSize={0.5} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#1f2430" opacity={phase >= 3 ? 1 : 0.3}>
+      <line x1={10.6} x2={14} y1={6.6} y2={6.6} stroke="#0f172a" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <text x={12.3} y={7.2} fontSize={0.5} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#0f172a" opacity={phase >= 3 ? 1 : 0.3}>
         جمع: {phase >= 3 ? `${fa(counts[0] + counts[1] + counts[2] + counts[3])} بار` : "؟"}
       </text>
       {counts[3] > 0 && phase >= 3 && (
-        <text x={12.3} y={7.9} fontSize={0.28} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6170">
+        <text x={12.3} y={7.9} fontSize={0.28} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#5b6476">
           (با رقم هزارگانِ ۱۰۰۰)
         </text>
       )}
-      <rect x={0.4} y={0.5} width={10 * CHART_CELL} height={10 * CHART_CELL} fill="none" stroke="#1f2430" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <rect x={0.4} y={0.5} width={10 * CHART_CELL} height={10 * CHART_CELL} fill="none" stroke="#0f172a" strokeWidth={2} vectorEffect="non-scaling-stroke" />
     </Board>
   );
 }
@@ -941,7 +941,7 @@ interface TryBoardProps {
 function TryBoard({ q, built, sticks, checked, f, lifted, onBuilt, onTapStick, onTapSpot }: TryBoardProps) {
   const done = checked !== null;
   const text = (s: string, y: number, size = 0.5, soft = false) => (
-    <text x={8} y={y} fontSize={size} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill={soft ? "#5b6170" : "#1f2430"}>
+    <text x={8} y={y} fontSize={size} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill={soft ? "#5b6476" : "#0f172a"}>
       {s}
     </text>
   );
@@ -1044,7 +1044,7 @@ function TryBoard({ q, built, sticks, checked, f, lifted, onBuilt, onTapStick, o
             flying={frame?.flying}
             marks={frame && f < 1 ? frame.marks : undefined}
           />
-          <text x={v[0] + v[2] / 2} y={SLOT_H + 0.65} fontSize={0.36} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#1f2430">
+          <text x={v[0] + v[2] / 2} y={SLOT_H + 0.65} fontSize={0.36} fontWeight={700} textAnchor="middle" direction="rtl" dominantBaseline="central" fill="#0f172a">
             {done ? `${f >= 1 ? "جواب" : "از معما به جواب"}: ${equationFa(q, q.answer)}${right ? " ✓" : `   (تو: ${(checked && equationFa(q, checked.split(".").map(Number))) || "شکل نادرست"})`}` : `${fa(q.moves)} جابه‌جایی`}
           </text>
         </Board>

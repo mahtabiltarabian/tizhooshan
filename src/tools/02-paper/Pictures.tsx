@@ -26,7 +26,7 @@ import { fa } from "@/tools/registry";
 import { STEP_NAMES } from "./orderText";
 import styles from "./Pictures.module.css";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 const PAPER = "#fffaf0";
 const FLAP = "#dbe8ff";
 const CUT = "#d6343a";
@@ -217,7 +217,7 @@ export function PaperSvg({
       {fold && line(chord(fold.line, paper), "fold", true)}
 
       {links.map(([a, b], i) => (
-        <line key={`l${i}`} x1={X(a[0])} y1={Y(a[1])} x2={X(b[0])} y2={Y(b[1])} stroke="#3d7bf7" strokeWidth={1.6} strokeDasharray="2 4" strokeLinecap="round" />
+        <line key={`l${i}`} x1={X(a[0])} y1={Y(a[1])} x2={X(b[0])} y2={Y(b[1])} stroke="#4f46e5" strokeWidth={1.6} strokeDasharray="2 4" strokeLinecap="round" />
       ))}
 
       {cuts.map(([a, b], i) => (

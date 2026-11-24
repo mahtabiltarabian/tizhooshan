@@ -10,8 +10,8 @@ import { useRef } from "react";
 import { ALPHABET, encodeLetter, mod, N, SHAPE_FA, SHAPES, SPACE, type Rule, type TokenKind } from "@/generators/codes";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
-const SOFT = "#5b6170";
+export const INK = "#0f172a";
+const SOFT = "#5b6476";
 const MARK = "#ffe08a";
 const INNER = "#eef3ff";
 const STEP = 360 / N;

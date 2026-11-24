@@ -15,7 +15,7 @@ import { fa } from "@/tools/registry";
 
 export const SOLID_FACE_COLORS = ["#ff8787", "#ffd43b", "#69db7c", "#74c0fc", "#d0a2ff", "#ffa94d", "#63e6be", "#f783ac"];
 const EDGE_STRONG = "#c2410c";
-const INK = "#1f2430";
+const INK = "#0f172a";
 
 type BadgeKind = Part;
 

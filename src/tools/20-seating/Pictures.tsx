@@ -14,9 +14,9 @@ import type { Arrangement, FPerson } from "@/generators/seating";
 import { fa } from "@/tools/registry";
 import { ordinal, rankWords } from "./text";
 
-export const INK = "#1f2430";
-export const SOFT = "#5b6170";
-const ACCENT = "#3d7bf7";
+export const INK = "#0f172a";
+export const SOFT = "#5b6476";
+const ACCENT = "#4f46e5";
 const GOOD = "#1d8a55";
 const BAD = "#b3261e";
 const PAPER = "#fffaf0";
@@ -483,7 +483,7 @@ export function PlaceFigure({ geo, names, seatOf, locked, selected = null, onSel
               width={TW - 0.1}
               height={TH - 0.1}
               rx={maleOf ? (maleOf(p) ? 0.05 : (TH - 0.1) / 2) : 0.14}
-              fill={sel ? "#e3edff" : lock ? "#efe2c6" : "#fff"}
+              fill={sel ? "#eef2ff" : lock ? "#efe2c6" : "#fff"}
               stroke={sel || strong ? ACCENT : INK}
               strokeWidth={sel || strong ? 0.09 : 0.04}
               strokeDasharray={sel ? "0.16 0.08" : undefined}
@@ -497,7 +497,7 @@ export function PlaceFigure({ geo, names, seatOf, locked, selected = null, onSel
 
       {ghost && (
         <g pointerEvents="none" opacity={0.85}>
-          <rect x={r4(ghost.x - TW / 2)} y={r4(ghost.y - TH / 2)} width={TW} height={TH} rx={0.14} fill="#e3edff" stroke={ACCENT} strokeWidth={0.06} />
+          <rect x={r4(ghost.x - TW / 2)} y={r4(ghost.y - TH / 2)} width={TW} height={TH} rx={0.14} fill="#eef2ff" stroke={ACCENT} strokeWidth={0.06} />
           <text x={r4(ghost.x)} y={r4(ghost.y)} dy="0.36em" fontSize={0.36} fontWeight={800} textAnchor="middle" fill={INK}>
             {names[ghost.p]}
           </text>

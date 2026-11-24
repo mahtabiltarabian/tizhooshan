@@ -233,7 +233,7 @@ export function ClockTool() {
             <>
               <ClockG t={time} cx={11.6} cy={4.1} r={3.3} wedge={showAngle} caption={`ساعت: ${timeFa(time)}`} onTime={setTime} />
               <line x1={8} y1={0.4} x2={8} y2={8.4} stroke="#9fc3ff" strokeWidth={6} strokeDasharray="2 6" vectorEffect="non-scaling-stroke" />
-              <text x={8} y={8.7} fontSize={0.4} fontWeight={700} textAnchor="middle" fill="#5b6170">
+              <text x={8} y={8.7} fontSize={0.4} fontWeight={700} textAnchor="middle" fill="#5b6476">
                 آینه
               </text>
               <ClockG t={time} cx={4.4} cy={4.1} r={3.3} mirrored caption={`در آینه، مثل ${timeFa(mirrorOf(time))}`} />
@@ -254,7 +254,7 @@ export function ClockTool() {
       board = (
         <Board view={[vx, vy, vw, vh + 1.4]} imageName="calendar" label="تقویم">
           <WeekG weekday={cal.weekday} lo={wlo} hi={whi} doy={cal.doy} year={cal.year} x={0} y={0} />
-          <text x={3.5} y={vh + 0.4} fontSize={0.42} fontWeight={700} textAnchor="middle" fill="#1f2430">
+          <text x={3.5} y={vh + 0.4} fontSize={0.42} fontWeight={700} textAnchor="middle" fill="#0f172a">
             {q.type === "month" ? `${fa(q.to.d)} ${MONTHS[q.to.m].name}${q.year !== undefined ? ` ${fa(q.year + 1)}` : ""}: ؟` : q.type === "weekday" ? `${fa(q.days)} روز ${q.back ? "پیش" : "بعد"}: ؟` : ""}
           </text>
         </Board>

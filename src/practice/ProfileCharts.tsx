@@ -5,10 +5,10 @@
 
 import { fa } from "@/tools/registry";
 
-const INK = "#1f2430";
-const MUTED = "#6b7080";
-const TRACK = "#ece6da";
-const RIGHT = "#3d7bf7";
+const INK = "#0f172a";
+const MUTED = "#5b6476";
+const TRACK = "#e5e7eb";
+const RIGHT = "#4f46e5";
 const WRONG = "#e08a1e";
 const GAP = 2;
 /** Narrower than this, the text gets too small: the page scrolls the chart sideways instead. */

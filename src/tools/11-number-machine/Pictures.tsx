@@ -10,8 +10,8 @@
 import { inverse, isMult, type Example, type OpDef, type Step } from "@/generators/number-machine";
 import { numFa, opDefFa, stepFa } from "./format";
 
-export const INK = "#1f2430";
-const SOFT = "#5b6170";
+export const INK = "#0f172a";
+const SOFT = "#5b6476";
 const TOKEN = "#ffc93d";
 const ADD_FILL = "#dcebff";
 const MULT_FILL = "#ffe3c2";

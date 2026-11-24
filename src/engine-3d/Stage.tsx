@@ -89,7 +89,7 @@ function Warmup() {
 }
 
 const DPR: Record<Quality, [number, number]> = { low: [1, 1], normal: [1, 1.5], high: [1, 2] };
-const TABLE = "#efe5d3";
+const TABLE = "#e9edf5";
 const MIN_DISTANCE = 3;
 const MAX_DISTANCE = 12;
 

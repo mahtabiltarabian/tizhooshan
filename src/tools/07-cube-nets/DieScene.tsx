@@ -15,7 +15,7 @@ import { fa } from "@/tools/registry";
 import { PIPS } from "./DiceSvg";
 
 const SIZE = 0.86;
-const INK = "#1f2430";
+const INK = "#0f172a";
 
 /** Face texture: pips, and the number in a corner. */
 function pipTexture(n: number): CanvasTexture {

@@ -62,7 +62,7 @@ interface MapProps {
   onTown?: (i: number) => void;
 }
 
-const halo = { stroke: "#efe5d3", strokeWidth: 4, paintOrder: "stroke" as const, vectorEffect: "non-scaling-stroke" as const };
+const halo = { stroke: "#e9edf5", strokeWidth: 4, paintOrder: "stroke" as const, vectorEffect: "non-scaling-stroke" as const };
 
 type XY = { x: number; y: number };
 function segDist(p: XY, a: XY, b: XY) {
@@ -193,7 +193,7 @@ export function MapG({ map: m, used = [], crossed = [], tags, current, labels, o
                   width={lw}
                   height={0.6}
                   rx={0.3}
-                  fill={label.final ? "#e3edff" : "#fff"}
+                  fill={label.final ? "#eef2ff" : "#fff"}
                   stroke={INK}
                   strokeWidth={label.final ? 3 : 1.5}
                   strokeDasharray={label.final ? undefined : "4 3"}

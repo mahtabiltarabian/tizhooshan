@@ -36,8 +36,8 @@ export function IsoCube({ view, size = 120 }: IsoCubeProps) {
         const matrix = `matrix(${k * rx} ${k * ry} ${-k * ux} ${-k * uy} ${o + k * cx} ${o + k * cy})`;
         return (
           <g key={slot} transform={matrix}>
-            <rect x={-1} y={-1} width={2} height={2} fill={SHADE[slot]} stroke="#1f2430" strokeWidth={0.05} strokeLinejoin="round" />
-            <text x={0} y={0.42} textAnchor="middle" fontSize={1.25} fontWeight={700} fill="#1f2430" fontFamily="Vazirmatn, sans-serif">
+            <rect x={-1} y={-1} width={2} height={2} fill={SHADE[slot]} stroke="#0f172a" strokeWidth={0.05} strokeLinejoin="round" />
+            <text x={0} y={0.42} textAnchor="middle" fontSize={1.25} fontWeight={700} fill="#0f172a" fontFamily="Vazirmatn, sans-serif">
               {symbol}
             </text>
           </g>

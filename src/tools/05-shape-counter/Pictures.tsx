@@ -8,7 +8,7 @@ import { useId } from "react";
 import { centroid, type CountFigure, type Pt, type Shape } from "@/generators/shape-count";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 
 /** A screen box to draw a figure in. */
 export interface Frame {

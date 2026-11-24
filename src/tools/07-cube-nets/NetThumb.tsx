@@ -32,7 +32,7 @@ export function NetThumb({ cells, size = 64, labels, colors }: NetThumbProps) {
               height={u - 2}
               rx={u * 0.18}
               fill={colors?.[i] ?? "var(--toy-4)"}
-              stroke="#1f2430"
+              stroke="#0f172a"
               strokeOpacity={0.25}
             />
             {labels && (

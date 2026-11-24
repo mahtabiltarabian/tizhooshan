@@ -30,8 +30,8 @@ import { divisorsOf, pageGroups, signsTrace, timeFa } from "./MoreText";
 import { NumberBoard } from "./NumberBoards";
 
 export const MORE_VIEW: [number, number, number, number] = [0, 0, 16, 9];
-const INK = "#1f2430";
-const SOFT = "#5b6170";
+const INK = "#0f172a";
+const SOFT = "#5b6476";
 const PAPER = "#ffffff";
 const MARK = "#fff1c2";
 const LINE = 2;

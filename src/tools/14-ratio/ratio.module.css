@@ -65,7 +65,7 @@
 .bar {
   width: 96px;
   height: 3px;
-  background: var(--ink, #1f2430);
+  background: var(--ink, #0f172a);
   border-radius: 2px;
 }
 

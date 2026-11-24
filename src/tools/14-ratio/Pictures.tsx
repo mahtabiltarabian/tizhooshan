@@ -8,7 +8,7 @@ import { fa } from "@/tools/registry";
 import { FracG } from "./Frac";
 import { PEOPLE, RATIO_THINGS, percentParts, tankOf } from "./text";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 export type Kind = "A" | "B" | "C";
 const FILLS: Record<Kind, { bg: string; line: string }> = {
   A: { bg: "#cfe0ff", line: "#2f6fdb" },

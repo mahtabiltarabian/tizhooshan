@@ -11,8 +11,8 @@
 import { divide, itemAt, SYMBOL_NAMES, SYMBOLS, type CycleQuestion, type CycleSet } from "@/generators/cycle";
 import { fa } from "@/tools/registry";
 
-const INK = "#1f2430";
-const SOFT = "#5b6170";
+const INK = "#0f172a";
+const SOFT = "#5b6476";
 const BOX = "#2f6fdb";
 const MARK = "#c0392b";
 const WAGON = "#fff6dc";

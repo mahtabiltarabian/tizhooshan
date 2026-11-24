@@ -13,7 +13,7 @@ export type Annotation =
   | { kind: "stroke"; color: string; points: [number, number][] }
   | { kind: "text"; color: string; x: number; y: number; text: string };
 
-export const PEN_COLORS = ["#e5484d", "#3d7bf7", "#1f2430"];
+export const PEN_COLORS = ["#e5484d", "#4f46e5", "#0f172a"];
 
 interface AnnotationLayerProps {
   tool: DrawTool;

@@ -10,11 +10,11 @@
 import { useEffect, useRef, useState } from "react";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
-const SOFT = "#5b6170";
+export const INK = "#0f172a";
+const SOFT = "#5b6476";
 const METAL = "#8a7f6c";
 export const SYM_FILL = ["#2f6fdb", "#f08c00", "#2b9348"];
-const BLOCK_FILL = "#6b6f7a";
+const BLOCK_FILL = "#64748b";
 const COIN_FILL = "#e9c46a";
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
@@ -480,7 +480,7 @@ export function BarsG({ rows, x, y, width, scale, caption }: { rows: BarRow[]; x
               at = r4(at - w);
               return (
                 <g key={j} opacity={p.crossed ? 0.45 : 1}>
-                  <rect x={at} y={top} width={w} height={h} fill={p.kind === "unit" ? "#e3edff" : "url(#bar-hatch)"} stroke={INK} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                  <rect x={at} y={top} width={w} height={h} fill={p.kind === "unit" ? "#eef2ff" : "url(#bar-hatch)"} stroke={INK} strokeWidth={2} vectorEffect="non-scaling-stroke" />
                   <text x={at + w / 2} y={top + h / 2} fontSize={Math.min(0.36, w * 0.45)} fontWeight={700} fill={INK} textAnchor="middle" dominantBaseline="central">
                     {p.label}
                   </text>

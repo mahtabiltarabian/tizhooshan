@@ -10,7 +10,7 @@ export function textTexture(text: string, width = 512, height = 128): CanvasText
   ctx.direction = "rtl";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#1f2430";
+  ctx.fillStyle = "#0f172a";
   ctx.fillText(text, width / 2, height * 0.55);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
@@ -24,7 +24,7 @@ export function hatchTexture(size = 128): CanvasTexture {
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = "#1f2430";
+  ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = size * 0.09;
   for (let d = -size; d < size * 2; d += size * 0.25) {
     ctx.beginPath();

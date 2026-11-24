@@ -12,12 +12,12 @@ import { useRef, useState } from "react";
 import { lineOk, lineSum, type NumberPuzzle } from "@/generators/number-puzzles";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 export const PEN = "#2f6fdb";
 const GIVEN = "#fff1cc";
 const ACCENT = "#d9480f";
 const BAD = "#c0392b";
-const SOFT = "#5b6170";
+const SOFT = "#5b6476";
 
 type Vals = readonly (number | null)[];
 type Pt = [number, number];

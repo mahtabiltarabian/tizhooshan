@@ -18,7 +18,7 @@ interface BoardProps {
   label?: string;
 }
 
-const BG = "#efe5d3";
+const BG = "#e9edf5";
 const PHONE = "(max-width: 900px)";
 
 type Box = [number, number, number, number];

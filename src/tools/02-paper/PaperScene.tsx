@@ -19,8 +19,8 @@ import {
 
 const FRONT = "#fffaf0";
 const BACK = "#cfe0ff";
-const TABLE = "#efe5d3";
-const INK = "#1f2430";
+const TABLE = "#e9edf5";
+const INK = "#0f172a";
 const CUT = "#e5484d";
 const LIFT = 0.03;
 

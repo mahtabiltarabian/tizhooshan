@@ -8,12 +8,12 @@
 
 .cell rect {
   fill: #fffaf0;
-  stroke: #1f2430;
+  stroke: #0f172a;
   stroke-width: 2;
 }
 
 .cell text {
-  fill: #1f2430;
+  fill: #0f172a;
   font-weight: 700;
   pointer-events: none;
 }
@@ -56,8 +56,8 @@
 }
 
 .wrong rect {
-  fill: #f4f1ec;
-  stroke: #6b6f7a;
+  fill: #f1f5f9;
+  stroke: #64748b;
   stroke-width: 5;
 }
 

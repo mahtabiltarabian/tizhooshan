@@ -26,7 +26,7 @@ export function labelTexture(label: string, warn = false, ink: "light" | "dark" 
   ctx.textBaseline = "middle";
   if (ink === "dark") {
     // Dark symbol on a pale face, as printed on an exam sheet.
-    ctx.fillStyle = "#1f2430";
+    ctx.fillStyle = "#0f172a";
   } else {
     ctx.lineJoin = "round";
     ctx.lineWidth = size * 0.06;

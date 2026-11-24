@@ -24,8 +24,8 @@ import { fa } from "@/tools/registry";
 import { numberSteps, pairTrials, primeTrials, primeWay, signsRowFa, smallestRows, treeSplits } from "./NumberText";
 
 const VIEW: [number, number, number, number] = [0, 0, 16, 9];
-const INK = "#1f2430";
-const SOFT = "#5b6170";
+const INK = "#0f172a";
+const SOFT = "#5b6476";
 const PAPER = "#ffffff";
 const MARK = "#fff1c2";
 const r2 = (v: number) => Math.round(v * 1000) / 1000;

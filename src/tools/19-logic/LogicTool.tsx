@@ -205,7 +205,7 @@ function VennBoard({ q, stmts, dots, user, onRegion }: { q: VennQuestion; stmts:
         );
       })}
       {stages.length > 1 && (
-        <text x={0} y={0} dy="0.35em" fontSize={0.6} fontWeight={800} textAnchor="middle" fill="#5b6170">
+        <text x={0} y={0} dy="0.35em" fontSize={0.6} fontWeight={800} textAnchor="middle" fill="#5b6476">
           ←
         </text>
       )}

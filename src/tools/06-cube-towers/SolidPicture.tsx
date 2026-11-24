@@ -36,7 +36,7 @@ export function SolidPictureSvg({ solid, size = 150, dots = false, label }: Soli
             y1={ay}
             x2={bx}
             y2={by}
-            stroke="#1f2430"
+            stroke="#0f172a"
             strokeWidth={e.hidden ? 1.6 : 2.6}
             strokeDasharray={e.hidden ? "5 4" : undefined}
             strokeLinecap="round"
@@ -46,7 +46,7 @@ export function SolidPictureSvg({ solid, size = 150, dots = false, label }: Soli
       {dots &&
         pic.points.map((p, i) => {
           const [x, y] = at(p);
-          return <circle key={i} cx={x} cy={y} r={3.6} fill={pic.vertexHidden[i] ? "#ffffff" : "#1f2430"} stroke="#1f2430" strokeWidth={1.4} />;
+          return <circle key={i} cx={x} cy={y} r={3.6} fill={pic.vertexHidden[i] ? "#ffffff" : "#0f172a"} stroke="#0f172a" strokeWidth={1.4} />;
         })}
     </svg>
   );

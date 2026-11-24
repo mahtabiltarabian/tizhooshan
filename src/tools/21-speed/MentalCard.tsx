@@ -10,7 +10,7 @@ import type { MentalQuestion } from "@/generators/mental";
 import { fa } from "@/tools/registry";
 import { itemText, ltr } from "./mentalText";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 const PEN = "#2f6fdb";
 const ACCENT = "#d9480f";
 const GOOD = "#1f9d55";
@@ -51,7 +51,7 @@ export function MentalCard({
         const boxX = x + W - 1.25;
         return (
           <g key={i} onClick={onSelect ? () => onSelect(i) : undefined} style={onSelect ? { cursor: "pointer" } : undefined}>
-            <rect x={x} y={y} width={W} height={H} rx={0.14} fill="#fff" stroke={mark === null ? "#e4dccd" : mark ? GOOD : BAD} strokeWidth={mark === null ? 0.03 : 0.07} />
+            <rect x={x} y={y} width={W} height={H} rx={0.14} fill="#fff" stroke={mark === null ? "#e5e7eb" : mark ? GOOD : BAD} strokeWidth={mark === null ? 0.03 : 0.07} />
             <text x={boxX - 0.15} y={y + 0.5} dy="0.35em" fontSize={it.nums.length > 3 ? 0.32 : it.nums.length > 2 ? 0.37 : 0.42} fontWeight={700} textAnchor="end" direction="ltr" fill={INK}>
               {ltr(`${itemText(it)} =`)}
             </text>

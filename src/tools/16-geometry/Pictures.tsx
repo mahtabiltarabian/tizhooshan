@@ -14,8 +14,8 @@ type F = [number, number];
 export type View = [number, number, number, number];
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
-const INK = "#1f2430";
-const MUTED = "#5b6170";
+const INK = "#0f172a";
+const MUTED = "#5b6476";
 export const SHAPE = "#1c6dd0";
 export const MINE = "#d9480f";
 export const EXAMPLE = "#1d8a55";

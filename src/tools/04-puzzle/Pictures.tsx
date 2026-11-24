@@ -7,8 +7,8 @@
 
 import { boxOf, optionTris, outline, PIECES, polyTris, type PieceKind, type Pt } from "@/generators/puzzle";
 
-export const INK = "#1f2430";
-export const SHADOW = "#5b6170";
+export const INK = "#0f172a";
+export const SHADOW = "#5b6476";
 
 const COLORS = ["#ff6b6b", "#4d96ff", "#4cc38a", "#ffc93d", "#b983ff", "#ff9f45", "#3ec1d3"];
 export const pieceColor = (i: number) => COLORS[i % COLORS.length];
@@ -92,7 +92,7 @@ export function PieceG({ kind, pose, color, label, dashed, faded, selected }: Pi
         d={pathOf([pts])}
         fill={color}
         fillOpacity={0.9}
-        stroke={selected ? "#1f2430" : INK}
+        stroke={selected ? "#0f172a" : INK}
         strokeWidth={selected ? 4 : 2}
         strokeDasharray={dashed ? "6 4" : undefined}
         strokeLinejoin="round"

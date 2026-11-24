@@ -684,7 +684,7 @@ export function MotionTool() {
             mark={done ? { t: sc.tEnd, label: `${fa(sc.tEnd)} ${u.time}` } : null}
           />
           {!done && (
-            <text x={8.3} y={5.8} fontSize={0.34} fontWeight={700} textAnchor="middle" fill="#5b6170">
+            <text x={8.3} y={5.8} fontSize={0.34} fontWeight={700} textAnchor="middle" fill="#5b6476">
               نمودار بعد از جواب کشیده می‌شود
             </text>
           )}
@@ -703,7 +703,7 @@ export function MotionTool() {
         <Board view={VIEW} imageName="compass" label="قطب‌نما و آدمک">
           <CompassG x={8} y={4.2} r={2.7} needle={false} highlight={done && step === n ? q.answer : !done ? q.start : null} />
           <WalkerCentre heading={heading} />
-          <text x={8} y={8.55} fontSize={0.36} fontWeight={700} textAnchor="middle" fill="#1f2430">
+          <text x={8} y={8.55} fontSize={0.36} fontWeight={700} textAnchor="middle" fill="#0f172a">
             {step === 0 ? `رو به ${COMPASS[q.start]}` : `${fa(step)}. ${turnFa(q.turns[step - 1], q.level === 3)} ← رو به ${COMPASS[wrap4(hs[step])]}`}
           </text>
         </Board>
@@ -714,7 +714,7 @@ export function MotionTool() {
       board = (
         <Board view={VIEW} imageName="map" label="نقشه شهرها و جاده‌ها">
           <MapG map={q.map} tags={questionTags(q)} used={pb?.used} crossed={pb?.crossed} current={pb?.current} />
-          <text x={8} y={0.5} fontSize={0.36} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170" direction="rtl">
+          <text x={8} y={0.5} fontSize={0.36} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6476" direction="rtl">
             {pb ? pb.caption : `عدد روی جاده‌ها: ${MAP_UNIT[q.unit]}`}
           </text>
         </Board>
@@ -737,7 +737,7 @@ export function MotionTool() {
             thingsOnly={pic.thingsOnly}
           />
           {pic.note && (
-            <text x={8} y={0.55} fontSize={0.34} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170" direction="rtl">
+            <text x={8} y={0.55} fontSize={0.34} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6476" direction="rtl">
               {done ? "" : pic.note}
             </text>
           )}
@@ -1373,13 +1373,13 @@ function WalkerCentre({ heading }: { heading: number }) {
   return (
     <g>
       <g transform={`translate(8 4.2) rotate(${Math.round(heading * 1000) / 1000})`}>
-        <path d="M0,-2.1 L0.28,-1.5 L-0.28,-1.5 Z" fill="#1f2430" />
-        <line x1={0} y1={0} x2={0} y2={-1.6} stroke="#1f2430" strokeWidth={4} vectorEffect="non-scaling-stroke" />
+        <path d="M0,-2.1 L0.28,-1.5 L-0.28,-1.5 Z" fill="#0f172a" />
+        <line x1={0} y1={0} x2={0} y2={-1.6} stroke="#0f172a" strokeWidth={4} vectorEffect="non-scaling-stroke" />
       </g>
       <g transform={`translate(8 4.2) rotate(${Math.round(heading * 1000) / 1000})`}>
-        <circle r={0.55} fill="#d9631e" stroke="#1f2430" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        <circle cx={-0.2} cy={-0.22} r={0.08} fill="#1f2430" />
-        <circle cx={0.2} cy={-0.22} r={0.08} fill="#1f2430" />
+        <circle r={0.55} fill="#d9631e" stroke="#0f172a" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        <circle cx={-0.2} cy={-0.22} r={0.08} fill="#0f172a" />
+        <circle cx={0.2} cy={-0.22} r={0.08} fill="#0f172a" />
       </g>
     </g>
   );

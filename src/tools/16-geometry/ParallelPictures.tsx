@@ -14,7 +14,7 @@ import { fa } from "@/tools/registry";
 import { ltr, type Overlay } from "./frames";
 import { SHAPE, type View } from "./Pictures";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 const MUTED = "#6b7180";
 const HI = "#b5651d";
 const PAPER = "#fffaf0";

@@ -8,7 +8,7 @@ import { useRef } from "react";
 import { angleBetween, dateOf, handAngles, MONTHS, WEEKDAYS } from "@/generators/clock";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 export const MINUTE = "#2f6fdb";
 const WEDGE = "#ffc93d";
 
@@ -212,7 +212,7 @@ export function WeekG({ weekday, lo, hi, doy, year, target, hideTarget, hops, x,
     const top = y + HEAD + i * CELL;
     if (row === null) {
       cells.push(
-        <text key={`gap${i}`} x={x + 3.5 * CELL} y={top + CELL / 2} fontSize={0.34} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170">
+        <text key={`gap${i}`} x={x + 3.5 * CELL} y={top + CELL / 2} fontSize={0.34} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6476">
           ⋮ {fa(skipped)} هفته کامل ⋮
         </text>,
       );
@@ -235,7 +235,7 @@ export function WeekG({ weekday, lo, hi, doy, year, target, hideTarget, hops, x,
             width={CELL - 0.08}
             height={CELL - 0.08}
             rx={0.1}
-            fill={isStart ? "#e3edff" : isTarget && !hideTarget ? "#fff1c2" : "#fff"}
+            fill={isStart ? "#eef2ff" : isTarget && !hideTarget ? "#fff1c2" : "#fff"}
             stroke={isStart || isTarget ? INK : "#cfc6b6"}
             strokeWidth={isStart || isTarget ? 2.5 : 1}
             strokeDasharray={isTarget && hideTarget ? "4 3" : undefined}

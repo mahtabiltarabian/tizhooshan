@@ -13,8 +13,12 @@ export default function Home() {
         <p>ببین، بساز، دست‌کاری کن — حتی بدون اینترنت</p>
         <OfflineStatus />
         <Link href="/practice/" className={styles.practice}>
-          <strong>تمرین</strong>
-          <span>بازی امروز، چالش روزانه و مرور اشتباه‌ها، به اندازه هر کودک</span>
+          <span className={styles.practiceText}>
+            <span className={styles.tag}>امروز</span>
+            <strong>تمرین</strong>
+            <span>بازی امروز، چالش روزانه و مرور اشتباه‌ها، به اندازه هر کودک</span>
+          </span>
+          <span className={styles.go}>شروع</span>
         </Link>
         {process.env.NEXT_PUBLIC_API_URL && (
           <p>
@@ -23,6 +27,7 @@ export default function Home() {
         )}
       </header>
 
+      <h2 className={styles.section}>ابزارها</h2>
       <ul className={styles.grid}>
         {TOOLS.map((tool) => {
           const card = (

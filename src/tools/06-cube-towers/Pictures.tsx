@@ -4,7 +4,7 @@ import type { Tower, ViewPicture } from "@/generators/cube-towers";
 import { fa } from "@/tools/registry";
 import styles from "./Pictures.module.css";
 
-const INK = "#1f2430";
+const INK = "#0f172a";
 
 /**
  * One view as exam sheets draw it: front and side as columns of squares,

@@ -6,7 +6,7 @@
   min-height: 360px;
   border-radius: var(--radius);
   overflow: hidden;
-  background: #efe5d3;
+  background: #e9edf5;
   box-shadow: var(--shadow);
   touch-action: none;
 }

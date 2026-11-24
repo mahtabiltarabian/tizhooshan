@@ -6,10 +6,10 @@
 
 import { fa } from "@/tools/registry";
 
-const INK = "#1f2430";
-const MUTED = "#6b7080";
-const TRACK = "#ece6da";
-const BAR = "#3d7bf7";
+const INK = "#0f172a";
+const MUTED = "#5b6476";
+const TRACK = "#e5e7eb";
+const BAR = "#4f46e5";
 
 const pct = (right: number, total: number) => (total ? Math.round((100 * right) / total) : 0);
 

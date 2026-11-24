@@ -38,8 +38,9 @@
   border-radius: 12px;
   display: inline-grid;
   place-items: center;
-  background: var(--toy-4);
-  color: #fff;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: 700;
 }
 
 .back {

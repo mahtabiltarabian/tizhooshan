@@ -135,7 +135,7 @@ function Scene(p: SceneProps) {
   return (
     <>
       <Wheel rule={p.rule} {...WHEEL} turn={ph.turn} reveal={ph.reveal} word={p.plain} linked={ph.linked} onTurn={p.onTurn} />
-      <text x={15.7} y={0.75} fontSize={0.42} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#1f2430">
+      <text x={15.7} y={0.75} fontSize={0.42} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#0f172a">
         {p.caption}
       </text>
       <RowLabel x={15.7} y={yTop} text={p.topLabel} />
@@ -150,7 +150,7 @@ function Scene(p: SceneProps) {
         </>
       )}
       {!p.mine && (
-        <text x={15.7} y={7.9} fontSize={0.6} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#1f2430">
+        <text x={15.7} y={7.9} fontSize={0.6} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#0f172a">
           {joined ? `«${textOf(p.top)}» ← «${ph.linked >= count ? textOf(p.bottom) : "…"}»` : `«${textOf(p.plain)}»`}
         </text>
       )}
@@ -170,7 +170,7 @@ function TryBoard({ q, answer, active, onSlot }: { q: CodeQuestion; answer: (num
   } else if (q.show === "words") {
     top = (
       <>
-        <text x={8} y={0.6} fontSize={0.42} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#1f2430">
+        <text x={8} y={0.6} fontSize={0.42} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#0f172a">
           قانون: {ruleFa(q.rule)}
         </text>
         <KeyTable letters={Array.from({ length: N }, (_, i) => i)} rule={null} codes={false} x={0.5} y={1.15} width={15} />
@@ -184,7 +184,7 @@ function TryBoard({ q, answer, active, onSlot }: { q: CodeQuestion; answer: (num
       return (
         <g key={k}>
           <TokenRow tokens={e.plain} kind="letter" right={8.5 + rowWidth(e.plain, size)} y={y} size={size} />
-          <text x={8} y={y} fontSize={0.6} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6170">
+          <text x={8} y={y} fontSize={0.6} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#5b6476">
             ←
           </text>
           <TokenRow tokens={e.coded} kind={codeKind} right={7.5} y={y} size={size} />
@@ -194,7 +194,7 @@ function TryBoard({ q, answer, active, onSlot }: { q: CodeQuestion; answer: (num
     topBottom = 0.75 + (q.examples.length - 1) * 1.15 + 0.5;
     top = (
       <>
-        <text x={15.5} y={0.75} fontSize={0.36} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#5b6170">
+        <text x={15.5} y={0.75} fontSize={0.36} fontWeight={700} textAnchor="end" dominantBaseline="central" fill="#5b6476">
           مثال‌ها
         </text>
         {top}

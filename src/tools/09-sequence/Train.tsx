@@ -10,8 +10,8 @@
 import { diffsOf, letterAt, type Rule } from "@/generators/sequence";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
-const SOFT = "#5b6170";
+export const INK = "#0f172a";
+const SOFT = "#5b6476";
 const WAGON = "#ffd36b";
 const WAGON_B = "#a8d8ff";
 const DIFF = "#2f6fdb";

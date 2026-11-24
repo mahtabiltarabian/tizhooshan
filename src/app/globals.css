@@ -1,13 +1,15 @@
 :root {
-  --bg: #f6f1e8;
+  --bg: #f6f7fb;
   --surface: #ffffff;
-  --ink: #1f2430;
-  --ink-soft: #5b6170;
-  --line: #e4dccd;
-  --accent: #3d7bf7;
-  --accent-soft: #e3edff;
-  --radius: 18px;
-  --shadow: 0 6px 18px rgba(60, 45, 20, 0.08);
+  --ink: #0f172a;
+  --ink-soft: #5b6476;
+  --line: #e5e7eb;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --accent-strong: #3730a3;
+  --head-font: "Noto Kufi Arabic", "Vazirmatn", system-ui, sans-serif;
+  --radius: 20px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
   /* Minimum touch target; larger in classroom mode. */
   --tap: 48px;
 
@@ -39,6 +41,25 @@ body {
 html[data-classroom="on"] {
   font-size: 23px;
   --tap: 66px;
+}
+
+/* Style C "clean and modern": Noto Kufi Arabic headings, Vazirmatn text. */
+h1,
+h2,
+h3 {
+  font-family: var(--head-font);
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-weight: 800;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button {

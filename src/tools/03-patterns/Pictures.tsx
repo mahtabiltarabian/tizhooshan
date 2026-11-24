@@ -8,7 +8,7 @@
 import { useId, type ReactNode } from "react";
 import type { FillName, ShapeName, Tile } from "@/generators/patterns";
 
-export const INK = "#1f2430";
+export const INK = "#0f172a";
 
 const PATHS: Record<ShapeName, string> = {
   circle: "M0,-0.88 A0.88,0.88 0 1 1 0,0.88 A0.88,0.88 0 1 1 0,-0.88 Z",
@@ -134,7 +134,7 @@ export function TileG({ tile: t, x, y, size, defs }: TileGProps) {
 
   if (t.lines !== undefined) {
     for (const [u, v] of [0.15, 0.5, 0.85].flatMap((a) => [0.15, 0.5, 0.85].map((b) => [a, b])))
-      parts.push(<circle key={`g${u}${v}`} cx={x + u * size} cy={y + v * size} r={size * 0.025} fill="#b9b2a5" />);
+      parts.push(<circle key={`g${u}${v}`} cx={x + u * size} cy={y + v * size} r={size * 0.025} fill="#94a3b8" />);
     STROKES.forEach(([x1, y1, x2, y2], i) => {
       if (t.lines! & (1 << i))
         parts.push(<line key={`s${i}`} x1={x + x1 * size} y1={y + y1 * size} x2={x + x2 * size} y2={y + y2 * size} stroke={INK} strokeWidth={4} strokeLinecap="round" vectorEffect="non-scaling-stroke" />);
@@ -142,8 +142,8 @@ export function TileG({ tile: t, x, y, size, defs }: TileGProps) {
   }
 
   if (t.marks) {
-    parts.push(<rect key="frame" x={x + 0.16 * size} y={y + 0.16 * size} width={0.68 * size} height={0.68 * size} fill="none" stroke="#b9b2a5" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />);
-    FRAME_SPOTS.forEach(([u, v], i) => parts.push(<circle key={`f${i}`} cx={x + u * size} cy={y + v * size} r={size * 0.035} fill="#fff" stroke="#b9b2a5" strokeWidth={1} vectorEffect="non-scaling-stroke" />));
+    parts.push(<rect key="frame" x={x + 0.16 * size} y={y + 0.16 * size} width={0.68 * size} height={0.68 * size} fill="none" stroke="#94a3b8" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />);
+    FRAME_SPOTS.forEach(([u, v], i) => parts.push(<circle key={`f${i}`} cx={x + u * size} cy={y + v * size} r={size * 0.035} fill="#fff" stroke="#94a3b8" strokeWidth={1} vectorEffect="non-scaling-stroke" />));
     t.marks.forEach((p, k) => {
       const [u, v] = FRAME_SPOTS[p];
       parts.push(

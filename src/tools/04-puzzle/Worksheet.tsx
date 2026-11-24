@@ -18,7 +18,7 @@ function Shadow({ ids, size, hole, lines }: { ids: number[]; size: number; hole?
   return (
     <svg width={size} height={size} viewBox={`${(x0 + x1 - s) / 2} ${(y0 + y1 - s) / 2} ${s} ${s}`} style={{ direction: "ltr" }}>
       <ShapeG ids={ids.filter((id) => !hole?.includes(id))} fill="#9a9fab" guides={lines} />
-      {hole && <ShapeG ids={hole} fill="#ffffff" stroke="#1f2430" dashed />}
+      {hole && <ShapeG ids={hole} fill="#ffffff" stroke="#0f172a" dashed />}
     </svg>
   );
 }

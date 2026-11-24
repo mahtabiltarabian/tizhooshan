@@ -35,9 +35,9 @@ import styles from "@/toolkit/TryPanel.module.css";
 import { ltr, TRY_TYPE_LABEL, type TryType } from "./CodesTryPanel";
 import { AnswerSlots, LetterKeyboard } from "./Inputs";
 
-const INK = "#1f2430";
-const SOFT = "#5b6170";
-const ACCENT = "#3d7bf7";
+const INK = "#0f172a";
+const SOFT = "#5b6476";
+const ACCENT = "#4f46e5";
 const BACK = "#d5dae4";
 const LIT = "#ffd84d";
 

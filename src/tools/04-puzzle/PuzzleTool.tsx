@@ -278,7 +278,7 @@ export function PuzzleTool() {
         <SheetG n={n} cells={a} x={ax} y={y} size={size} tint="#4d96ff" label="کاغذ ۱" />
         <SheetG n={n} cells={b} x={bx + (ax - bx) * e} y={y} size={size} tint="#ffc93d" label={e < 0.5 ? "کاغذ ۲" : undefined} a={move === "turn" ? 90 * turnT : 0} sx={move === "flip" ? 1 - 2 * turnT : 1} opacity={e > 0 ? 0.92 : 1} />
         {move !== "none" && t === 0 && (
-          <text x={bx + size / 2} y={y + size + 1.1} fontSize={0.5} fontWeight={700} textAnchor="middle" fill="#1f2430">
+          <text x={bx + size / 2} y={y + size + 1.1} fontSize={0.5} fontWeight={700} textAnchor="middle" fill="#0f172a">
             {move === "turn" ? "↻ یک ربع دور" : "⇋ برگردان"}
           </text>
         )}

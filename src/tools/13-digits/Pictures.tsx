@@ -15,8 +15,8 @@
 import { PLACE_NAMES, slotKinds, type SlotKind } from "@/generators/digits";
 import { fa } from "@/tools/registry";
 
-export const INK = "#1f2430";
-const SOFT = "#5b6170";
+export const INK = "#0f172a";
+const SOFT = "#5b6476";
 const CARD = "#ffffff";
 const MARK = "#ffc93d";
 const TENS = "#9fc3ff";

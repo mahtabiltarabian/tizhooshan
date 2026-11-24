@@ -846,7 +846,7 @@ function PartsG({ parts }: { parts: [Pt[], Pt[]] }) {
         return (
           <g key={i}>
             <polygon points={part.map((p) => p.join(",")).join(" ")} fill={i ? "#ffe2b8" : "#cfe3fb"} stroke="none" />
-            <text x={Math.round(cx * 1e4) / 1e4} y={Math.round(cy * 1e4) / 1e4} fontSize={0.4} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#1f2430" style={{ paintOrder: "stroke", stroke: "#fffaf0", strokeWidth: 0.09 }}>
+            <text x={Math.round(cx * 1e4) / 1e4} y={Math.round(cy * 1e4) / 1e4} fontSize={0.4} fontWeight={700} textAnchor="middle" dominantBaseline="central" fill="#0f172a" style={{ paintOrder: "stroke", stroke: "#fffaf0", strokeWidth: 0.09 }}>
               {i ? "ب" : "الف"}: {num(areaOf(part))}
             </text>
           </g>
