@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# جعبه‌ابزار تیزهوشان (Tizhooshan toolkit)
 
-## Getting Started
+21 interactive tools, practice, mock exams and child profiles for the
+Iranian gifted-school (تیزهوشان) entrance exam, grades 4–6. Persian, right to
+left, works offline (installable web app).
 
-First, run the development server:
+- **App:** Next.js 16 static export, React 19, TypeScript, Vitest (this folder).
+- **API server (optional):** NestJS + Prisma + PostgreSQL in [`server/`](server/README.md).
+  The app works fully without it; the server only adds sign-in by SMS code,
+  syncing between devices, the parent report on another device and the teacher panel.
+
+## Requirements
+
+- Node.js 20 or newer (tested with 20.19) and npm
+- Git
+- Only for the API server: Docker Desktop
+
+## Run the app
 
 ```bash
+git clone <repository URL> tizhooshan
+cd tizhooshan
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3100>. Register a child (only a name is needed) and
+the tools open. Everything is stored in the browser on that device.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run the app with the API server
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+In one terminal:
 
-## Learn More
+```bash
+cd server
+cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
+npm install
+npm run db:up               # PostgreSQL in Docker on port 5434
+npm run db:migrate
+npm run dev                 # API on http://localhost:3200/v1
+```
 
-To learn more about Next.js, take a look at the following resources:
+In a second terminal, from the project folder:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# macOS / Linux
+NEXT_PUBLIC_API_URL=http://localhost:3200 npm run dev
+# Windows PowerShell
+$env:NEXT_PUBLIC_API_URL="http://localhost:3200"; npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+In development, SMS sign-in codes are not sent; they are written to the
+server's log. More in [server/README.md](server/README.md).
 
-## Deploy on Vercel
+## Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | App on port 3100, reloads on changes |
+| `npm test` | Unit tests (Vitest) |
+| `npm run lint` | ESLint |
+| `npm run build` | Static site in `out/` plus the offline service worker |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Without `NEXT_PUBLIC_API_URL`, the build has no server features and can be
+hosted anywhere as static files (for example by dragging `out/` into Netlify).
+
+## Where things are
+
+| Folder | Contents |
+| --- | --- |
+| `src/app/` | Pages (main page, tools, practice, profile, teacher panel) |
+| `src/tools/` | The 21 tools, one folder each |
+| `src/generators/` | Question generators |
+| `src/practice/` | Practice engine, exams, profile, on-device storage |
+| `src/toolkit/`, `src/engine-2d/`, `src/engine-3d/` | Shared tool layout and drawing engines |
+| `server/` | API server |
+| `docs/` | Plans and status (`phase2-plan.md`, `phase1-remaining.md`) |
+
+## Privacy
+
+Children's answers stay on the device unless a parent links an account. A
+child's photo never leaves the device.
