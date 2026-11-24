@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AREA_LABEL, TOOLS, fa } from "@/tools/registry";
 import { OfflineStatus } from "./OfflineSupport";
 import { ProfilesBar } from "./ProfilesBar";
+import { AREA_INK, ToolPicture } from "./ToolPicture";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -32,8 +33,13 @@ export default function Home() {
         {TOOLS.map((tool) => {
           const card = (
             <>
-              <span className={styles.num}>{fa(tool.id)}</span>
-              <span className={styles.title}>{tool.title}</span>
+              <span className={styles.pic} style={{ background: AREA_INK[tool.area].bg }}>
+                <ToolPicture id={tool.id} area={tool.area} />
+              </span>
+              <span className={styles.name}>
+                <span className={styles.num}>{fa(tool.id)}</span>
+                <span className={styles.title}>{tool.title}</span>
+              </span>
               <span className={styles.meta}>
                 {AREA_LABEL[tool.area]}
                 {!tool.href && ` · موج ${fa(tool.wave)}`}

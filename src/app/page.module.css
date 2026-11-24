@@ -289,3 +289,72 @@
     padding: 0 16px;
   }
 }
+
+/* Each tool card: a tinted picture panel, then number + name, then area. */
+.pic {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  margin: -8px -8px 6px;
+  border-radius: 12px;
+}
+
+.pic svg {
+  width: 96px;
+  height: 96px;
+  transition: transform 0.2s ease;
+}
+
+.card > a:hover .pic svg,
+.card > a:focus-visible .pic svg {
+  transform: scale(1.08) rotate(-3deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pic svg {
+    transition: none;
+  }
+
+  .card > a:hover .pic svg,
+  .card > a:focus-visible .pic svg {
+    transform: none;
+  }
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name .num {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .pic {
+    height: 92px;
+    margin: -4px -4px 4px;
+  }
+
+  .pic svg {
+    width: 80px;
+    height: 80px;
+  }
+
+  .name .num {
+    width: 26px;
+    height: 26px;
+    font-size: 0.82rem;
+  }
+}
+
+@media print {
+  .pic {
+    display: none;
+  }
+}
